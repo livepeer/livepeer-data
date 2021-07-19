@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
+	amqp "github.com/rabbitmq/amqp091-go"
 	streamAmqp "github.com/rabbitmq/rabbitmq-stream-go-client/pkg/amqp"
 	"github.com/rabbitmq/rabbitmq-stream-go-client/pkg/stream"
-	"github.com/streadway/amqp"
 )
 
 type (
