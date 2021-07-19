@@ -4,11 +4,11 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
-	"fmt"
-	"log"
+	"flag"
 	"os"
 	"time"
 
+	"github.com/golang/glog"
 	"github.com/livepeer/healthy-streams/event"
 	"github.com/rabbitmq/rabbitmq-stream-go-client/pkg/logs"
 	"github.com/rabbitmq/rabbitmq-stream-go-client/pkg/stream"
@@ -22,13 +22,15 @@ const binding = "#.stream_health.transcode.#"
 var streamName = "sq_stream_health_2021-07-15T17:43:23-03:00"
 
 func main() {
-	log.Print("Hello")
+	flag.Set("logtostderr", "true")
+	flag.Parse()
+	glog.Info("Hello")
 
 	// Set log level, not mandatory by default is INFO
 	stream.SetLevelInfo(logs.DEBUG)
 
-	fmt.Println("Getting started with Streaming client for RabbitMQ")
-	fmt.Println("Connecting to RabbitMQ streaming ...")
+	glog.Info("Getting started with Streaming client for RabbitMQ")
+	glog.Info("Connecting to RabbitMQ streaming...")
 
 	// Connect to the broker ( or brokers )
 	consumer, err := event.NewStreamConsumer(streamUri)
@@ -54,8 +56,8 @@ func main() {
 
 	go func() {
 		defer cancel()
-		fmt.Println("Stream name", streamName)
-		fmt.Println("Press any key to stop ")
+		glog.Infoln("Stream name", streamName)
+		glog.Infoln("Press any key to stop")
 		bufio.NewReader(os.Stdin).ReadString('\n')
 		time.Sleep(200 * time.Millisecond)
 	}()
@@ -71,12 +73,9 @@ func main() {
 		}
 		err := json.Unmarshal(msg.Data[0], &v)
 		CheckErr(err)
-		log.Print("received message.",
-			" consumer=", msg.Consumer.GetName(),
-			" offset=", msg.Consumer.GetOffset(),
-			" seqNo=", v.Segment.SeqNo,
-			" starTimeAge=", time.Since(time.Unix(0, v.StartTime)),
-			" latency=", time.Duration(v.LatencyMs)*time.Millisecond)
+		glog.Infof("received message. consumer=%q, offset=%d, seqNo=%d, startTimeAge=%q, latency=%q",
+			msg.Consumer.GetName(), msg.Consumer.GetOffset(), v.Segment.SeqNo,
+			time.Since(time.Unix(0, v.StartTime)), time.Duration(v.LatencyMs)*time.Millisecond)
 		// err := consumerContext.Consumer.StoreOffset()
 		// CheckErr(err)
 	}
@@ -84,6 +83,6 @@ func main() {
 
 func CheckErr(err error) {
 	if err != nil {
-		log.Fatalln("error", err)
+		glog.Fatalln("error", err)
 	}
 }
