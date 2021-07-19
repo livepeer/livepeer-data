@@ -21,8 +21,6 @@ const binding = "#.stream_health.transcode.#"
 // var streamName = "sq_stream_health_" + time.Now().Format(time.RFC3339)
 var streamName = "sq_stream_health_2021-07-15T17:43:23-03:00"
 
-var byteCapacity = stream.ByteCapacity{}
-
 func main() {
 	log.Print("Hello")
 
@@ -41,15 +39,16 @@ func main() {
 	msgs, err := consumer.Consume(ctx, streamName, event.ConsumeOptions{
 		StreamOptions: &event.StreamOptions{
 			StreamOptions: stream.StreamOptions{
-				MaxLengthBytes:      byteCapacity.KB(10),
-				MaxSegmentSizeBytes: byteCapacity.KB(1),
+				MaxLengthBytes:      event.ByteCapacity.KB(10),
+				MaxSegmentSizeBytes: event.ByteCapacity.KB(1),
 				MaxAge:              5 * time.Minute,
 			},
 			BindingOptions: &event.BindingOptions{binding, exchange, nil},
 		},
 		ConsumerOptions: stream.NewConsumerOptions().
 			SetConsumerName("my_consumer"). // set a consumer name
-			SetOffset(stream.OffsetSpecification{}.Timestamp(startOffset)),
+			SetOffset(event.OffsetSpec.Timestamp(startOffset)),
+		MemorizeOffset: true,
 	})
 	CheckErr(err)
 

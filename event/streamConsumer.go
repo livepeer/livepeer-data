@@ -11,6 +11,9 @@ import (
 	"github.com/rabbitmq/rabbitmq-stream-go-client/pkg/stream"
 )
 
+var ByteCapacity = stream.ByteCapacity{}
+var OffsetSpec = stream.OffsetSpecification{}
+
 type (
 	BindingOptions struct {
 		Key      string
@@ -26,6 +29,7 @@ type (
 	ConsumeOptions struct {
 		*stream.ConsumerOptions
 		*StreamOptions
+		MemorizeOffset bool
 	}
 
 	StreamMessage struct {
@@ -80,11 +84,17 @@ func (c *strmConsumer) Consume(ctx context.Context, streamName string, opts Cons
 	}
 
 	msgChan := make(chan StreamMessage, 100)
-	handleMessages := func(consumerContext stream.ConsumerContext, message *streamAmqp.Message) {
-		msgChan <- StreamMessage{consumerContext, message}
+	handleMessages := func(consumerCtx stream.ConsumerContext, message *streamAmqp.Message) {
+		msgChan <- StreamMessage{consumerCtx, message}
 	}
-	connect := func() (*stream.Consumer, error) {
-		return c.env.NewConsumer(streamName, handleMessages, opts.ConsumerOptions)
+	connect := func(prevConsumer stream.ConsumerContext) (*stream.Consumer, error) {
+		connectOpts := *opts.ConsumerOptions
+		if prevCons := prevConsumer.Consumer; prevCons != nil {
+			if offset := prevCons.GetOffset(); opts.MemorizeOffset && offset > 0 {
+				connectOpts.SetOffset(OffsetSpec.Offset(offset))
+			}
+		}
+		return c.env.NewConsumer(streamName, handleMessages, &connectOpts)
 	}
 
 	ctx = whileAll(ctx.Done(), c.done)
@@ -105,8 +115,10 @@ func (c *strmConsumer) Stop() error {
 	return c.env.Close()
 }
 
-func newReconnectingConsumer(ctx context.Context, streamName string, connect func() (*stream.Consumer, error)) (<-chan struct{}, error) {
-	consumer, err := connect()
+type connectFunc = func(prevConsumer stream.ConsumerContext) (*stream.Consumer, error)
+
+func newReconnectingConsumer(ctx context.Context, streamName string, connect connectFunc) (<-chan struct{}, error) {
+	consumer, err := connect(stream.ConsumerContext{})
 	if err != nil {
 		return nil, err
 	}
@@ -123,7 +135,7 @@ func newReconnectingConsumer(ctx context.Context, streamName string, connect fun
 				return
 			case ev := <-consumer.NotifyClose():
 				glog.Errorf("Stream consumer closed, reconnecting. consumer=%q, stream=%q, reason=%q", ev.Name, ev.StreamName, ev.Reason)
-				consumer = ensureConnect(ctx, streamName, connect)
+				consumer = ensureConnect(ctx, streamName, connect, stream.ConsumerContext{Consumer: consumer})
 				if consumer == nil {
 					return
 				}
@@ -133,9 +145,9 @@ func newReconnectingConsumer(ctx context.Context, streamName string, connect fun
 	return done, nil
 }
 
-func ensureConnect(ctx context.Context, streamName string, connect func() (*stream.Consumer, error)) *stream.Consumer {
+func ensureConnect(ctx context.Context, streamName string, connect connectFunc, prevConsumer stream.ConsumerContext) *stream.Consumer {
 	for {
-		consumer, err := connect()
+		consumer, err := connect(prevConsumer)
 		if err == nil {
 			return consumer
 		}
