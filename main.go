@@ -47,7 +47,7 @@ func main() {
 			},
 			BindingOptions: &event.BindingOptions{binding, exchange, nil},
 		},
-		ConsumerOptions: *stream.NewConsumerOptions().
+		ConsumerOptions: stream.NewConsumerOptions().
 			SetConsumerName("my_consumer"). // set a consumer name
 			SetOffset(stream.OffsetSpecification{}.Timestamp(startOffset)),
 	})

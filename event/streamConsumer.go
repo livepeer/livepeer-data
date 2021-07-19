@@ -3,7 +3,9 @@ package event
 import (
 	"context"
 	"fmt"
+	"time"
 
+	"github.com/golang/glog"
 	amqp "github.com/rabbitmq/amqp091-go"
 	streamAmqp "github.com/rabbitmq/rabbitmq-stream-go-client/pkg/amqp"
 	"github.com/rabbitmq/rabbitmq-stream-go-client/pkg/stream"
@@ -22,7 +24,7 @@ type (
 	}
 
 	ConsumeOptions struct {
-		stream.ConsumerOptions
+		*stream.ConsumerOptions
 		*StreamOptions
 	}
 
@@ -37,8 +39,9 @@ type (
 	}
 
 	strmConsumer struct {
-		uri string
-		env *stream.Environment
+		uri  string
+		env  *stream.Environment
+		done chan struct{}
 	}
 )
 
@@ -50,7 +53,7 @@ func NewStreamConsumer(uri string) (StreamConsumer, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &strmConsumer{uri, env}, nil
+	return &strmConsumer{uri, env, make(chan struct{})}, nil
 }
 
 func (c *strmConsumer) Consume(ctx context.Context, streamName string, opts ConsumeOptions) (<-chan StreamMessage, error) {
@@ -80,31 +83,82 @@ func (c *strmConsumer) Consume(ctx context.Context, streamName string, opts Cons
 	handleMessages := func(consumerContext stream.ConsumerContext, message *streamAmqp.Message) {
 		msgChan <- StreamMessage{consumerContext, message}
 	}
-	consumer, err := c.env.NewConsumer(streamName, handleMessages, &opts.ConsumerOptions)
+	connect := func() (*stream.Consumer, error) {
+		return c.env.NewConsumer(streamName, handleMessages, opts.ConsumerOptions)
+	}
+
+	ctx = whileAll(ctx.Done(), c.done)
+	done, err := newReconnectingConsumer(ctx, streamName, connect)
 	if err != nil {
 		return nil, err
 	}
-	go func() {
-		defer close(msgChan)
-		<-ctx.Done()
-		consumer.Close()
-	}()
-	// TODO: implement recovery on that close notification
-	go notifyConsumerClose(ctx, consumer.NotifyClose())
 
+	go func() {
+		<-done
+		close(msgChan)
+	}()
 	return msgChan, nil
 }
 
 func (c *strmConsumer) Stop() error {
+	close(c.done)
 	return c.env.Close()
 }
 
-func notifyConsumerClose(ctx context.Context, channelClose stream.ChannelClose) {
-	select {
-	case event := <-channelClose:
-		panic(fmt.Sprintf("Recovery not implemented. Consumer: %s closed on the stream: %s, reason: %s \n", event.Name, event.StreamName, event.Reason))
-	case <-ctx.Done():
+func newReconnectingConsumer(ctx context.Context, streamName string, connect func() (*stream.Consumer, error)) (<-chan struct{}, error) {
+	consumer, err := connect()
+	if err != nil {
+		return nil, err
 	}
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for {
+			select {
+			case <-ctx.Done():
+				if err := consumer.Close(); err != nil {
+					glog.Errorf("Error closing stream consumer. consumer=%q, stream=%q, err=%q", consumer.GetName(), streamName, err)
+				}
+				return
+			case ev := <-consumer.NotifyClose():
+				glog.Errorf("Stream consumer closed, reconnecting. consumer=%q, stream=%q, reason=%q", ev.Name, ev.StreamName, ev.Reason)
+				consumer = ensureConnect(ctx, streamName, connect)
+				if consumer == nil {
+					return
+				}
+			}
+		}
+	}()
+	return done, nil
+}
+
+func ensureConnect(ctx context.Context, streamName string, connect func() (*stream.Consumer, error)) *stream.Consumer {
+	for {
+		consumer, err := connect()
+		if err == nil {
+			return consumer
+		}
+		glog.Errorf("Stream consumer reconnection failure. stream=%q, error=%q", streamName, err)
+		select {
+		case <-time.After(3 * time.Second):
+			glog.Infof("Retrying stream consumer reconnection. stream=%q", streamName)
+		case <-ctx.Done():
+			return nil
+		}
+	}
+}
+
+func whileAll(done1, done2 <-chan struct{}) context.Context {
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		defer cancel()
+		select {
+		case <-done1:
+		case <-done2:
+		}
+	}()
+	return ctx
 }
 
 func bindQueue(uri, queue string, opts BindingOptions) error {
