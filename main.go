@@ -18,8 +18,7 @@ const streamUri = "rabbitmq-stream://guest:guest@localhost:5552/livepeer"
 const exchange = "lp_golivepeer_metadata"
 const binding = "#.stream_health.transcode.#"
 
-// var streamName = "sq_stream_health_" + time.Now().Format(time.RFC3339)
-var streamName = "sq_stream_health_2021-07-15T17:43:23-03:00"
+var streamName = "sq_stream_health_v0"
 
 func main() {
 	flag.Set("logtostderr", "true")
@@ -45,7 +44,7 @@ func main() {
 				MaxSegmentSizeBytes: event.ByteCapacity.KB(1),
 				MaxAge:              5 * time.Minute,
 			},
-			BindingOptions: &event.BindingOptions{binding, exchange, nil},
+			BindingOptions: &event.BindingOptions{Key: binding, Exchange: exchange},
 		},
 		ConsumerOptions: stream.NewConsumerOptions().
 			SetConsumerName("my_consumer"). // set a consumer name
@@ -73,11 +72,15 @@ func main() {
 		}
 		err := json.Unmarshal(msg.Data[0], &v)
 		CheckErr(err)
+
 		glog.Infof("received message. consumer=%q, offset=%d, seqNo=%d, startTimeAge=%q, latency=%q",
 			msg.Consumer.GetName(), msg.Consumer.GetOffset(), v.Segment.SeqNo,
 			time.Since(time.Unix(0, v.StartTime)), time.Duration(v.LatencyMs)*time.Millisecond)
 		// err := consumerContext.Consumer.StoreOffset()
 		// CheckErr(err)
+
+		// TODO: now use these events for something useful like building stream
+		// health state in memory.
 	}
 }
 
