@@ -72,11 +72,11 @@ func main() {
 				time.Since(time.Unix(0, evt.StartTime)), time.Duration(evt.LatencyMs)*time.Millisecond)
 
 			mid := evt.ManifestID
-			var health StreamHealthStatus
+			var health *StreamHealthStatus
 			if saved, ok := streamHealths.Load(mid); ok {
-				health = saved.(StreamHealthStatus)
+				health = saved.(*StreamHealthStatus)
 			} else {
-				health = StreamHealthStatus{
+				health = &StreamHealthStatus{
 					ManifestID: mid,
 					Conditions: []*HealthCondition{
 						{Type: Transcoding},
@@ -84,23 +84,28 @@ func main() {
 						{Type: NoErrors},
 					},
 				}
+				streamHealths.Store(mid, health)
 			}
-			ts := time.Unix(0, evt.StartTime).Add(time.Duration(evt.LatencyMs))
-			for _, condition := range health.Conditions {
-				switch condition.Type {
+			ts := time.Unix(0, evt.StartTime).Add(time.Duration(evt.LatencyMs)).UTC()
+			healthyMustsCount := 0
+			for _, cond := range health.Conditions {
+				switch cond.Type {
 				case Transcoding:
-					condition.Update(ts, evt.Success)
+					cond.Update(ts, evt.Success)
 				case RealTime:
-					condition.Update(ts, evt.LatencyMs < int64(evt.Segment.Duration*1000))
+					cond.Update(ts, evt.LatencyMs < int64(evt.Segment.Duration*1000))
 				case NoErrors:
 					noErrors := true
 					for _, attempt := range evt.Attempts {
 						noErrors = noErrors && attempt.Error == nil
 					}
-					condition.Update(ts, noErrors)
+					cond.Update(ts, noErrors)
+				}
+				if healthyMustHaves[cond.Type] && cond.Status != nil && *cond.Status {
+					healthyMustsCount++
 				}
 			}
-			streamHealths.Store(mid, health)
+			health.Healthy = healthyMustsCount == len(healthyMustHaves)
 		}
 	}()
 
@@ -128,7 +133,7 @@ func main() {
 			rw.WriteHeader(http.StatusNotFound)
 			return
 		}
-		health := healthIface.(StreamHealthStatus)
+		health := healthIface.(*StreamHealthStatus)
 		rw.WriteHeader(http.StatusOK)
 		if err := json.NewEncoder(rw).Encode(health); err != nil {
 			glog.Errorf("Error writing stream health JSON response. err=%q", err)
@@ -203,7 +208,10 @@ func (c *HealthCondition) Update(now time.Time, status bool) {
 	}
 }
 
+var healthyMustHaves = map[HealthConditionType]bool{Transcoding: true, RealTime: true}
+
 type StreamHealthStatus struct {
 	ManifestID string
+	Healthy    bool
 	Conditions []*HealthCondition
 }
