@@ -16,8 +16,7 @@ var ByteCapacity = stream.ByteCapacity{}
 var OffsetSpec = stream.OffsetSpecification{}
 
 type (
-	BindingOptions struct {
-		AmqpUri  string
+	BindingArgs struct {
 		Key      string
 		Exchange string
 		Args     amqp.Table
@@ -25,7 +24,7 @@ type (
 
 	StreamOptions struct {
 		stream.StreamOptions
-		*BindingOptions
+		Bindings []BindingArgs
 	}
 
 	ConsumeOptions struct {
@@ -45,21 +44,29 @@ type (
 	}
 
 	strmConsumer struct {
-		uri  string
+		streamUri, amqpUri string
+
 		env  *stream.Environment
 		done chan struct{}
 	}
 )
 
-func NewStreamConsumer(uri string) (StreamConsumer, error) {
+func NewStreamConsumer(streamUri, amqpUri string) (StreamConsumer, error) {
+	var err error
+	if amqpUri == "" {
+		amqpUri, err = toAmqpScheme(streamUri)
+		if err != nil {
+			return nil, fmt.Errorf("error converting stream uri %q to amqp: %w", streamUri, err)
+		}
+	}
 	opts := stream.NewEnvironmentOptions().
 		SetMaxConsumersPerClient(5).
-		SetUri(uri)
+		SetUri(streamUri)
 	env, err := stream.NewEnvironment(opts)
 	if err != nil {
 		return nil, err
 	}
-	return &strmConsumer{uri, env, make(chan struct{})}, nil
+	return &strmConsumer{streamUri, amqpUri, env, make(chan struct{})}, nil
 }
 
 func (c *strmConsumer) Stop() error {
@@ -114,8 +121,8 @@ func (c *strmConsumer) createStream(streamName string, opts StreamOptions) error
 	if err != nil {
 		return err
 	}
-	if opts.BindingOptions != nil {
-		err = bindQueue(c.uri, streamName, *opts.BindingOptions)
+	if len(opts.Bindings) > 0 {
+		err = bindQueue(c.amqpUri, streamName, opts.Bindings)
 		if err != nil {
 			// stream creation is not idempotent, so delete it when binding fails
 			delErr := c.env.DeleteStream(streamName)
@@ -186,15 +193,7 @@ func whileAll(done1, done2 <-chan struct{}) context.Context {
 	return ctx
 }
 
-func bindQueue(streamUri, queue string, opts BindingOptions) (err error) {
-	uri := opts.AmqpUri
-	if uri == "" {
-		uri, err = toAmqpScheme(streamUri)
-		if err != nil {
-			return fmt.Errorf("error converting stream uri to amqp: %w", err)
-		}
-	}
-
+func bindQueue(uri, queue string, bindings []BindingArgs) error {
 	conn, err := amqp.Dial(uri)
 	if err != nil {
 		return fmt.Errorf("dial %q: %w", uri, err)
@@ -207,9 +206,11 @@ func bindQueue(streamUri, queue string, opts BindingOptions) (err error) {
 	}
 	defer channel.Close()
 
-	err = channel.QueueBind(queue, opts.Key, opts.Exchange, false, opts.Args)
-	if err != nil {
-		return fmt.Errorf("queue bind: %w", err)
+	for _, bind := range bindings {
+		err = channel.QueueBind(queue, bind.Key, bind.Exchange, false, bind.Args)
+		if err != nil {
+			return fmt.Errorf("queue bind to %q at %q: %w", bind.Exchange, bind.Key, err)
+		}
 	}
 	return nil
 }
@@ -224,9 +225,12 @@ func toAmqpScheme(uri string) (string, error) {
 		url.Scheme = "amqps"
 	case "rabbitmq-stream":
 		url.Scheme = "amqp"
+	default:
+		return "", fmt.Errorf("unknown scheme: %s", url.Scheme)
 	}
-	if url.Port() == "5552" {
-		url.Host = url.Hostname() + ":5672"
+	if port := url.Port(); port != "5552" {
+		return "", fmt.Errorf("cannot convert non-default port: %s", port)
 	}
+	url.Host = url.Hostname() + ":5672"
 	return url.String(), nil
 }
