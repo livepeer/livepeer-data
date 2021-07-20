@@ -32,7 +32,7 @@ func main() {
 	glog.Info("Connecting to RabbitMQ streaming...")
 
 	// Connect to the broker ( or brokers )
-	consumer, err := event.NewStreamConsumer(streamUri)
+	consumer, err := event.NewStreamConsumer(streamUri, "")
 	CheckErr(err)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -40,11 +40,13 @@ func main() {
 	msgs, err := consumer.Consume(ctx, streamName, event.ConsumeOptions{
 		StreamOptions: &event.StreamOptions{
 			StreamOptions: stream.StreamOptions{
-				MaxLengthBytes:      event.ByteCapacity.KB(10),
-				MaxSegmentSizeBytes: event.ByteCapacity.KB(1),
-				MaxAge:              5 * time.Minute,
+				MaxLengthBytes:      event.ByteCapacity.GB(1),
+				MaxSegmentSizeBytes: event.ByteCapacity.KB(5), // should be like 500MB in production
+				MaxAge:              1 * time.Hour,
 			},
-			BindingOptions: &event.BindingOptions{Key: binding, Exchange: exchange},
+			Bindings: []event.BindingArgs{
+				{Key: binding, Exchange: exchange},
+			},
 		},
 		ConsumerOptions: stream.NewConsumerOptions().
 			SetConsumerName("my_consumer"). // set a consumer name
