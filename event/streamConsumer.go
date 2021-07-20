@@ -62,6 +62,11 @@ func NewStreamConsumer(uri string) (StreamConsumer, error) {
 	return &strmConsumer{uri, env, make(chan struct{})}, nil
 }
 
+func (c *strmConsumer) Stop() error {
+	close(c.done)
+	return c.env.Close()
+}
+
 func (c *strmConsumer) Consume(ctx context.Context, streamName string, opts ConsumeOptions) (<-chan StreamMessage, error) {
 	exists, err := c.env.StreamExists(streamName)
 	if err != nil {
@@ -71,20 +76,9 @@ func (c *strmConsumer) Consume(ctx context.Context, streamName string, opts Cons
 		if opts.StreamOptions == nil {
 			return nil, fmt.Errorf("stream not found: %s", streamName)
 		}
-		strmOpts := opts.StreamOptions
-		err = c.env.DeclareStream(streamName, &strmOpts.StreamOptions)
+		err = c.createStream(streamName, *opts.StreamOptions)
 		if err != nil {
-			return nil, err
-		}
-		if strmOpts.BindingOptions != nil {
-			err = bindQueue(c.uri, streamName, *strmOpts.BindingOptions)
-			if err != nil {
-				// stream creation is not idempotent, so delete it when binding fails
-				if delErr := c.env.DeleteStream(streamName); delErr != nil {
-					err = fmt.Errorf("delete error: %q; after bind error: %w", delErr, err)
-				}
-				return nil, err
-			}
+			return nil, fmt.Errorf("error creating stream: %w", err)
 		}
 	}
 
@@ -115,9 +109,23 @@ func (c *strmConsumer) Consume(ctx context.Context, streamName string, opts Cons
 	return msgChan, nil
 }
 
-func (c *strmConsumer) Stop() error {
-	close(c.done)
-	return c.env.Close()
+func (c *strmConsumer) createStream(streamName string, opts StreamOptions) error {
+	err := c.env.DeclareStream(streamName, &opts.StreamOptions)
+	if err != nil {
+		return err
+	}
+	if opts.BindingOptions != nil {
+		err = bindQueue(c.uri, streamName, *opts.BindingOptions)
+		if err != nil {
+			// stream creation is not idempotent, so delete it when binding fails
+			delErr := c.env.DeleteStream(streamName)
+			if delErr != nil {
+				err = fmt.Errorf("delete error: %q; after bind error: %w", delErr, err)
+			}
+			return err
+		}
+	}
+	return nil
 }
 
 type connectFunc = func(prevConsumer stream.ConsumerContext) (*stream.Consumer, error)
