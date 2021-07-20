@@ -3,6 +3,7 @@ package event
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"time"
 
 	"github.com/golang/glog"
@@ -16,6 +17,7 @@ var OffsetSpec = stream.OffsetSpecification{}
 
 type (
 	BindingOptions struct {
+		AmqpUri  string
 		Key      string
 		Exchange string
 		Args     amqp.Table
@@ -74,10 +76,13 @@ func (c *strmConsumer) Consume(ctx context.Context, streamName string, opts Cons
 		if err != nil {
 			return nil, err
 		}
-
 		if strmOpts.BindingOptions != nil {
 			err = bindQueue(c.uri, streamName, *strmOpts.BindingOptions)
 			if err != nil {
+				// stream creation is not idempotent, so delete it when binding fails
+				if delErr := c.env.DeleteStream(streamName); delErr != nil {
+					err = fmt.Errorf("delete error: %q; after bind error: %w", delErr, err)
+				}
 				return nil, err
 			}
 		}
@@ -173,10 +178,18 @@ func whileAll(done1, done2 <-chan struct{}) context.Context {
 	return ctx
 }
 
-func bindQueue(uri, queue string, opts BindingOptions) error {
+func bindQueue(streamUri, queue string, opts BindingOptions) (err error) {
+	uri := opts.AmqpUri
+	if uri == "" {
+		uri, err = toAmqpScheme(streamUri)
+		if err != nil {
+			return fmt.Errorf("error converting stream uri to amqp: %w", err)
+		}
+	}
+
 	conn, err := amqp.Dial(uri)
 	if err != nil {
-		return fmt.Errorf("dial: %w", err)
+		return fmt.Errorf("dial %q: %w", uri, err)
 	}
 	defer conn.Close()
 
@@ -191,4 +204,21 @@ func bindQueue(uri, queue string, opts BindingOptions) error {
 		return fmt.Errorf("queue bind: %w", err)
 	}
 	return nil
+}
+
+func toAmqpScheme(uri string) (string, error) {
+	url, err := url.Parse(uri)
+	if err != nil {
+		return "", err
+	}
+	switch url.Scheme {
+	case "rabbitmq-stream+tls":
+		url.Scheme = "amqps"
+	case "rabbitmq-stream":
+		url.Scheme = "amqp"
+	}
+	if url.Port() == "5552" {
+		url.Host = url.Hostname() + ":5672"
+	}
+	return url.String(), nil
 }
