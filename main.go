@@ -7,6 +7,7 @@ import (
 	"flag"
 	"net/http"
 	"os"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -101,7 +102,7 @@ func main() {
 					}
 					cond.Update(ts, noErrors)
 				}
-				if healthyMustHaves[cond.Type] && cond.Status != nil && *cond.Status {
+				if healthyMustHaves[cond.Type] && cond.Status != nil && *cond.Status && cond.Frequency.PastMinute == 1 {
 					healthyMustsCount++
 				}
 			}
@@ -186,26 +187,88 @@ const (
 	NoErrors    HealthConditionType = "NoErrors"
 )
 
-// type StatusFrequency struct {
-// 	LastMinute    float64
-// 	Last10Minutes float64
-// 	LastHour      float64
-// }
+type observation struct {
+	timestamp time.Time
+	status    bool
+}
+
+type StatusFrequency struct {
+	PastMinute    float64
+	Past10Minutes float64
+	PastHour      float64
+
+	observations []observation
+	calcStates   [3]freqCalcState
+}
+
+type freqCalcState struct {
+	trueObsCount int
+	idx          int
+}
+
+func (st *freqCalcState) Update(obss []observation, new observation, threshold time.Time) float64 {
+	if new.status && threshold.Before(new.timestamp) {
+		st.trueObsCount++
+	}
+	for st.idx < len(obss) && threshold.After(obss[st.idx].timestamp) {
+		if obss[st.idx].status {
+			st.trueObsCount--
+		}
+		st.idx++
+	}
+	return float64(st.trueObsCount) / float64(len(obss)-st.idx)
+}
+
+func (st *freqCalcState) shift(by int) {
+	st.idx = st.idx - by
+}
+
+func (f *StatusFrequency) Update(ts time.Time, status bool) {
+	insertIdx := len(f.observations)
+	if insertIdx > 0 && ts.Before(f.observations[insertIdx-1].timestamp) {
+		insertIdx = sort.Search(len(f.observations), func(i int) bool {
+			return ts.Before(f.observations[i].timestamp)
+		})
+	}
+	new := observation{ts, status}
+	f.observations = insertObs(f.observations, insertIdx, new)
+
+	latest := f.observations[len(f.observations)-1].timestamp
+	f.PastMinute = f.calcStates[0].Update(f.observations, new, latest.Add(-1*time.Minute))
+	f.Past10Minutes = f.calcStates[1].Update(f.observations, new, latest.Add(-10*time.Minute))
+	f.PastHour = f.calcStates[2].Update(f.observations, new, latest.Add(-1*time.Hour))
+
+	if shiftBy := f.calcStates[2].idx; shiftBy > 0 {
+		f.observations = f.observations[shiftBy:]
+		// iterate with idx to avoid obj copy
+		for i := range f.calcStates {
+			f.calcStates[i].shift(shiftBy)
+		}
+	}
+}
+
+func insertObs(slc []observation, idx int, val observation) []observation {
+	slc = append(slc, observation{})
+	copy(slc[idx+1:], slc[idx:])
+	slc[idx] = val
+	return slc
+}
 
 type HealthCondition struct {
-	Type   HealthConditionType
-	Status *bool
-	// Frequency          *StatusFrequency
+	Type               HealthConditionType
+	Status             *bool
+	Frequency          StatusFrequency
 	LastProbeTime      time.Time
 	LastTransitionTime time.Time
 }
 
-func (c *HealthCondition) Update(now time.Time, status bool) {
-	c.LastProbeTime = now
+func (c *HealthCondition) Update(ts time.Time, status bool) {
+	c.LastProbeTime = ts
 	if c.Status == nil || *c.Status != status {
-		c.LastTransitionTime = now
+		c.LastTransitionTime = ts
 		c.Status = &status
 	}
+	c.Frequency.Update(ts, status)
 }
 
 var healthyMustHaves = map[HealthConditionType]bool{Transcoding: true, RealTime: true}
