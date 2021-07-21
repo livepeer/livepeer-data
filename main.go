@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"flag"
+	"math/rand"
 	"net/http"
 	"os"
 	"strings"
@@ -67,9 +68,13 @@ func main() {
 			err := json.Unmarshal(msg.Data[0], &evt)
 			CheckErr(err)
 
-			glog.Infof("received message. consumer=%q, offset=%d, seqNo=%d, startTimeAge=%q, latency=%q",
+			if rand.Intn(100) < 100 {
+				evt.Success = rand.Intn(100) < 98
+			}
+
+			glog.Infof("received message. consumer=%q, offset=%d, seqNo=%d, startTimeAge=%q, latency=%q, success=%v",
 				msg.Consumer.GetName(), msg.Consumer.GetOffset(), evt.Segment.SeqNo,
-				time.Since(time.Unix(0, evt.StartTime)), time.Duration(evt.LatencyMs)*time.Millisecond)
+				time.Since(time.Unix(0, evt.StartTime)), time.Duration(evt.LatencyMs)*time.Millisecond, evt.Success)
 
 			mid := evt.ManifestID
 			var health *StreamHealthStatus
