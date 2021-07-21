@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"flag"
+	"fmt"
 	"math/rand"
 	"net/http"
 	"os"
@@ -64,7 +65,7 @@ func main() {
 	go func() {
 		for msg := range msgs {
 			// json, err := json.Marshal(message.Properties)
-			var evt StreamHealthTranscodeEvent
+			var evt *StreamHealthTranscodeEvent
 			err := json.Unmarshal(msg.Data[0], &evt)
 			CheckErr(err)
 
@@ -77,42 +78,14 @@ func main() {
 				time.Since(time.Unix(0, evt.StartTime)), time.Duration(evt.LatencyMs)*time.Millisecond, evt.Success)
 
 			mid := evt.ManifestID
-			var health *StreamHealthStatus
+			var health *StreamHealthContext
 			if saved, ok := streamHealths.Load(mid); ok {
-				health = saved.(*StreamHealthStatus)
+				health = saved.(*StreamHealthContext)
 			} else {
-				health = &StreamHealthStatus{
-					ManifestID: mid,
-					Conditions: []*HealthCondition{
-						{Type: Transcoding},
-						{Type: RealTime},
-						{Type: NoErrors},
-					},
-				}
+				health = NewStreamHealthContext(mid, Transcoding, RealTime, NoErrors)
 				streamHealths.Store(mid, health)
 			}
-			ts := time.Unix(0, evt.StartTime).Add(time.Duration(evt.LatencyMs)).UTC()
-			for _, cond := range health.Conditions {
-				switch cond.Type {
-				case Transcoding:
-					cond.Update(ts, evt.Success)
-				case RealTime:
-					cond.Update(ts, evt.LatencyMs < int64(evt.Segment.Duration*1000))
-				case NoErrors:
-					noErrors := true
-					for _, attempt := range evt.Attempts {
-						noErrors = noErrors && attempt.Error == nil
-					}
-					cond.Update(ts, noErrors)
-				}
-			}
-			healthyMustsCount := 0
-			for _, cond := range health.Conditions {
-				if healthyMustHaves[cond.Type] && cond.Status != nil && *cond.Status {
-					healthyMustsCount++
-				}
-			}
-			health.Healthy.Update(ts, healthyMustsCount == len(healthyMustHaves))
+			health.LastStatus = ReduceStreamHealth(health, evt)
 		}
 	}()
 
@@ -140,15 +113,58 @@ func main() {
 			rw.WriteHeader(http.StatusNotFound)
 			return
 		}
-		health := healthIface.(*StreamHealthStatus)
+		health := healthIface.(*StreamHealthContext)
 		rw.WriteHeader(http.StatusOK)
-		if err := json.NewEncoder(rw).Encode(health); err != nil {
+		if err := json.NewEncoder(rw).Encode(health.LastStatus); err != nil {
 			glog.Errorf("Error writing stream health JSON response. err=%q", err)
 		}
 	})
 
 	if err := srv.ListenAndServe(); err != http.ErrServerClosed {
 		CheckErr(err)
+	}
+}
+
+func ReduceStreamHealth(healthCtx *StreamHealthContext, evt *StreamHealthTranscodeEvent) *StreamHealthStatus {
+	ts := time.Unix(0, evt.StartTime).Add(time.Duration(evt.LatencyMs)).UTC()
+	newStatus := &StreamHealthStatus{ManifestID: evt.ManifestID}
+	for _, condType := range healthCtx.Conditions {
+		newCond := NewHealthCondition(condType, ts,
+			conditionStatus(evt, condType),
+			healthCtx.LastStatus.getCondition(condType))
+		newStatus.Conditions = append(newStatus.Conditions, newCond)
+	}
+	healthyMustsCount := 0
+	for _, cond := range newStatus.Conditions {
+		if healthyMustHaves[cond.Type] && cond.Status != nil && *cond.Status {
+			healthyMustsCount++
+		}
+	}
+	isHealthy := healthyMustsCount == len(healthyMustHaves)
+
+	var last *HealthCondition
+	if healthCtx.LastStatus != nil {
+		last = &healthCtx.LastStatus.Healthy
+	}
+	newStatus.Healthy = *NewHealthCondition("", ts, &isHealthy, last)
+	return newStatus
+}
+
+func conditionStatus(evt *StreamHealthTranscodeEvent, condType HealthConditionType) *bool {
+	switch condType {
+	case Transcoding:
+		return &evt.Success
+	case RealTime:
+		isRealTime := evt.LatencyMs < int64(evt.Segment.Duration*1000)
+		return &isRealTime
+	case NoErrors:
+		noErrors := true
+		for _, attempt := range evt.Attempts {
+			noErrors = noErrors && attempt.Error == nil
+		}
+		return &noErrors
+	default:
+		return nil
 	}
 }
 
@@ -237,11 +253,13 @@ func (a StatsAggregator) Average() float64 {
 }
 
 type TimedFrequency struct {
-	PastMinute    float64
-	Past10Minutes float64
-	PastHour      float64
+	Past map[string]float64
 
 	stats [3]StatsAggregator
+}
+
+func (f *TimedFrequency) MarshalJSON() ([]byte, error) {
+	return json.Marshal(f.Past)
 }
 
 func (f *TimedFrequency) Update(ts time.Time, value bool) {
@@ -249,12 +267,19 @@ func (f *TimedFrequency) Update(ts time.Time, value bool) {
 	if value {
 		measure = 1
 	}
-	for i := range f.stats {
-		f.stats[i].Add(ts, measure)
+	f.setPast(0, ts, measure, 1*time.Minute)
+	f.setPast(1, ts, measure, 10*time.Minute)
+	f.setPast(2, ts, measure, 1*time.Hour)
+}
+
+func (f *TimedFrequency) setPast(statsIdx int, ts time.Time, measure float64, window time.Duration) {
+	if f.Past == nil {
+		f.Past = map[string]float64{}
 	}
-	f.PastMinute = f.stats[0].Clip(1 * time.Minute).Average()
-	f.Past10Minutes = f.stats[1].Clip(10 * time.Minute).Average()
-	f.PastHour = f.stats[2].Clip(1 * time.Hour).Average()
+	f.Past[fmt.Sprintf("%gm", window.Minutes())] = f.stats[statsIdx].
+		Add(ts, measure).
+		Clip(window).
+		Average()
 }
 
 type HealthCondition struct {
@@ -265,13 +290,26 @@ type HealthCondition struct {
 	LastTransitionTime time.Time
 }
 
-func (c *HealthCondition) Update(ts time.Time, status bool) {
-	c.LastProbeTime = ts
-	if c.Status == nil || *c.Status != status {
-		c.LastTransitionTime = ts
-		c.Status = &status
+func NewHealthCondition(condType HealthConditionType, ts time.Time, status *bool, last *HealthCondition) *HealthCondition {
+	cond := &HealthCondition{
+		Type:               condType,
+		Status:             status,
+		LastProbeTime:      ts,
+		LastTransitionTime: ts,
 	}
-	c.Frequency.Update(ts, status)
+	if last != nil && boolPtrsEq(last.Status, status) {
+		cond.LastTransitionTime = last.LastTransitionTime
+	}
+	return cond
+}
+
+func boolPtrsEq(b1, b2 *bool) bool {
+	if nil1, nil2 := b1 == nil, b2 == nil; nil1 && nil2 {
+		return true
+	} else if nil1 != nil2 {
+		return false
+	}
+	return *b1 == *b2
 }
 
 var healthyMustHaves = map[HealthConditionType]bool{Transcoding: true, RealTime: true}
@@ -280,4 +318,39 @@ type StreamHealthStatus struct {
 	ManifestID string
 	Healthy    HealthCondition
 	Conditions []*HealthCondition
+}
+
+func (s *StreamHealthStatus) getCondition(condType HealthConditionType) *HealthCondition {
+	if s == nil {
+		return nil
+	}
+	for _, cond := range s.Conditions {
+		if cond.Type == condType {
+			return cond
+		}
+	}
+	return nil
+}
+
+type StreamHealthContext struct {
+	ManifestID string
+	Conditions []HealthConditionType
+
+	PastEvents     []StreamHealthTranscodeEvent
+	HealthStats    map[time.Duration]StatsAggregator
+	ConditionStats map[HealthConditionType]map[time.Duration]StatsAggregator
+
+	LastStatus *StreamHealthStatus
+}
+
+func NewStreamHealthContext(mid string, conditions ...HealthConditionType) *StreamHealthContext {
+	ctx := &StreamHealthContext{
+		HealthStats:    map[time.Duration]StatsAggregator{},
+		Conditions:     conditions,
+		ConditionStats: map[HealthConditionType]map[time.Duration]StatsAggregator{},
+	}
+	for _, cond := range conditions {
+		ctx.ConditionStats[cond] = map[time.Duration]StatsAggregator{}
+	}
+	return ctx
 }
