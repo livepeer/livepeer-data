@@ -7,7 +7,6 @@ import (
 	"flag"
 	"net/http"
 	"os"
-	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -88,7 +87,6 @@ func main() {
 				streamHealths.Store(mid, health)
 			}
 			ts := time.Unix(0, evt.StartTime).Add(time.Duration(evt.LatencyMs)).UTC()
-			healthyMustsCount := 0
 			for _, cond := range health.Conditions {
 				switch cond.Type {
 				case Transcoding:
@@ -102,11 +100,14 @@ func main() {
 					}
 					cond.Update(ts, noErrors)
 				}
-				if healthyMustHaves[cond.Type] && cond.Status != nil && *cond.Status && cond.Frequency.PastMinute == 1 {
+			}
+			healthyMustsCount := 0
+			for _, cond := range health.Conditions {
+				if healthyMustHaves[cond.Type] && cond.Status != nil && *cond.Status {
 					healthyMustsCount++
 				}
 			}
-			health.Healthy = healthyMustsCount == len(healthyMustHaves)
+			health.Healthy.Update(ts, healthyMustsCount == len(healthyMustHaves))
 		}
 	}()
 
@@ -187,77 +188,74 @@ const (
 	NoErrors    HealthConditionType = "NoErrors"
 )
 
-type observation struct {
+type measure struct {
 	timestamp time.Time
-	status    bool
+	value     float64
 }
 
-type StatusFrequency struct {
-	PastMinute    float64
-	Past10Minutes float64
-	PastHour      float64
-
-	observations []observation
-	calcStates   [3]freqCalcState
+type StatsAggregator struct {
+	measures []measure
+	sum      float64
 }
 
-type freqCalcState struct {
-	trueObsCount int
-	idx          int
-}
-
-func (st *freqCalcState) Update(obss []observation, new observation, threshold time.Time) float64 {
-	if new.status && threshold.Before(new.timestamp) {
-		st.trueObsCount++
+func (a *StatsAggregator) Add(ts time.Time, value float64) *StatsAggregator {
+	a.sum += value
+	insertIdx := len(a.measures)
+	for insertIdx > 0 && ts.Before(a.measures[insertIdx-1].timestamp) {
+		insertIdx--
 	}
-	for st.idx < len(obss) && threshold.After(obss[st.idx].timestamp) {
-		if obss[st.idx].status {
-			st.trueObsCount--
-		}
-		st.idx++
-	}
-	return float64(st.trueObsCount) / float64(len(obss)-st.idx)
+	a.measures = insertMeasure(a.measures, insertIdx, measure{ts, value})
+	return a
 }
 
-func (st *freqCalcState) shift(by int) {
-	st.idx = st.idx - by
-}
-
-func (f *StatusFrequency) Update(ts time.Time, status bool) {
-	insertIdx := len(f.observations)
-	if insertIdx > 0 && ts.Before(f.observations[insertIdx-1].timestamp) {
-		insertIdx = sort.Search(len(f.observations), func(i int) bool {
-			return ts.Before(f.observations[i].timestamp)
-		})
-	}
-	new := observation{ts, status}
-	f.observations = insertObs(f.observations, insertIdx, new)
-
-	latest := f.observations[len(f.observations)-1].timestamp
-	f.PastMinute = f.calcStates[0].Update(f.observations, new, latest.Add(-1*time.Minute))
-	f.Past10Minutes = f.calcStates[1].Update(f.observations, new, latest.Add(-10*time.Minute))
-	f.PastHour = f.calcStates[2].Update(f.observations, new, latest.Add(-1*time.Hour))
-
-	if shiftBy := f.calcStates[2].idx; shiftBy > 0 {
-		f.observations = f.observations[shiftBy:]
-		// iterate with idx to avoid obj copy
-		for i := range f.calcStates {
-			f.calcStates[i].shift(shiftBy)
-		}
-	}
-}
-
-func insertObs(slc []observation, idx int, val observation) []observation {
-	slc = append(slc, observation{})
+func insertMeasure(slc []measure, idx int, val measure) []measure {
+	slc = append(slc, measure{})
 	copy(slc[idx+1:], slc[idx:])
 	slc[idx] = val
 	return slc
 }
 
+func (a *StatsAggregator) Clip(window time.Duration) *StatsAggregator {
+	threshold := a.measures[len(a.measures)-1].timestamp.Add(-window)
+	for len(a.measures) > 0 && !threshold.Before(a.measures[0].timestamp) {
+		a.sum -= a.measures[0].value
+		a.measures = a.measures[1:]
+	}
+	return a
+}
+
+func (a StatsAggregator) Average() float64 {
+	if len(a.measures) == 0 {
+		return 0
+	}
+	return a.sum / float64(len(a.measures))
+}
+
+type TimedFrequency struct {
+	PastMinute    float64
+	Past10Minutes float64
+	PastHour      float64
+
+	stats [3]StatsAggregator
+}
+
+func (f *TimedFrequency) Update(ts time.Time, value bool) {
+	measure := float64(0)
+	if value {
+		measure = 1
+	}
+	for i := range f.stats {
+		f.stats[i].Add(ts, measure)
+	}
+	f.PastMinute = f.stats[0].Clip(1 * time.Minute).Average()
+	f.Past10Minutes = f.stats[1].Clip(10 * time.Minute).Average()
+	f.PastHour = f.stats[2].Clip(1 * time.Hour).Average()
+}
+
 type HealthCondition struct {
-	Type               HealthConditionType
+	Type               HealthConditionType `json:"Type,omitempty"`
 	Status             *bool
-	Frequency          StatusFrequency
+	Frequency          TimedFrequency
 	LastProbeTime      time.Time
 	LastTransitionTime time.Time
 }
@@ -275,6 +273,6 @@ var healthyMustHaves = map[HealthConditionType]bool{Transcoding: true, RealTime:
 
 type StreamHealthStatus struct {
 	ManifestID string
-	Healthy    bool
+	Healthy    HealthCondition
 	Conditions []*HealthCondition
 }
