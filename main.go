@@ -2,12 +2,12 @@ package main
 
 import (
 	"bufio"
+	"container/list"
 	"context"
 	"encoding/json"
 	"flag"
 	"net/http"
 	"os"
-	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -197,43 +197,70 @@ type StatusFrequency struct {
 	Past10Minutes float64
 	PastHour      float64
 
-	observations []observation
+	observations list.List
 	calcStates   [3]freqCalcState
 }
 
 type freqCalcState struct {
-	trueObsCount int
-	idx          int
+	mark                  *list.Element
+	countAfter, countTrue int
 }
 
-func (st *freqCalcState) Update(obss []observation, new observation, threshold time.Time) float64 {
-	if new.status && threshold.Before(new.timestamp) {
-		st.trueObsCount++
-	}
-	for st.idx < len(obss) && threshold.After(obss[st.idx].timestamp) {
-		if obss[st.idx].status {
-			st.trueObsCount--
+func (st *freqCalcState) Update(obss list.List, new observation, threshold time.Time) float64 {
+	if st.mark == nil {
+		st.mark, st.countAfter, st.countTrue = obss.Back(), 1, 0
+		if st.mark.Value.(observation).status {
+			st.countTrue++
 		}
-		st.idx++
+	} else {
+		if !st.mark.Value.(observation).timestamp.After(new.timestamp) {
+			st.countAfter++
+			if new.status {
+				st.countTrue++
+			}
+		}
 	}
-	return float64(st.trueObsCount) / float64(len(obss)-st.idx)
+	newMark, diff := search(st.mark, func(e *list.Element) bool {
+		return e.Value.(observation).timestamp.After(new.timestamp)
+	})
+	st.countAfter = st.countAfter + diff
+	trueIncr := 1
+	if diff < 0 {
+		trueIncr = -1
+	}
+	for st.mark != newMark {
+		if st.mark.Value.(observation).status {
+			st.countTrue = st.countTrue + trueIncr
+		}
+		if diff > 0 {
+			st.mark = st.mark.Next()
+		} else {
+			st.mark = st.mark.Prev()
+		}
+	}
+
+	return float64(st.countTrue) / float64(st.countAfter)
 }
 
-func (st *freqCalcState) shift(by int) {
-	st.idx = st.idx - by
+func search(e *list.Element, test func(e *list.Element) bool) (*list.Element, int) {
+	diff := 0
+	if test(e) {
+		for p := e.Prev(); p != nil && test(p); e, p = p, p.Prev() {
+			diff--
+		}
+	} else {
+		for e = e.Next(); e != nil && !test(e); e = e.Next() {
+			diff++
+		}
+	}
+	return e, diff
 }
 
 func (f *StatusFrequency) Update(ts time.Time, status bool) {
-	insertIdx := len(f.observations)
-	if insertIdx > 0 && ts.Before(f.observations[insertIdx-1].timestamp) {
-		insertIdx = sort.Search(len(f.observations), func(i int) bool {
-			return ts.Before(f.observations[i].timestamp)
-		})
-	}
 	new := observation{ts, status}
-	f.observations = insertObs(f.observations, insertIdx, new)
+	insertSorted(f.observations, new)
 
-	latest := f.observations[len(f.observations)-1].timestamp
+	latest := f.observations.Back().Value.(observation).timestamp
 	f.PastMinute = f.calcStates[0].Update(f.observations, new, latest.Add(-1*time.Minute))
 	f.Past10Minutes = f.calcStates[1].Update(f.observations, new, latest.Add(-10*time.Minute))
 	f.PastHour = f.calcStates[2].Update(f.observations, new, latest.Add(-1*time.Hour))
@@ -247,11 +274,21 @@ func (f *StatusFrequency) Update(ts time.Time, status bool) {
 	}
 }
 
-func insertObs(slc []observation, idx int, val observation) []observation {
-	slc = append(slc, observation{})
-	copy(slc[idx+1:], slc[idx:])
-	slc[idx] = val
-	return slc
+func insertSorted(l list.List, val observation) *list.Element {
+	if l.Len() == 0 {
+		return l.PushBack(val)
+	}
+	var insertAfter *list.Element
+	for ; insertAfter != nil; insertAfter = insertAfter.Prev() {
+		currTs := insertAfter.Value.(observation).timestamp
+		if !val.timestamp.Before(currTs) {
+			break
+		}
+	}
+	if insertAfter == nil {
+		return l.PushFront(val)
+	}
+	return l.InsertAfter(val, insertAfter)
 }
 
 type HealthCondition struct {
