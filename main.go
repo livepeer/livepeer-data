@@ -79,18 +79,15 @@ func main() {
 				time.Since(time.Unix(0, evt.StartTime)), time.Duration(evt.LatencyMs)*time.Millisecond, evt.Success)
 
 			mid := evt.ManifestID
-			var health *StreamHealthContext
+			var healthCtx *StreamHealthContext
 			if saved, ok := streamHealths.Load(mid); ok {
-				health = saved.(*StreamHealthContext)
+				healthCtx = saved.(*StreamHealthContext)
 			} else {
-				health = NewStreamHealthContext(mid,
-					[]HealthConditionType{Transcoding, RealTime, NoErrors},
-					[]time.Duration{1 * time.Minute, 10 * time.Minute, 1 * time.Hour},
-				)
-				streamHealths.Store(mid, health)
+				healthCtx = NewStreamHealthContext(mid, healthConditions, statsWindows)
+				streamHealths.Store(mid, healthCtx)
 			}
-			health.LastStatus = ReduceStreamHealth(health, evt)
-			health.PastEvents = append(health.PastEvents, evt) // TODO: crop/drop these at some point
+			healthCtx.LastStatus = ReduceStreamHealth(healthCtx, evt)
+			healthCtx.PastEvents = append(healthCtx.PastEvents, evt) // TODO: crop/drop these at some point
 		}
 	}()
 
@@ -130,26 +127,33 @@ func main() {
 	}
 }
 
-func ReduceStreamHealth(healthCtx *StreamHealthContext, evt *health.TranscodeEvent) StreamHealthStatus {
+var healthyMustHaves = map[health.ConditionType]bool{
+	health.ConditionTranscoding: true,
+	health.ConditionRealTime:    true,
+}
+var healthConditions = []health.ConditionType{health.ConditionTranscoding, health.ConditionRealTime, health.ConditionNoErrors}
+var statsWindows = []time.Duration{1 * time.Minute, 10 * time.Minute, 1 * time.Hour}
+
+func ReduceStreamHealth(healthCtx *StreamHealthContext, evt *health.TranscodeEvent) health.Status {
 	ts := time.Unix(0, evt.StartTime).Add(time.Duration(evt.LatencyMs)).UTC()
 
-	conditions := make([]*HealthCondition, len(healthCtx.Conditions))
+	conditions := make([]*health.Condition, len(healthCtx.Conditions))
 	for i, condType := range healthCtx.Conditions {
 		status := conditionStatus(evt, condType)
 		stats := healthCtx.ConditionStats[condType].Averages(healthCtx.StatsWindows, ts, status)
 
-		last := healthCtx.LastStatus.getCondition(condType)
-		conditions[i] = NewHealthCondition(condType, ts, status, stats, last)
+		last := healthCtx.LastStatus.GetCondition(condType)
+		conditions[i] = health.NewCondition(condType, ts, status, stats, last)
 	}
 
-	return StreamHealthStatus{
+	return health.Status{
 		ManifestID: evt.ManifestID,
 		Healthy:    diagnoseStream(healthCtx, conditions, ts),
 		Conditions: conditions,
 	}
 }
 
-func diagnoseStream(healthCtx *StreamHealthContext, currConditions []*HealthCondition, ts time.Time) HealthCondition {
+func diagnoseStream(healthCtx *StreamHealthContext, currConditions []*health.Condition, ts time.Time) health.Condition {
 	healthyMustsCount := 0
 	for _, cond := range currConditions {
 		if healthyMustHaves[cond.Type] && cond.Status != nil && *cond.Status {
@@ -160,17 +164,17 @@ func diagnoseStream(healthCtx *StreamHealthContext, currConditions []*HealthCond
 	healthStats := healthCtx.HealthStats.Averages(healthCtx.StatsWindows, ts, &isHealthy)
 
 	last := &healthCtx.LastStatus.Healthy
-	return *NewHealthCondition("", ts, &isHealthy, healthStats, last)
+	return *health.NewCondition("", ts, &isHealthy, healthStats, last)
 }
 
-func conditionStatus(evt *health.TranscodeEvent, condType HealthConditionType) *bool {
+func conditionStatus(evt *health.TranscodeEvent, condType health.ConditionType) *bool {
 	switch condType {
-	case Transcoding:
+	case health.ConditionTranscoding:
 		return &evt.Success
-	case RealTime:
+	case health.ConditionRealTime:
 		isRealTime := evt.LatencyMs < int64(evt.Segment.Duration*1000)
 		return &isRealTime
-	case NoErrors:
+	case health.ConditionNoErrors:
 		noErrors := true
 		for _, attempt := range evt.Attempts {
 			noErrors = noErrors && attempt.Error == nil
@@ -187,94 +191,33 @@ func CheckErr(err error) {
 	}
 }
 
-type HealthConditionType string
-
-const (
-	Transcoding HealthConditionType = "Transcoding"
-	RealTime    HealthConditionType = "RealTime"
-	NoErrors    HealthConditionType = "NoErrors"
-)
-
-type HealthCondition struct {
-	Type               HealthConditionType `json:"type,omitempty"`
-	Status             *bool               `json:"status"`
-	Frequency          stats.ByWindow      `json:"frequency,omitempty"`
-	LastProbeTime      *time.Time          `json:"lastProbeTime"`
-	LastTransitionTime *time.Time          `json:"lastTransitionsTime"`
-}
-
-func NewHealthCondition(condType HealthConditionType, ts time.Time, status *bool, frequency stats.ByWindow, last *HealthCondition) *HealthCondition {
-	cond := &HealthCondition{Type: condType}
-	if last != nil && last.Type == condType {
-		*cond = *last
-	}
-	if status != nil {
-		cond.LastProbeTime = &ts
-		if !boolPtrsEq(status, cond.Status) {
-			cond.LastTransitionTime = &ts
-		}
-		cond.Status = status
-		cond.Frequency = frequency
-	}
-	return cond
-}
-
-func boolPtrsEq(b1, b2 *bool) bool {
-	if nil1, nil2 := b1 == nil, b2 == nil; nil1 && nil2 {
-		return true
-	} else if nil1 != nil2 {
-		return false
-	}
-	return *b1 == *b2
-}
-
-var healthyMustHaves = map[HealthConditionType]bool{Transcoding: true, RealTime: true}
-
-type StreamHealthStatus struct {
-	ManifestID string             `json:"manifestId"`
-	Healthy    HealthCondition    `json:"healthy"`
-	Conditions []*HealthCondition `json:"conditions"`
-}
-
-func (s *StreamHealthStatus) getCondition(condType HealthConditionType) *HealthCondition {
-	if s == nil {
-		return nil
-	}
-	for _, cond := range s.Conditions {
-		if cond.Type == condType {
-			return cond
-		}
-	}
-	return nil
-}
-
 type StreamHealthContext struct {
 	ManifestID   string
-	Conditions   []HealthConditionType
+	Conditions   []health.ConditionType
 	StatsWindows []time.Duration
 
 	PastEvents     []*health.TranscodeEvent
 	HealthStats    stats.WindowAggregators
-	ConditionStats map[HealthConditionType]stats.WindowAggregators
+	ConditionStats map[health.ConditionType]stats.WindowAggregators
 
-	LastStatus StreamHealthStatus
+	LastStatus health.Status
 }
 
-func NewStreamHealthContext(mid string, conditions []HealthConditionType, statsWindows []time.Duration) *StreamHealthContext {
+func NewStreamHealthContext(mid string, conditions []health.ConditionType, statsWindows []time.Duration) *StreamHealthContext {
 	ctx := &StreamHealthContext{
 		ManifestID:     mid,
 		Conditions:     conditions,
 		StatsWindows:   statsWindows,
 		HealthStats:    stats.WindowAggregators{},
-		ConditionStats: map[HealthConditionType]stats.WindowAggregators{},
-		LastStatus: StreamHealthStatus{
+		ConditionStats: map[health.ConditionType]stats.WindowAggregators{},
+		LastStatus: health.Status{
 			ManifestID: mid,
-			Healthy:    *NewHealthCondition("", time.Time{}, nil, nil, nil),
-			Conditions: make([]*HealthCondition, len(conditions)),
+			Healthy:    *health.NewCondition("", time.Time{}, nil, nil, nil),
+			Conditions: make([]*health.Condition, len(conditions)),
 		},
 	}
 	for i, cond := range conditions {
-		ctx.LastStatus.Conditions[i] = NewHealthCondition(cond, time.Time{}, nil, nil, nil)
+		ctx.LastStatus.Conditions[i] = health.NewCondition(cond, time.Time{}, nil, nil, nil)
 		ctx.ConditionStats[cond] = stats.WindowAggregators{}
 	}
 	return ctx
