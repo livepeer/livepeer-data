@@ -4,12 +4,15 @@ import (
 	"time"
 )
 
-var healthyMustHaves = map[ConditionType]bool{
-	ConditionTranscoding: true,
-	ConditionRealTime:    true,
-}
-var defaultConditions = []ConditionType{ConditionTranscoding, ConditionRealTime, ConditionNoErrors}
-var statsWindows = []time.Duration{1 * time.Minute, 10 * time.Minute, 1 * time.Hour}
+var (
+	healthyMustHaves = map[ConditionType]bool{
+		ConditionTranscoding: true,
+		ConditionRealTime:    true,
+	}
+	defaultConditions = []ConditionType{ConditionTranscoding, ConditionRealTime, ConditionNoErrors}
+	statsWindows      = []time.Duration{1 * time.Minute, 10 * time.Minute, 1 * time.Hour}
+	maxStatsWindow    = statsWindows[len(statsWindows)-1]
+)
 
 type Core struct {
 	RecordStorage
