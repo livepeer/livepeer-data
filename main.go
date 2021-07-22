@@ -66,7 +66,7 @@ func main() {
 	go func() {
 		for msg := range msgs {
 			// json, err := json.Marshal(message.Properties)
-			var evt *StreamHealthTranscodeEvent
+			var evt *health.TranscodeEvent
 			err := json.Unmarshal(msg.Data[0], &evt)
 			CheckErr(err)
 
@@ -130,7 +130,7 @@ func main() {
 	}
 }
 
-func ReduceStreamHealth(healthCtx *StreamHealthContext, evt *StreamHealthTranscodeEvent) StreamHealthStatus {
+func ReduceStreamHealth(healthCtx *StreamHealthContext, evt *health.TranscodeEvent) StreamHealthStatus {
 	ts := time.Unix(0, evt.StartTime).Add(time.Duration(evt.LatencyMs)).UTC()
 
 	conditions := make([]*HealthCondition, len(healthCtx.Conditions))
@@ -163,7 +163,7 @@ func diagnoseStream(healthCtx *StreamHealthContext, currConditions []*HealthCond
 	return *NewHealthCondition("", ts, &isHealthy, healthStats, last)
 }
 
-func conditionStatus(evt *StreamHealthTranscodeEvent, condType HealthConditionType) *bool {
+func conditionStatus(evt *health.TranscodeEvent, condType HealthConditionType) *bool {
 	switch condType {
 	case Transcoding:
 		return &evt.Success
@@ -185,33 +185,6 @@ func CheckErr(err error) {
 	if err != nil {
 		glog.Fatalln("error", err)
 	}
-}
-
-type OrchestratorMetadata struct {
-	Address       string `json:"address"`
-	TranscoderUri string `json:"transcodeUri"`
-}
-
-type TranscodeAttemptInfo struct {
-	Orchestrator OrchestratorMetadata `json:"orchestrator"`
-	LatencyMs    int64                `json:"latencyMs"`
-	Error        *string              `json:"error"`
-}
-
-type SegmentMetadata struct {
-	Name     string  `json:"name"`
-	SeqNo    uint64  `json:"seqNo"`
-	Duration float64 `json:"duration"`
-}
-
-type StreamHealthTranscodeEvent struct {
-	NodeID     string                 `json:"nodeId"`
-	ManifestID string                 `json:"manifestId"`
-	Segment    SegmentMetadata        `json:"segment"`
-	StartTime  int64                  `json:"startTime"`
-	LatencyMs  int64                  `json:"latencyMs"`
-	Success    bool                   `json:"success"`
-	Attempts   []TranscodeAttemptInfo `json:"attempts"`
 }
 
 type HealthConditionType string
@@ -280,7 +253,7 @@ type StreamHealthContext struct {
 	Conditions   []HealthConditionType
 	StatsWindows []time.Duration
 
-	PastEvents     []*StreamHealthTranscodeEvent
+	PastEvents     []*health.TranscodeEvent
 	HealthStats    stats.WindowAggregators
 	ConditionStats map[HealthConditionType]stats.WindowAggregators
 
