@@ -1,10 +1,11 @@
 package main
 
 import (
-	"bufio"
 	"context"
 	"flag"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/golang/glog"
@@ -17,7 +18,6 @@ import (
 
 const streamUri = "rabbitmq-stream://guest:guest@localhost:5552/livepeer"
 const exchange = "lp_golivepeer_metadata"
-const binding = "#.stream_health.transcode.#"
 
 var streamName = "lp_stream_health_v" + time.Now().String()
 
@@ -29,8 +29,7 @@ func main() {
 	flag.Parse()
 
 	glog.Info("Stream health care system starting up...")
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := contextUntilSignal(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 
 	consumer, err := event.NewStreamConsumer(streamUri, "")
 	if err != nil {
@@ -44,15 +43,32 @@ func main() {
 		glog.Fatalf("Error starting health stream. err=%q", err)
 	}
 
-	go func() {
-		defer cancel()
-		glog.Infoln("Stream name", streamName)
-		glog.Infoln("Press any key to stop")
-		bufio.NewReader(os.Stdin).ReadString('\n')
-	}()
-
 	err = api.ListenAndServe(ctx, ":8080", 1*time.Second, healthcore)
 	if err != nil {
 		glog.Fatalf("Error starting api server. err=%q", err)
+	}
+}
+
+func contextUntilSignal(parent context.Context, sigs ...os.Signal) context.Context {
+	ctx, cancel := context.WithCancel(parent)
+	go func() {
+		defer cancel()
+		waitSignal(sigs...)
+	}()
+	return ctx
+}
+
+func waitSignal(sigs ...os.Signal) {
+	sigc := make(chan os.Signal, 1)
+	signal.Notify(sigc, sigs...)
+
+	signal := <-sigc
+	switch signal {
+	case syscall.SIGINT:
+		glog.Infof("Got Ctrl-C, shutting down")
+	case syscall.SIGTERM:
+		glog.Infof("Got SIGTERM, shutting down")
+	default:
+		glog.Infof("Got signal %d, shutting down", signal)
 	}
 }
