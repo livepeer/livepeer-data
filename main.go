@@ -19,7 +19,7 @@ import (
 const streamUri = "rabbitmq-stream://guest:guest@localhost:5552/livepeer"
 const exchange = "lp_golivepeer_metadata"
 
-var streamName = "lp_stream_health_v" + time.Now().String()
+var streamName = "lp_stream_health_v" + time.Now().UTC().Format(time.RFC3339)
 
 var healthcore = &health.Core{}
 

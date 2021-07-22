@@ -73,8 +73,8 @@ func handleMessageData(data []byte, consumer *stream.Consumer, healthcore *Core)
 	}
 
 	if glog.V(10) {
-		glog.Infof("Read event from stream. consumer=%q, offset=%d, seqNo=%d, startTimeAge=%q, latency=%q, success=%v",
-			consumer.GetName(), consumer.GetOffset(), evt.Segment.SeqNo,
+		glog.Infof("Read event from stream. consumer=%q, stream=%q, offset=%d, seqNo=%d, startTimeAge=%q, latency=%q, success=%v",
+			consumer.GetName(), consumer.GetStreamName(), consumer.GetOffset(), evt.Segment.SeqNo,
 			time.Since(time.Unix(0, evt.StartTime)), time.Duration(evt.LatencyMs)*time.Millisecond, evt.Success)
 	}
 
