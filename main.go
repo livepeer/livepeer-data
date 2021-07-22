@@ -129,23 +129,19 @@ func main() {
 	}
 }
 
-func ReduceStreamHealth(healthCtx *StreamHealthContext, evt *StreamHealthTranscodeEvent) *StreamHealthStatus {
+func ReduceStreamHealth(healthCtx *StreamHealthContext, evt *StreamHealthTranscodeEvent) StreamHealthStatus {
 	ts := time.Unix(0, evt.StartTime).Add(time.Duration(evt.LatencyMs)).UTC()
 
-	conditions := make([]*HealthCondition, 0, len(healthCtx.Conditions))
-	for _, condType := range healthCtx.Conditions {
+	conditions := make([]*HealthCondition, len(healthCtx.Conditions))
+	for i, condType := range healthCtx.Conditions {
 		status := conditionStatus(evt, condType)
-		var stats WindowStats
-		if status != nil {
-			stats = healthCtx.ConditionStats[condType].Averages(healthCtx.StatsWindows, ts, *status)
-		}
+		stats := healthCtx.ConditionStats[condType].Averages(healthCtx.StatsWindows, ts, status)
 
 		last := healthCtx.LastStatus.getCondition(condType)
-		newCond := NewHealthCondition(condType, ts, status, stats, last)
-		conditions = append(conditions, newCond)
+		conditions[i] = NewHealthCondition(condType, ts, status, stats, last)
 	}
 
-	return &StreamHealthStatus{
+	return StreamHealthStatus{
 		ManifestID: evt.ManifestID,
 		Healthy:    diagnoseStream(healthCtx, conditions, ts),
 		Conditions: conditions,
@@ -160,12 +156,9 @@ func diagnoseStream(healthCtx *StreamHealthContext, currConditions []*HealthCond
 		}
 	}
 	isHealthy := healthyMustsCount == len(healthyMustHaves)
-	healthStats := healthCtx.HealthStats.Averages(healthCtx.StatsWindows, ts, isHealthy)
+	healthStats := healthCtx.HealthStats.Averages(healthCtx.StatsWindows, ts, &isHealthy)
 
-	var last *HealthCondition
-	if healthCtx.LastStatus != nil {
-		last = &healthCtx.LastStatus.Healthy
-	}
+	last := &healthCtx.LastStatus.Healthy
 	return *NewHealthCondition("", ts, &isHealthy, healthStats, last)
 }
 
@@ -256,6 +249,9 @@ func insertMeasure(slc []measure, idx int, val measure) []measure {
 }
 
 func (a *StatsAggregator) Clip(window time.Duration) *StatsAggregator {
+	if len(a.measures) == 0 {
+		return a
+	}
 	threshold := a.measures[len(a.measures)-1].timestamp.Add(-window)
 	for len(a.measures) > 0 && !threshold.Before(a.measures[0].timestamp) {
 		a.sum -= a.measures[0].value
@@ -270,8 +266,6 @@ func (a StatsAggregator) Average() float64 {
 	}
 	return a.sum / float64(len(a.measures))
 }
-
-type WindowStatsAggregators map[time.Duration]*StatsAggregator
 
 type MinuteDuration struct{ time.Duration }
 
@@ -292,9 +286,11 @@ func (md *MinuteDuration) UnmarshalText(b []byte) error {
 
 type WindowStats = map[MinuteDuration]float64
 
-func (a WindowStatsAggregators) Averages(windows []time.Duration, ts time.Time, status bool) WindowStats {
+type WindowStatsAggregators map[time.Duration]*StatsAggregator
+
+func (a WindowStatsAggregators) Averages(windows []time.Duration, ts time.Time, status *bool) WindowStats {
 	measure := float64(0)
-	if status {
+	if status != nil && *status {
 		measure = 1
 	}
 
@@ -305,9 +301,10 @@ func (a WindowStatsAggregators) Averages(windows []time.Duration, ts time.Time, 
 			aggr = &StatsAggregator{}
 			a[window] = aggr
 		}
-		stats[MinuteDuration{window}] = aggr.Add(ts, measure).
-			Clip(window).
-			Average()
+		if status != nil {
+			aggr.Add(ts, measure)
+		}
+		stats[MinuteDuration{window}] = aggr.Clip(window).Average()
 	}
 	return stats
 }
@@ -374,7 +371,7 @@ type StreamHealthContext struct {
 	HealthStats    WindowStatsAggregators
 	ConditionStats map[HealthConditionType]WindowStatsAggregators
 
-	LastStatus *StreamHealthStatus
+	LastStatus StreamHealthStatus
 }
 
 func NewStreamHealthContext(mid string, conditions []HealthConditionType, statsWindows []time.Duration) *StreamHealthContext {
@@ -384,8 +381,14 @@ func NewStreamHealthContext(mid string, conditions []HealthConditionType, statsW
 		StatsWindows:   statsWindows,
 		HealthStats:    WindowStatsAggregators{},
 		ConditionStats: map[HealthConditionType]WindowStatsAggregators{},
+		LastStatus: StreamHealthStatus{
+			ManifestID: mid,
+			Healthy:    *NewHealthCondition("", time.Time{}, nil, nil, nil),
+			Conditions: make([]*HealthCondition, len(conditions)),
+		},
 	}
-	for _, cond := range conditions {
+	for i, cond := range conditions {
+		ctx.LastStatus.Conditions[i] = NewHealthCondition(cond, time.Time{}, nil, nil, nil)
 		ctx.ConditionStats[cond] = WindowStatsAggregators{}
 	}
 	return ctx
