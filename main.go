@@ -310,11 +310,11 @@ func (a WindowStatsAggregators) Averages(windows []time.Duration, ts time.Time, 
 }
 
 type HealthCondition struct {
-	Type               HealthConditionType `json:"Type,omitempty"`
-	Status             *bool
-	Frequency          WindowStats `json:"Frequency,omitempty"`
-	LastProbeTime      time.Time
-	LastTransitionTime time.Time
+	Type               HealthConditionType `json:"type,omitempty"`
+	Status             *bool               `json:"status"`
+	Frequency          WindowStats         `json:"frequency,omitempty"`
+	LastProbeTime      *time.Time          `json:"lastProbeTime"`
+	LastTransitionTime *time.Time          `json:"lastTransitionsTime"`
 }
 
 func NewHealthCondition(condType HealthConditionType, ts time.Time, status *bool, frequency WindowStats, last *HealthCondition) *HealthCondition {
@@ -323,9 +323,9 @@ func NewHealthCondition(condType HealthConditionType, ts time.Time, status *bool
 		*cond = *last
 	}
 	if status != nil {
-		cond.LastProbeTime = ts
+		cond.LastProbeTime = &ts
 		if !boolPtrsEq(status, cond.Status) {
-			cond.LastTransitionTime = ts
+			cond.LastTransitionTime = &ts
 		}
 		cond.Status = status
 		cond.Frequency = frequency
@@ -345,9 +345,9 @@ func boolPtrsEq(b1, b2 *bool) bool {
 var healthyMustHaves = map[HealthConditionType]bool{Transcoding: true, RealTime: true}
 
 type StreamHealthStatus struct {
-	ManifestID string
-	Healthy    HealthCondition
-	Conditions []*HealthCondition
+	ManifestID string             `json:"manifestId"`
+	Healthy    HealthCondition    `json:"healthy"`
+	Conditions []*HealthCondition `json:"conditions"`
 }
 
 func (s *StreamHealthStatus) getCondition(condType HealthConditionType) *HealthCondition {
