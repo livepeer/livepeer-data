@@ -135,9 +135,13 @@ func ReduceStreamHealth(healthCtx *StreamHealthContext, evt *StreamHealthTransco
 	conditions := make([]*HealthCondition, 0, len(healthCtx.Conditions))
 	for _, condType := range healthCtx.Conditions {
 		status := conditionStatus(evt, condType)
-		stats := aggregateStats(healthCtx.StatsWindows, healthCtx.ConditionStats[condType], ts, status)
-		newCond := NewHealthCondition(condType, ts, status, stats,
-			healthCtx.LastStatus.getCondition(condType))
+		var stats map[string]float64
+		if status != nil {
+			stats = aggregateStats(healthCtx.StatsWindows, healthCtx.ConditionStats[condType], ts, *status)
+		}
+
+		last := healthCtx.LastStatus.getCondition(condType)
+		newCond := NewHealthCondition(condType, ts, status, stats, last)
 		conditions = append(conditions, newCond)
 	}
 
@@ -156,7 +160,7 @@ func diagnoseStream(healthCtx *StreamHealthContext, currConditions []*HealthCond
 		}
 	}
 	isHealthy := healthyMustsCount == len(healthyMustHaves)
-	healthStats := aggregateStats(healthCtx.StatsWindows, healthCtx.HealthStats, ts, &isHealthy)
+	healthStats := aggregateStats(healthCtx.StatsWindows, healthCtx.HealthStats, ts, isHealthy)
 
 	var last *HealthCondition
 	if healthCtx.LastStatus != nil {
@@ -183,9 +187,9 @@ func conditionStatus(evt *StreamHealthTranscodeEvent, condType HealthConditionTy
 	}
 }
 
-func aggregateStats(windows []time.Duration, aggrs map[time.Duration]*StatsAggregator, ts time.Time, status *bool) TimedFrequency {
+func aggregateStats(windows []time.Duration, aggrs map[time.Duration]*StatsAggregator, ts time.Time, status bool) TimedFrequency {
 	measure := float64(0)
-	if status != nil && *status {
+	if status {
 		measure = 1
 	}
 
@@ -293,21 +297,23 @@ type TimedFrequency = map[string]float64
 type HealthCondition struct {
 	Type               HealthConditionType `json:"Type,omitempty"`
 	Status             *bool
-	Frequency          TimedFrequency
+	Frequency          TimedFrequency `json:"Frequency,omitempty"`
 	LastProbeTime      time.Time
 	LastTransitionTime time.Time
 }
 
 func NewHealthCondition(condType HealthConditionType, ts time.Time, status *bool, frequency TimedFrequency, last *HealthCondition) *HealthCondition {
-	cond := &HealthCondition{
-		Type:               condType,
-		Status:             status,
-		Frequency:          frequency,
-		LastProbeTime:      ts,
-		LastTransitionTime: ts,
+	cond := &HealthCondition{Type: condType}
+	if last != nil && last.Type == condType {
+		*cond = *last
 	}
-	if last != nil && boolPtrsEq(last.Status, status) {
-		cond.LastTransitionTime = last.LastTransitionTime
+	if status != nil {
+		cond.LastProbeTime = ts
+		if !boolPtrsEq(status, cond.Status) {
+			cond.LastTransitionTime = ts
+		}
+		cond.Status = status
+		cond.Frequency = frequency
 	}
 	return cond
 }
