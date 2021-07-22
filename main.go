@@ -24,6 +24,8 @@ const binding = "#.stream_health.transcode.#"
 
 var streamName = "sq_stream_health_v0"
 
+var healthcore health.Core
+
 func main() {
 	flag.Set("logtostderr", "true")
 	flag.Parse()
@@ -60,26 +62,25 @@ func main() {
 	})
 	CheckErr(err)
 
-	recordStore := health.RecordStorage{}
 	go func() {
 		for msg := range msgs {
-			// json, err := json.Marshal(message.Properties)
-			var evt *health.TranscodeEvent
-			err := json.Unmarshal(msg.Data[0], &evt)
-			CheckErr(err)
+			for _, data := range msg.Data {
+				var evt *health.TranscodeEvent
+				err := json.Unmarshal(data, &evt)
+				CheckErr(err)
 
-			if rand.Intn(100) < 100 {
-				evt.Success = rand.Intn(100) < 98
+				if rand.Intn(100) < 100 {
+					evt.Success = rand.Intn(100) < 98
+				}
+
+				if glog.V(100) {
+					glog.Infof("received message. consumer=%q, offset=%d, seqNo=%d, startTimeAge=%q, latency=%q, success=%v",
+						msg.Consumer.GetName(), msg.Consumer.GetOffset(), evt.Segment.SeqNo,
+						time.Since(time.Unix(0, evt.StartTime)), time.Duration(evt.LatencyMs)*time.Millisecond, evt.Success)
+				}
+
+				healthcore.HandleEvent(evt)
 			}
-
-			glog.Infof("received message. consumer=%q, offset=%d, seqNo=%d, startTimeAge=%q, latency=%q, success=%v",
-				msg.Consumer.GetName(), msg.Consumer.GetOffset(), evt.Segment.SeqNo,
-				time.Since(time.Unix(0, evt.StartTime)), time.Duration(evt.LatencyMs)*time.Millisecond, evt.Success)
-
-			mid := evt.ManifestID
-			record := recordStore.GetOrCreate(mid, healthConditions, statsWindows)
-			record.LastStatus = ReduceStreamHealth(record, evt)
-			record.PastEvents = append(record.PastEvents, evt) // TODO: crop/drop these at some point
 		}
 	}()
 
@@ -102,7 +103,7 @@ func main() {
 			return
 		}
 		manifestID := parts[4]
-		record, ok := recordStore.Get(manifestID)
+		record, ok := healthcore.Get(manifestID)
 		if !ok {
 			rw.WriteHeader(http.StatusNotFound)
 			return
@@ -115,64 +116,6 @@ func main() {
 
 	if err := srv.ListenAndServe(); err != http.ErrServerClosed {
 		CheckErr(err)
-	}
-}
-
-var healthyMustHaves = map[health.ConditionType]bool{
-	health.ConditionTranscoding: true,
-	health.ConditionRealTime:    true,
-}
-var healthConditions = []health.ConditionType{health.ConditionTranscoding, health.ConditionRealTime, health.ConditionNoErrors}
-var statsWindows = []time.Duration{1 * time.Minute, 10 * time.Minute, 1 * time.Hour}
-
-func ReduceStreamHealth(record *health.Record, evt *health.TranscodeEvent) health.Status {
-	ts := time.Unix(0, evt.StartTime).Add(time.Duration(evt.LatencyMs)).UTC()
-
-	conditions := make([]*health.Condition, len(record.Conditions))
-	for i, condType := range record.Conditions {
-		status := conditionStatus(evt, condType)
-		stats := record.ConditionStats[condType].Averages(record.StatsWindows, ts, status)
-
-		last := record.LastStatus.GetCondition(condType)
-		conditions[i] = health.NewCondition(condType, ts, status, stats, last)
-	}
-
-	return health.Status{
-		ManifestID: evt.ManifestID,
-		Healthy:    diagnoseStream(record, conditions, ts),
-		Conditions: conditions,
-	}
-}
-
-func diagnoseStream(record *health.Record, currConditions []*health.Condition, ts time.Time) health.Condition {
-	healthyMustsCount := 0
-	for _, cond := range currConditions {
-		if healthyMustHaves[cond.Type] && cond.Status != nil && *cond.Status {
-			healthyMustsCount++
-		}
-	}
-	isHealthy := healthyMustsCount == len(healthyMustHaves)
-	healthStats := record.HealthStats.Averages(record.StatsWindows, ts, &isHealthy)
-
-	last := &record.LastStatus.Healthy
-	return *health.NewCondition("", ts, &isHealthy, healthStats, last)
-}
-
-func conditionStatus(evt *health.TranscodeEvent, condType health.ConditionType) *bool {
-	switch condType {
-	case health.ConditionTranscoding:
-		return &evt.Success
-	case health.ConditionRealTime:
-		isRealTime := evt.LatencyMs < int64(evt.Segment.Duration*1000)
-		return &isRealTime
-	case health.ConditionNoErrors:
-		noErrors := true
-		for _, attempt := range evt.Attempts {
-			noErrors = noErrors && attempt.Error == nil
-		}
-		return &noErrors
-	default:
-		return nil
 	}
 }
 
