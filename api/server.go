@@ -10,7 +10,7 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-func ListenAndServe(ctx context.Context, addr string, shutdownGracePeriod time.Duration, healthcore health.Core) error {
+func ListenAndServe(ctx context.Context, addr string, shutdownGracePeriod time.Duration, healthcore *health.Core) error {
 	srv := &http.Server{
 		Addr:    addr,
 		Handler: NewHandler(healthcore),

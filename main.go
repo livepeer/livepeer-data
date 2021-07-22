@@ -3,9 +3,7 @@ package main
 import (
 	"bufio"
 	"context"
-	"encoding/json"
 	"flag"
-	"math/rand"
 	"os"
 	"time"
 
@@ -21,67 +19,30 @@ const streamUri = "rabbitmq-stream://guest:guest@localhost:5552/livepeer"
 const exchange = "lp_golivepeer_metadata"
 const binding = "#.stream_health.transcode.#"
 
-var streamName = "sq_stream_health_v0"
+var streamName = "lp_stream_health_v" + time.Now().String()
 
-var healthcore health.Core
+var healthcore = &health.Core{}
 
 func main() {
+	stream.SetLevelInfo(logs.DEBUG)
 	flag.Set("logtostderr", "true")
 	flag.Parse()
-	glog.Info("Hello")
 
-	// Set log level, not mandatory by default is INFO
-	stream.SetLevelInfo(logs.DEBUG)
-
-	glog.Info("Getting started with Streaming client for RabbitMQ")
-	glog.Info("Connecting to RabbitMQ streaming...")
-
-	// Connect to the broker ( or brokers )
-	consumer, err := event.NewStreamConsumer(streamUri, "")
-	CheckErr(err)
-
+	glog.Info("Stream health care system starting up...")
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	startOffset := time.Now().Add(-5*time.Minute).UnixNano() / 1e6 // start consuming from 5 mins ago
-	msgs, err := consumer.Consume(ctx, streamName, event.ConsumeOptions{
-		StreamOptions: &event.StreamOptions{
-			StreamOptions: stream.StreamOptions{
-				MaxLengthBytes:      event.ByteCapacity.GB(1),
-				MaxSegmentSizeBytes: event.ByteCapacity.KB(5), // should be like 500MB in production
-				MaxAge:              1 * time.Hour,
-			},
-			Bindings: []event.BindingArgs{
-				{Key: binding, Exchange: exchange},
-			},
-		},
-		ConsumerOptions: stream.NewConsumerOptions().
-			SetConsumerName("my_consumer"). // set a consumer name
-			SetOffset(event.OffsetSpec.Timestamp(startOffset)),
-		MemorizeOffset: true,
-	})
-	CheckErr(err)
 
-	go func() {
-		for msg := range msgs {
-			for _, data := range msg.Data {
-				var evt *health.TranscodeEvent
-				err := json.Unmarshal(data, &evt)
-				CheckErr(err)
+	consumer, err := event.NewStreamConsumer(streamUri, "")
+	if err != nil {
+		glog.Fatalf("Error creating stream consumer. err=%q", err)
+	}
+	health.StreamConsumer = consumer
 
-				if rand.Intn(100) < 100 {
-					evt.Success = rand.Intn(100) < 98
-				}
-
-				if glog.V(100) {
-					glog.Infof("received message. consumer=%q, offset=%d, seqNo=%d, startTimeAge=%q, latency=%q, success=%v",
-						msg.Consumer.GetName(), msg.Consumer.GetOffset(), evt.Segment.SeqNo,
-						time.Since(time.Unix(0, evt.StartTime)), time.Duration(evt.LatencyMs)*time.Millisecond, evt.Success)
-				}
-
-				healthcore.HandleEvent(evt)
-			}
-		}
-	}()
+	host, _ := os.Hostname()
+	err = health.Stream(ctx, healthcore, streamName, exchange, "healthy-streams-"+host)
+	if err != nil {
+		glog.Fatalf("Error starting health stream. err=%q", err)
+	}
 
 	go func() {
 		defer cancel()
@@ -91,11 +52,7 @@ func main() {
 	}()
 
 	err = api.ListenAndServe(ctx, ":8080", 1*time.Second, healthcore)
-	CheckErr(err)
-}
-
-func CheckErr(err error) {
 	if err != nil {
-		glog.Fatalln("error", err)
+		glog.Fatalf("Error starting api server. err=%q", err)
 	}
 }
