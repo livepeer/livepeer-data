@@ -82,10 +82,14 @@ func main() {
 			if saved, ok := streamHealths.Load(mid); ok {
 				health = saved.(*StreamHealthContext)
 			} else {
-				health = NewStreamHealthContext(mid, Transcoding, RealTime, NoErrors)
+				health = NewStreamHealthContext(mid,
+					[]HealthConditionType{Transcoding, RealTime, NoErrors},
+					[]time.Duration{1 * time.Minute, 10 * time.Minute, 1 * time.Hour},
+				)
 				streamHealths.Store(mid, health)
 			}
 			health.LastStatus = ReduceStreamHealth(health, evt)
+			health.PastEvents = append(health.PastEvents, evt) // TODO: crop/drop these at some point
 		}
 	}()
 
@@ -127,27 +131,38 @@ func main() {
 
 func ReduceStreamHealth(healthCtx *StreamHealthContext, evt *StreamHealthTranscodeEvent) *StreamHealthStatus {
 	ts := time.Unix(0, evt.StartTime).Add(time.Duration(evt.LatencyMs)).UTC()
-	newStatus := &StreamHealthStatus{ManifestID: evt.ManifestID}
+
+	conditions := make([]*HealthCondition, 0, len(healthCtx.Conditions))
 	for _, condType := range healthCtx.Conditions {
-		newCond := NewHealthCondition(condType, ts,
-			conditionStatus(evt, condType),
+		status := conditionStatus(evt, condType)
+		stats := aggregateStats(healthCtx.StatsWindows, healthCtx.ConditionStats[condType], ts, status)
+		newCond := NewHealthCondition(condType, ts, status, stats,
 			healthCtx.LastStatus.getCondition(condType))
-		newStatus.Conditions = append(newStatus.Conditions, newCond)
+		conditions = append(conditions, newCond)
 	}
+
+	return &StreamHealthStatus{
+		ManifestID: evt.ManifestID,
+		Healthy:    diagnoseStream(healthCtx, conditions, ts),
+		Conditions: conditions,
+	}
+}
+
+func diagnoseStream(healthCtx *StreamHealthContext, currConditions []*HealthCondition, ts time.Time) HealthCondition {
 	healthyMustsCount := 0
-	for _, cond := range newStatus.Conditions {
+	for _, cond := range currConditions {
 		if healthyMustHaves[cond.Type] && cond.Status != nil && *cond.Status {
 			healthyMustsCount++
 		}
 	}
 	isHealthy := healthyMustsCount == len(healthyMustHaves)
+	healthStats := aggregateStats(healthCtx.StatsWindows, healthCtx.HealthStats, ts, &isHealthy)
 
 	var last *HealthCondition
 	if healthCtx.LastStatus != nil {
 		last = &healthCtx.LastStatus.Healthy
 	}
-	newStatus.Healthy = *NewHealthCondition("", ts, &isHealthy, last)
-	return newStatus
+	return *NewHealthCondition("", ts, &isHealthy, healthStats, last)
 }
 
 func conditionStatus(evt *StreamHealthTranscodeEvent, condType HealthConditionType) *bool {
@@ -166,6 +181,27 @@ func conditionStatus(evt *StreamHealthTranscodeEvent, condType HealthConditionTy
 	default:
 		return nil
 	}
+}
+
+func aggregateStats(windows []time.Duration, aggrs map[time.Duration]*StatsAggregator, ts time.Time, status *bool) TimedFrequency {
+	measure := float64(0)
+	if status != nil && *status {
+		measure = 1
+	}
+
+	stats := TimedFrequency{}
+	for _, window := range windows {
+		aggr, ok := aggrs[window]
+		if !ok {
+			aggr = &StatsAggregator{}
+			aggrs[window] = aggr
+		}
+		durStr := fmt.Sprintf("%gm", window.Minutes())
+		stats[durStr] = aggr.Add(ts, measure).
+			Clip(window).
+			Average()
+	}
+	return stats
 }
 
 func CheckErr(err error) {
@@ -252,35 +288,7 @@ func (a StatsAggregator) Average() float64 {
 	return a.sum / float64(len(a.measures))
 }
 
-type TimedFrequency struct {
-	Past map[string]float64
-
-	stats [3]StatsAggregator
-}
-
-func (f *TimedFrequency) MarshalJSON() ([]byte, error) {
-	return json.Marshal(f.Past)
-}
-
-func (f *TimedFrequency) Update(ts time.Time, value bool) {
-	measure := float64(0)
-	if value {
-		measure = 1
-	}
-	f.setPast(0, ts, measure, 1*time.Minute)
-	f.setPast(1, ts, measure, 10*time.Minute)
-	f.setPast(2, ts, measure, 1*time.Hour)
-}
-
-func (f *TimedFrequency) setPast(statsIdx int, ts time.Time, measure float64, window time.Duration) {
-	if f.Past == nil {
-		f.Past = map[string]float64{}
-	}
-	f.Past[fmt.Sprintf("%gm", window.Minutes())] = f.stats[statsIdx].
-		Add(ts, measure).
-		Clip(window).
-		Average()
-}
+type TimedFrequency = map[string]float64
 
 type HealthCondition struct {
 	Type               HealthConditionType `json:"Type,omitempty"`
@@ -290,10 +298,11 @@ type HealthCondition struct {
 	LastTransitionTime time.Time
 }
 
-func NewHealthCondition(condType HealthConditionType, ts time.Time, status *bool, last *HealthCondition) *HealthCondition {
+func NewHealthCondition(condType HealthConditionType, ts time.Time, status *bool, frequency TimedFrequency, last *HealthCondition) *HealthCondition {
 	cond := &HealthCondition{
 		Type:               condType,
 		Status:             status,
+		Frequency:          frequency,
 		LastProbeTime:      ts,
 		LastTransitionTime: ts,
 	}
@@ -333,24 +342,27 @@ func (s *StreamHealthStatus) getCondition(condType HealthConditionType) *HealthC
 }
 
 type StreamHealthContext struct {
-	ManifestID string
-	Conditions []HealthConditionType
+	ManifestID   string
+	Conditions   []HealthConditionType
+	StatsWindows []time.Duration
 
-	PastEvents     []StreamHealthTranscodeEvent
-	HealthStats    map[time.Duration]StatsAggregator
-	ConditionStats map[HealthConditionType]map[time.Duration]StatsAggregator
+	PastEvents     []*StreamHealthTranscodeEvent
+	HealthStats    map[time.Duration]*StatsAggregator
+	ConditionStats map[HealthConditionType]map[time.Duration]*StatsAggregator
 
 	LastStatus *StreamHealthStatus
 }
 
-func NewStreamHealthContext(mid string, conditions ...HealthConditionType) *StreamHealthContext {
+func NewStreamHealthContext(mid string, conditions []HealthConditionType, statsWindows []time.Duration) *StreamHealthContext {
 	ctx := &StreamHealthContext{
-		HealthStats:    map[time.Duration]StatsAggregator{},
+		ManifestID:     mid,
 		Conditions:     conditions,
-		ConditionStats: map[HealthConditionType]map[time.Duration]StatsAggregator{},
+		StatsWindows:   statsWindows,
+		HealthStats:    map[time.Duration]*StatsAggregator{},
+		ConditionStats: map[HealthConditionType]map[time.Duration]*StatsAggregator{},
 	}
 	for _, cond := range conditions {
-		ctx.ConditionStats[cond] = map[time.Duration]StatsAggregator{}
+		ctx.ConditionStats[cond] = map[time.Duration]*StatsAggregator{}
 	}
 	return ctx
 }
