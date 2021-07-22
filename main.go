@@ -9,13 +9,11 @@ import (
 	"net/http"
 	"os"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/golang/glog"
 	"github.com/livepeer/healthy-streams/event"
 	"github.com/livepeer/healthy-streams/health"
-	"github.com/livepeer/healthy-streams/stats"
 	"github.com/rabbitmq/rabbitmq-stream-go-client/pkg/logs"
 	"github.com/rabbitmq/rabbitmq-stream-go-client/pkg/stream"
 )
@@ -62,7 +60,7 @@ func main() {
 	})
 	CheckErr(err)
 
-	streamHealths := sync.Map{}
+	recordStore := health.RecordStorage{}
 	go func() {
 		for msg := range msgs {
 			// json, err := json.Marshal(message.Properties)
@@ -79,13 +77,7 @@ func main() {
 				time.Since(time.Unix(0, evt.StartTime)), time.Duration(evt.LatencyMs)*time.Millisecond, evt.Success)
 
 			mid := evt.ManifestID
-			var record *StreamHealthRecord
-			if saved, ok := streamHealths.Load(mid); ok {
-				record = saved.(*StreamHealthRecord)
-			} else {
-				record = NewStreamHealthRecord(mid, healthConditions, statsWindows)
-				streamHealths.Store(mid, record)
-			}
+			record := recordStore.GetOrCreate(mid, healthConditions, statsWindows)
 			record.LastStatus = ReduceStreamHealth(record, evt)
 			record.PastEvents = append(record.PastEvents, evt) // TODO: crop/drop these at some point
 		}
@@ -110,12 +102,11 @@ func main() {
 			return
 		}
 		manifestID := parts[4]
-		healthIface, ok := streamHealths.Load(manifestID)
+		record, ok := recordStore.Get(manifestID)
 		if !ok {
 			rw.WriteHeader(http.StatusNotFound)
 			return
 		}
-		record := healthIface.(*StreamHealthRecord)
 		rw.WriteHeader(http.StatusOK)
 		if err := json.NewEncoder(rw).Encode(record.LastStatus); err != nil {
 			glog.Errorf("Error writing stream health JSON response. err=%q", err)
@@ -134,7 +125,7 @@ var healthyMustHaves = map[health.ConditionType]bool{
 var healthConditions = []health.ConditionType{health.ConditionTranscoding, health.ConditionRealTime, health.ConditionNoErrors}
 var statsWindows = []time.Duration{1 * time.Minute, 10 * time.Minute, 1 * time.Hour}
 
-func ReduceStreamHealth(record *StreamHealthRecord, evt *health.TranscodeEvent) health.Status {
+func ReduceStreamHealth(record *health.Record, evt *health.TranscodeEvent) health.Status {
 	ts := time.Unix(0, evt.StartTime).Add(time.Duration(evt.LatencyMs)).UTC()
 
 	conditions := make([]*health.Condition, len(record.Conditions))
@@ -153,7 +144,7 @@ func ReduceStreamHealth(record *StreamHealthRecord, evt *health.TranscodeEvent) 
 	}
 }
 
-func diagnoseStream(record *StreamHealthRecord, currConditions []*health.Condition, ts time.Time) health.Condition {
+func diagnoseStream(record *health.Record, currConditions []*health.Condition, ts time.Time) health.Condition {
 	healthyMustsCount := 0
 	for _, cond := range currConditions {
 		if healthyMustHaves[cond.Type] && cond.Status != nil && *cond.Status {
@@ -189,36 +180,4 @@ func CheckErr(err error) {
 	if err != nil {
 		glog.Fatalln("error", err)
 	}
-}
-
-type StreamHealthRecord struct {
-	ManifestID   string
-	Conditions   []health.ConditionType
-	StatsWindows []time.Duration
-
-	PastEvents     []*health.TranscodeEvent
-	HealthStats    stats.WindowAggregators
-	ConditionStats map[health.ConditionType]stats.WindowAggregators
-
-	LastStatus health.Status
-}
-
-func NewStreamHealthRecord(mid string, conditions []health.ConditionType, statsWindows []time.Duration) *StreamHealthRecord {
-	rec := &StreamHealthRecord{
-		ManifestID:     mid,
-		Conditions:     conditions,
-		StatsWindows:   statsWindows,
-		HealthStats:    stats.WindowAggregators{},
-		ConditionStats: map[health.ConditionType]stats.WindowAggregators{},
-		LastStatus: health.Status{
-			ManifestID: mid,
-			Healthy:    *health.NewCondition("", time.Time{}, nil, nil, nil),
-			Conditions: make([]*health.Condition, len(conditions)),
-		},
-	}
-	for i, cond := range conditions {
-		rec.LastStatus.Conditions[i] = health.NewCondition(cond, time.Time{}, nil, nil, nil)
-		rec.ConditionStats[cond] = stats.WindowAggregators{}
-	}
-	return rec
 }
