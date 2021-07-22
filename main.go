@@ -6,12 +6,11 @@ import (
 	"encoding/json"
 	"flag"
 	"math/rand"
-	"net/http"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/golang/glog"
+	"github.com/livepeer/healthy-streams/api"
 	"github.com/livepeer/healthy-streams/event"
 	"github.com/livepeer/healthy-streams/health"
 	"github.com/rabbitmq/rabbitmq-stream-go-client/pkg/logs"
@@ -84,39 +83,15 @@ func main() {
 		}
 	}()
 
-	srv := &http.Server{Addr: ":8080"}
 	go func() {
 		defer cancel()
 		glog.Infoln("Stream name", streamName)
 		glog.Infoln("Press any key to stop")
 		bufio.NewReader(os.Stdin).ReadString('\n')
-
-		shutx, cancel := context.WithTimeout(ctx, 1*time.Second)
-		defer cancel()
-		CheckErr(srv.Shutdown(shutx))
 	}()
 
-	http.HandleFunc("/api/stream/health/", func(rw http.ResponseWriter, r *http.Request) {
-		parts := strings.SplitN(r.URL.Path, "/", 6)
-		if len(parts) != 5 {
-			rw.WriteHeader(http.StatusBadRequest)
-			return
-		}
-		manifestID := parts[4]
-		record, ok := healthcore.Get(manifestID)
-		if !ok {
-			rw.WriteHeader(http.StatusNotFound)
-			return
-		}
-		rw.WriteHeader(http.StatusOK)
-		if err := json.NewEncoder(rw).Encode(record.LastStatus); err != nil {
-			glog.Errorf("Error writing stream health JSON response. err=%q", err)
-		}
-	})
-
-	if err := srv.ListenAndServe(); err != http.ErrServerClosed {
-		CheckErr(err)
-	}
+	err = api.ListenAndServe(ctx, ":8080", 1*time.Second, healthcore)
+	CheckErr(err)
 }
 
 func CheckErr(err error) {
