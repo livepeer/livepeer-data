@@ -34,7 +34,7 @@ type Record struct {
 	Conditions   []ConditionType
 	StatsWindows []time.Duration
 
-	PastEvents     []*TranscodeEvent
+	PastEvents     []Event
 	HealthStats    stats.WindowAggregators
 	ConditionStats map[ConditionType]stats.WindowAggregators
 
