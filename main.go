@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"flag"
-	"fmt"
 	"math/rand"
 	"net/http"
 	"os"
@@ -15,6 +14,8 @@ import (
 
 	"github.com/golang/glog"
 	"github.com/livepeer/healthy-streams/event"
+	"github.com/livepeer/healthy-streams/health"
+	"github.com/livepeer/healthy-streams/stats"
 	"github.com/rabbitmq/rabbitmq-stream-go-client/pkg/logs"
 	"github.com/rabbitmq/rabbitmq-stream-go-client/pkg/stream"
 )
@@ -221,103 +222,15 @@ const (
 	NoErrors    HealthConditionType = "NoErrors"
 )
 
-type measure struct {
-	timestamp time.Time
-	value     float64
-}
-
-type StatsAggregator struct {
-	measures []measure
-	sum      float64
-}
-
-func (a *StatsAggregator) Add(ts time.Time, value float64) *StatsAggregator {
-	a.sum += value
-	insertIdx := len(a.measures)
-	for insertIdx > 0 && ts.Before(a.measures[insertIdx-1].timestamp) {
-		insertIdx--
-	}
-	a.measures = insertMeasure(a.measures, insertIdx, measure{ts, value})
-	return a
-}
-
-func insertMeasure(slc []measure, idx int, val measure) []measure {
-	slc = append(slc, measure{})
-	copy(slc[idx+1:], slc[idx:])
-	slc[idx] = val
-	return slc
-}
-
-func (a *StatsAggregator) Clip(window time.Duration) *StatsAggregator {
-	if len(a.measures) == 0 {
-		return a
-	}
-	threshold := a.measures[len(a.measures)-1].timestamp.Add(-window)
-	for len(a.measures) > 0 && !threshold.Before(a.measures[0].timestamp) {
-		a.sum -= a.measures[0].value
-		a.measures = a.measures[1:]
-	}
-	return a
-}
-
-func (a StatsAggregator) Average() float64 {
-	if len(a.measures) == 0 {
-		return 0
-	}
-	return a.sum / float64(len(a.measures))
-}
-
-type MinuteDuration struct{ time.Duration }
-
-func (md MinuteDuration) MarshalText() ([]byte, error) {
-	str := fmt.Sprintf(`%gm`, md.Minutes())
-	return []byte(str), nil
-}
-
-func (md *MinuteDuration) UnmarshalText(b []byte) error {
-	str := strings.TrimSuffix(string(b), "m")
-	dur, err := time.ParseDuration(str)
-	if err != nil {
-		return err
-	}
-	md.Duration = dur
-	return nil
-}
-
-type WindowStats = map[MinuteDuration]float64
-
-type WindowStatsAggregators map[time.Duration]*StatsAggregator
-
-func (a WindowStatsAggregators) Averages(windows []time.Duration, ts time.Time, status *bool) WindowStats {
-	measure := float64(0)
-	if status != nil && *status {
-		measure = 1
-	}
-
-	stats := WindowStats{}
-	for _, window := range windows {
-		aggr, ok := a[window]
-		if !ok {
-			aggr = &StatsAggregator{}
-			a[window] = aggr
-		}
-		if status != nil {
-			aggr.Add(ts, measure)
-		}
-		stats[MinuteDuration{window}] = aggr.Clip(window).Average()
-	}
-	return stats
-}
-
 type HealthCondition struct {
 	Type               HealthConditionType `json:"type,omitempty"`
 	Status             *bool               `json:"status"`
-	Frequency          WindowStats         `json:"frequency,omitempty"`
+	Frequency          stats.ByWindow      `json:"frequency,omitempty"`
 	LastProbeTime      *time.Time          `json:"lastProbeTime"`
 	LastTransitionTime *time.Time          `json:"lastTransitionsTime"`
 }
 
-func NewHealthCondition(condType HealthConditionType, ts time.Time, status *bool, frequency WindowStats, last *HealthCondition) *HealthCondition {
+func NewHealthCondition(condType HealthConditionType, ts time.Time, status *bool, frequency stats.ByWindow, last *HealthCondition) *HealthCondition {
 	cond := &HealthCondition{Type: condType}
 	if last != nil && last.Type == condType {
 		*cond = *last
@@ -368,8 +281,8 @@ type StreamHealthContext struct {
 	StatsWindows []time.Duration
 
 	PastEvents     []*StreamHealthTranscodeEvent
-	HealthStats    WindowStatsAggregators
-	ConditionStats map[HealthConditionType]WindowStatsAggregators
+	HealthStats    stats.WindowAggregators
+	ConditionStats map[HealthConditionType]stats.WindowAggregators
 
 	LastStatus StreamHealthStatus
 }
@@ -379,8 +292,8 @@ func NewStreamHealthContext(mid string, conditions []HealthConditionType, statsW
 		ManifestID:     mid,
 		Conditions:     conditions,
 		StatsWindows:   statsWindows,
-		HealthStats:    WindowStatsAggregators{},
-		ConditionStats: map[HealthConditionType]WindowStatsAggregators{},
+		HealthStats:    stats.WindowAggregators{},
+		ConditionStats: map[HealthConditionType]stats.WindowAggregators{},
 		LastStatus: StreamHealthStatus{
 			ManifestID: mid,
 			Healthy:    *NewHealthCondition("", time.Time{}, nil, nil, nil),
@@ -389,7 +302,7 @@ func NewStreamHealthContext(mid string, conditions []HealthConditionType, statsW
 	}
 	for i, cond := range conditions {
 		ctx.LastStatus.Conditions[i] = NewHealthCondition(cond, time.Time{}, nil, nil, nil)
-		ctx.ConditionStats[cond] = WindowStatsAggregators{}
+		ctx.ConditionStats[cond] = stats.WindowAggregators{}
 	}
 	return ctx
 }
