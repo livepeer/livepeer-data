@@ -9,6 +9,7 @@ import (
 	"github.com/golang/glog"
 	amqp "github.com/rabbitmq/amqp091-go"
 	streamAmqp "github.com/rabbitmq/rabbitmq-stream-go-client/pkg/amqp"
+	"github.com/rabbitmq/rabbitmq-stream-go-client/pkg/logs"
 	"github.com/rabbitmq/rabbitmq-stream-go-client/pkg/stream"
 )
 
@@ -53,6 +54,12 @@ type (
 		done chan struct{}
 	}
 )
+
+func init() {
+	if glog.V(10) {
+		stream.SetLevelInfo(logs.DEBUG)
+	}
+}
 
 func NewStreamConsumer(streamUri, amqpUri string) (StreamConsumer, error) {
 	var err error
