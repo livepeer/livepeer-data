@@ -62,6 +62,8 @@ func waitSignal(sigs ...os.Signal) {
 	sigc := make(chan os.Signal, 1)
 	signal.Notify(sigc, sigs...)
 
+	// TODO: Investigate what happens if we get other signals here, since we
+	// theoretically only wanted the ones in sigs slice :thinking_face:
 	signal := <-sigc
 	switch signal {
 	case syscall.SIGINT:
