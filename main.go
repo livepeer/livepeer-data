@@ -16,11 +16,9 @@ import (
 	"github.com/rabbitmq/rabbitmq-stream-go-client/pkg/stream"
 )
 
-const streamUri = "rabbitmq-stream://guest:guest@localhost:5552/livepeer"
-
 var (
-	healthcore    = &health.Core{}
-	streamOptions = health.StreamFlags{
+	streamUri, amqpUri = "rabbitmq-stream://guest:guest@localhost:5552/livepeer", ""
+	streamingOpts      = health.StreamingOptions{
 		Stream:       "lp_stream_health_v" + time.Now().UTC().Format(time.RFC3339),
 		Exchange:     "lp_golivepeer_metadata",
 		ConsumerName: "healthy-streams-" + hostname(),
@@ -40,15 +38,15 @@ func main() {
 	glog.Info("Stream health care system starting up...")
 	ctx := contextUntilSignal(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 
-	consumer, err := event.NewStreamConsumer(streamUri, "")
+	consumer, err := event.NewStreamConsumer(streamUri, amqpUri)
 	if err != nil {
 		glog.Fatalf("Error creating stream consumer. err=%q", err)
 	}
-	health.StreamConsumer = consumer
+	defer consumer.Stop()
 
-	err = health.Stream(ctx, healthcore, streamOptions)
-	if err != nil {
-		glog.Fatalf("Error starting health stream. err=%q", err)
+	healthcore := health.NewCore(health.CoreOptions{streamingOpts}, consumer)
+	if err := healthcore.Start(ctx); err != nil {
+		glog.Fatalf("Error starting health core. err=%q", err)
 	}
 
 	err = api.ListenAndServe(ctx, ":8080", 1*time.Second, healthcore)
