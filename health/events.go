@@ -1,12 +1,24 @@
 package health
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 // Events
 
 type Event interface {
 	ManifestID() string
 	Timestamp() time.Time
+}
+
+func ParseEvent(data []byte) (Event, error) {
+	var evt *TranscodeEvent
+	err := json.Unmarshal(data, &evt)
+	if err != nil {
+		return nil, err
+	}
+	return evt, nil
 }
 
 type TranscodeEvent struct {
