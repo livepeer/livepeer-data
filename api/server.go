@@ -3,16 +3,18 @@ package api
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/http"
 	"time"
 
+	"github.com/golang/glog"
 	"github.com/livepeer/healthy-streams/health"
 	"golang.org/x/sync/errgroup"
 )
 
-func ListenAndServe(ctx context.Context, addr string, shutdownGracePeriod time.Duration, healthcore *health.Core) error {
+func ListenAndServe(ctx context.Context, host string, port uint, shutdownGracePeriod time.Duration, healthcore *health.Core) error {
 	srv := &http.Server{
-		Addr:    addr,
+		Addr:    fmt.Sprintf("%s:%d", host, port),
 		Handler: NewHandler(healthcore),
 	}
 	eg, ctx := errgroup.WithContext(ctx)
@@ -29,8 +31,15 @@ func ListenAndServe(ctx context.Context, addr string, shutdownGracePeriod time.D
 		return nil
 	})
 	eg.Go(func() error {
-		if err := srv.ListenAndServe(); err != http.ErrServerClosed {
-			return fmt.Errorf("api server listen and serve error: %w", err)
+		ln, err := net.Listen("tcp", srv.Addr)
+		if err != nil {
+			return fmt.Errorf("api server listen error: %w", err)
+		}
+		defer ln.Close()
+		glog.Infof("Listening on %s", ln.Addr())
+
+		if err := srv.Serve(ln); err != http.ErrServerClosed {
+			return fmt.Errorf("api serve error: %w", err)
 		}
 		return nil
 	})
