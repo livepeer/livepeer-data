@@ -12,10 +12,7 @@ type Status struct {
 	Conditions []*Condition `json:"conditions"`
 }
 
-func (s *Status) GetCondition(condType ConditionType) *Condition {
-	if s == nil {
-		return nil
-	}
+func (s Status) GetCondition(condType ConditionType) *Condition {
 	for _, cond := range s.Conditions {
 		if cond.Type == condType {
 			return cond

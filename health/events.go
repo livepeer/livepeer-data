@@ -24,6 +24,7 @@ func (e *TranscodeEvent) ManifestID() string {
 }
 
 func (e *TranscodeEvent) Timestamp() time.Time {
+	// TODO: Send a "final" timestamp directly in the event to avoid this logic
 	latency := time.Duration(e.LatencyMs) * time.Millisecond
 	return time.Unix(0, e.StartTime).Add(latency).UTC()
 }
