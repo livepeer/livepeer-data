@@ -2,7 +2,6 @@ package health
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -35,16 +34,24 @@ type CoreOptions struct {
 	Streaming StreamingOptions
 }
 
+type EventHandler = func(record *Record, evt Event) (newStatus Status, handled bool)
+
 type Core struct {
 	RecordStorage
 
 	opts     CoreOptions
 	consumer event.StreamConsumer
 	started  bool
+
+	handlers []EventHandler
 }
 
 func NewCore(opts CoreOptions, consumer event.StreamConsumer) *Core {
-	return &Core{opts: opts, consumer: consumer}
+	return &Core{
+		opts:     opts,
+		consumer: consumer,
+		handlers: []EventHandler{HandleTranscodeEvent},
+	}
 }
 
 func (c *Core) Start(ctx context.Context) error {
@@ -67,8 +74,7 @@ func (c *Core) Start(ctx context.Context) error {
 
 func (c *Core) HandleMessage(msg event.StreamMessage) {
 	for _, data := range msg.Data {
-		var evt *TranscodeEvent
-		err := json.Unmarshal(data, &evt)
+		evt, err := ParseEvent(data)
 		if err != nil {
 			glog.Errorf("Health core received malformed message. err=%q, data=%q", err, data)
 			continue
@@ -81,89 +87,11 @@ func (c *Core) handleSingleEvent(evt Event) {
 	mid := evt.ManifestID()
 	record := c.GetOrCreate(mid, defaultConditions, statsWindows)
 
-	record.LastStatus = reduceStreamHealth(record, evt)
+	for _, handler := range c.handlers {
+		if newStatus, handled := handler(record, evt); handled {
+			record.LastStatus = newStatus
+			break
+		}
+	}
 	record.PastEvents = append(record.PastEvents, evt) // TODO: crop/drop these at some point
-}
-
-func reduceStreamHealth(record *Record, evt Event) Status {
-	ts := evt.Timestamp()
-	conditions := make([]*Condition, len(record.Conditions))
-	for i, condType := range record.Conditions {
-		status := conditionStatus(evt, condType)
-		stats := record.ConditionStats[condType].Averages(record.StatsWindows, ts, ptrBoolToFloat(status))
-
-		last := record.LastStatus.GetCondition(condType)
-		conditions[i] = NewCondition(condType, ts, status, stats, last)
-	}
-
-	return Status{
-		ManifestID: evt.ManifestID(),
-		Healthy:    diagnoseStream(record, conditions, ts),
-		Conditions: conditions,
-	}
-}
-
-func conditionStatus(evtIface Event, condType ConditionType) *bool {
-	switch evt := evtIface.(type) {
-	case *TranscodeEvent:
-		switch condType {
-		case ConditionTranscoding:
-			return &evt.Success
-		case ConditionRealTime:
-			isRealTime := evt.LatencyMs < int64(evt.Segment.Duration*1000)
-			return &isRealTime
-		case ConditionNoErrors:
-			noErrors := true
-			for _, attempt := range evt.Attempts {
-				noErrors = noErrors && attempt.Error == nil
-			}
-			return &noErrors
-		}
-	}
-	return nil
-}
-
-func diagnoseStream(record *Record, currConditions []*Condition, ts time.Time) Condition {
-	healthyMustsCount := 0
-	for _, cond := range currConditions {
-		if healthyMustHaves[cond.Type] && cond.Status != nil && *cond.Status {
-			healthyMustsCount++
-		}
-	}
-	isHealthy := healthyMustsCount == len(healthyMustHaves)
-	healthStats := record.HealthStats.Averages(record.StatsWindows, ts, ptrBoolToFloat(&isHealthy))
-
-	last := &record.LastStatus.Healthy
-	return *NewCondition("", ts, &isHealthy, healthStats, last)
-}
-
-func consumeOptions(opts StreamingOptions) (event.ConsumeOptions, error) {
-	streamOpts, err := event.ParseStreamOptions(opts.RawStreamOptions)
-	if err != nil {
-		return event.ConsumeOptions{}, fmt.Errorf("bad stream options: %w", err)
-	}
-
-	startTime := time.Now().Add(-maxStatsWindow)
-	return event.ConsumeOptions{
-		Stream: opts.Stream,
-		StreamOptions: &event.StreamOptions{
-			StreamOptions: *streamOpts,
-			Bindings: []event.BindingArgs{
-				{Key: bindingKey, Exchange: opts.Exchange},
-			},
-		},
-		ConsumerOptions: event.NewConsumerOptions(opts.ConsumerName, event.TimestampOffset(startTime)),
-		MemorizeOffset:  true,
-	}, nil
-}
-
-func ptrBoolToFloat(b *bool) *float64 {
-	if b == nil {
-		return nil
-	}
-	val := float64(0)
-	if *b {
-		val = 1
-	}
-	return &val
 }
