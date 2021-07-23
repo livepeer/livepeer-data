@@ -36,8 +36,13 @@ type (
 		*streamAmqp.Message
 	}
 
+	Handler interface {
+		HandleMessage(msg StreamMessage)
+	}
+
 	StreamConsumer interface {
-		Consume(ctx context.Context, opts ConsumeOptions) (<-chan StreamMessage, error)
+		ConsumeChan(ctx context.Context, opts ConsumeOptions) (<-chan StreamMessage, error)
+		Consume(ctx context.Context, opts ConsumeOptions, handler Handler) error
 		Stop() error
 	}
 
@@ -72,7 +77,7 @@ func (c *strmConsumer) Stop() error {
 	return c.env.Close()
 }
 
-func (c *strmConsumer) Consume(ctx context.Context, opts ConsumeOptions) (<-chan StreamMessage, error) {
+func (c *strmConsumer) ConsumeChan(ctx context.Context, opts ConsumeOptions) (<-chan StreamMessage, error) {
 	exists, err := c.env.StreamExists(opts.Stream)
 	if err != nil {
 		return nil, err
@@ -89,6 +94,11 @@ func (c *strmConsumer) Consume(ctx context.Context, opts ConsumeOptions) (<-chan
 
 	msgChan := make(chan StreamMessage, 100)
 	handleMessages := func(consumerCtx stream.ConsumerContext, message *streamAmqp.Message) {
+		if glog.V(10) {
+			cons := consumerCtx.Consumer
+			glog.Infof("Read message from stream. consumer=%q, stream=%q, offset=%v, data=%q",
+				cons.GetName(), cons.GetStreamName(), cons.GetOffset(), string(message.GetData()))
+		}
 		msgChan <- StreamMessage{consumerCtx, message}
 	}
 	connect := func(prevConsumer stream.ConsumerContext) (*stream.Consumer, error) {
@@ -112,6 +122,29 @@ func (c *strmConsumer) Consume(ctx context.Context, opts ConsumeOptions) (<-chan
 		close(msgChan)
 	}()
 	return msgChan, nil
+}
+
+func (c *strmConsumer) Consume(ctx context.Context, opts ConsumeOptions, handler Handler) error {
+	ctx, cancel := context.WithCancel(ctx)
+	msgs, err := c.ConsumeChan(ctx, opts)
+	if err != nil {
+		cancel()
+		return err
+	}
+
+	go func() {
+		defer func() {
+			if rec := recover(); rec != nil {
+				glog.Fatalf("Panic in stream message handler. panicValue=%v", rec)
+			}
+		}()
+		defer cancel()
+
+		for msg := range msgs {
+			handler.HandleMessage(msg)
+		}
+	}()
+	return nil
 }
 
 func (c *strmConsumer) createStream(streamName string, opts StreamOptions) error {

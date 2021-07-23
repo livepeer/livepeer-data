@@ -19,7 +19,7 @@ type RawStreamOptions struct {
 func ParseStreamOptions(raw RawStreamOptions) (*stream.StreamOptions, error) {
 	maxAge, err := time.ParseDuration(raw.MaxAge)
 	if err != nil {
-		return nil, fmt.Errorf("invalid stream max age: %w", err)
+		return nil, fmt.Errorf("max age: %w", err)
 	}
 	return &stream.StreamOptions{
 		MaxLengthBytes:      ByteCapacity.From(raw.MaxLengthBytes),

@@ -1,12 +1,17 @@
 package health
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"time"
 
 	"github.com/golang/glog"
 	"github.com/livepeer/healthy-streams/event"
 )
+
+const bindingKey = "#.stream_health.transcode.#"
 
 var (
 	healthyMustHaves = map[ConditionType]bool{
@@ -18,8 +23,46 @@ var (
 	maxStatsWindow    = statsWindows[len(statsWindows)-1]
 )
 
+// Purposedly made of built-in types only to bind directly to cli flags.
+type StreamingOptions struct {
+	Stream, Exchange string
+	ConsumerName     string
+
+	event.RawStreamOptions
+}
+
+type CoreOptions struct {
+	Streaming StreamingOptions
+}
+
 type Core struct {
 	RecordStorage
+
+	opts     CoreOptions
+	consumer event.StreamConsumer
+	started  bool
+}
+
+func NewCore(opts CoreOptions, consumer event.StreamConsumer) *Core {
+	return &Core{opts: opts, consumer: consumer}
+}
+
+func (c *Core) Start(ctx context.Context) error {
+	if c.started {
+		return errors.New("health core already started")
+	}
+	c.started = true
+
+	consumeOpts, err := consumeOptions(c.opts.Streaming)
+	if err != nil {
+		return fmt.Errorf("invalid rabbitmq options: %w", err)
+	}
+
+	err = c.consumer.Consume(ctx, consumeOpts, c)
+	if err != nil {
+		return fmt.Errorf("failed to consume stream: %w", err)
+	}
+	return nil
 }
 
 func (c *Core) HandleMessage(msg event.StreamMessage) {
@@ -92,6 +135,26 @@ func diagnoseStream(record *Record, currConditions []*Condition, ts time.Time) C
 
 	last := &record.LastStatus.Healthy
 	return *NewCondition("", ts, &isHealthy, healthStats, last)
+}
+
+func consumeOptions(opts StreamingOptions) (event.ConsumeOptions, error) {
+	streamOpts, err := event.ParseStreamOptions(opts.RawStreamOptions)
+	if err != nil {
+		return event.ConsumeOptions{}, fmt.Errorf("bad stream options: %w", err)
+	}
+
+	startTime := time.Now().Add(-maxStatsWindow)
+	return event.ConsumeOptions{
+		Stream: opts.Stream,
+		StreamOptions: &event.StreamOptions{
+			StreamOptions: *streamOpts,
+			Bindings: []event.BindingArgs{
+				{Key: bindingKey, Exchange: opts.Exchange},
+			},
+		},
+		ConsumerOptions: event.NewConsumerOptions(opts.ConsumerName, event.TimestampOffset(startTime)),
+		MemorizeOffset:  true,
+	}, nil
 }
 
 func ptrBoolToFloat(b *bool) *float64 {
