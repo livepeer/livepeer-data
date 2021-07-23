@@ -1,7 +1,11 @@
 package health
 
 import (
+	"encoding/json"
 	"time"
+
+	"github.com/golang/glog"
+	"github.com/livepeer/healthy-streams/event"
 )
 
 var (
@@ -18,7 +22,19 @@ type Core struct {
 	RecordStorage
 }
 
-func (c *Core) HandleEvent(evt Event) {
+func (c *Core) HandleMessage(msg event.StreamMessage) {
+	for _, data := range msg.Data {
+		var evt *TranscodeEvent
+		err := json.Unmarshal(data, &evt)
+		if err != nil {
+			glog.Errorf("Health core received malformed message. err=%q, data=%q", err, data)
+			continue
+		}
+		c.handleSingleEvent(evt)
+	}
+}
+
+func (c *Core) handleSingleEvent(evt Event) {
 	mid := evt.ManifestID()
 	record := c.GetOrCreate(mid, defaultConditions, statsWindows)
 
