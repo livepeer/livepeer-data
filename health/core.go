@@ -31,7 +31,7 @@ func reduceStreamHealth(record *Record, evt Event) Status {
 	conditions := make([]*Condition, len(record.Conditions))
 	for i, condType := range record.Conditions {
 		status := conditionStatus(evt, condType)
-		stats := record.ConditionStats[condType].Averages(record.StatsWindows, ts, status)
+		stats := record.ConditionStats[condType].Averages(record.StatsWindows, ts, ptrBoolToFloat(status))
 
 		last := record.LastStatus.GetCondition(condType)
 		conditions[i] = NewCondition(condType, ts, status, stats, last)
@@ -72,8 +72,19 @@ func diagnoseStream(record *Record, currConditions []*Condition, ts time.Time) C
 		}
 	}
 	isHealthy := healthyMustsCount == len(healthyMustHaves)
-	healthStats := record.HealthStats.Averages(record.StatsWindows, ts, &isHealthy)
+	healthStats := record.HealthStats.Averages(record.StatsWindows, ts, ptrBoolToFloat(&isHealthy))
 
 	last := &record.LastStatus.Healthy
 	return *NewCondition("", ts, &isHealthy, healthStats, last)
+}
+
+func ptrBoolToFloat(b *bool) *float64 {
+	if b == nil {
+		return nil
+	}
+	val := float64(0)
+	if *b {
+		val = 1
+	}
+	return &val
 }
