@@ -18,39 +18,33 @@ var (
 	StreamConsumer event.StreamConsumer
 )
 
-type RawStreamOptions struct {
+type StreamFlags struct {
 	Stream, Exchange string
 	ConsumerName     string
 
-	MaxLengthBytes      string
-	MaxSegmentSizeBytes string
-	MaxAge              string
+	event.RawStreamOptions
 }
 
-func Stream(ctx context.Context, healthcore *Core, opts RawStreamOptions) error {
+func Stream(ctx context.Context, healthcore *Core, flags StreamFlags) error {
 	if StreamConsumer == nil {
 		return errors.New("StreamConsumer must be initialized")
 	}
 
-	maxAge, err := time.ParseDuration(opts.MaxAge)
+	streamOpts, err := event.ParseStreamOptions(flags.RawStreamOptions)
 	if err != nil {
 		return fmt.Errorf("invalid stream max age: %w", err)
 	}
-	msgs, err := StreamConsumer.Consume(ctx, opts.Stream, event.ConsumeOptions{
+	startTime := time.Now().Add(-maxStatsWindow)
+	msgs, err := StreamConsumer.Consume(ctx, event.ConsumeOptions{
+		Stream: flags.Stream,
 		StreamOptions: &event.StreamOptions{
-			StreamOptions: stream.StreamOptions{
-				MaxLengthBytes:      event.ByteCapacity.From(opts.MaxLengthBytes),
-				MaxSegmentSizeBytes: event.ByteCapacity.From(opts.MaxSegmentSizeBytes),
-				MaxAge:              maxAge,
-			},
+			StreamOptions: *streamOpts,
 			Bindings: []event.BindingArgs{
-				{Key: bindingKey, Exchange: opts.Exchange},
+				{Key: bindingKey, Exchange: flags.Exchange},
 			},
 		},
-		ConsumerOptions: stream.NewConsumerOptions().
-			SetConsumerName(opts.ConsumerName).
-			SetOffset(timeOffsetBy(maxStatsWindow)),
-		MemorizeOffset: true,
+		ConsumerOptions: event.NewConsumerOptions(flags.ConsumerName, event.TimestampOffset(startTime)),
+		MemorizeOffset:  true,
 	})
 	if err != nil {
 		return err
@@ -87,8 +81,4 @@ func handleMessageData(data []byte, consumer *stream.Consumer, healthcore *Core)
 	}
 
 	healthcore.HandleEvent(evt)
-}
-
-func timeOffsetBy(span time.Duration) stream.OffsetSpecification {
-	return event.OffsetSpec.Timestamp(time.Now().Add(-span).UnixNano() / 1e6)
 }

@@ -20,13 +20,15 @@ const streamUri = "rabbitmq-stream://guest:guest@localhost:5552/livepeer"
 
 var (
 	healthcore    = &health.Core{}
-	streamOptions = health.RawStreamOptions{
-		Stream:              "lp_stream_health_v" + time.Now().UTC().Format(time.RFC3339),
-		Exchange:            "lp_golivepeer_metadata",
-		ConsumerName:        "healthy-streams-" + hostname(),
-		MaxLengthBytes:      "1gb", // TODO prod: 90GB?
-		MaxSegmentSizeBytes: "5kb", // TODO prod: 500MB
-		MaxAge:              "1h",  // TODO prod: 30 days?
+	streamOptions = health.StreamFlags{
+		Stream:       "lp_stream_health_v" + time.Now().UTC().Format(time.RFC3339),
+		Exchange:     "lp_golivepeer_metadata",
+		ConsumerName: "healthy-streams-" + hostname(),
+		RawStreamOptions: event.RawStreamOptions{
+			MaxLengthBytes:      "1gb", // TODO prod: 90GB?
+			MaxSegmentSizeBytes: "5kb", // TODO prod: 500MB
+			MaxAge:              "1h",  // TODO prod: 30 days?
+		},
 	}
 )
 

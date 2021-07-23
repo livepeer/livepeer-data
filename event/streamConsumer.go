@@ -12,9 +12,6 @@ import (
 	"github.com/rabbitmq/rabbitmq-stream-go-client/pkg/stream"
 )
 
-var ByteCapacity = stream.ByteCapacity{}
-var OffsetSpec = stream.OffsetSpecification{}
-
 type (
 	BindingArgs struct {
 		Key      string
@@ -28,8 +25,9 @@ type (
 	}
 
 	ConsumeOptions struct {
-		*stream.ConsumerOptions
+		Stream string
 		*StreamOptions
+		*stream.ConsumerOptions
 		MemorizeOffset bool
 	}
 
@@ -39,7 +37,7 @@ type (
 	}
 
 	StreamConsumer interface {
-		Consume(ctx context.Context, streamName string, opts ConsumeOptions) (<-chan StreamMessage, error)
+		Consume(ctx context.Context, opts ConsumeOptions) (<-chan StreamMessage, error)
 		Stop() error
 	}
 
@@ -74,16 +72,16 @@ func (c *strmConsumer) Stop() error {
 	return c.env.Close()
 }
 
-func (c *strmConsumer) Consume(ctx context.Context, streamName string, opts ConsumeOptions) (<-chan StreamMessage, error) {
-	exists, err := c.env.StreamExists(streamName)
+func (c *strmConsumer) Consume(ctx context.Context, opts ConsumeOptions) (<-chan StreamMessage, error) {
+	exists, err := c.env.StreamExists(opts.Stream)
 	if err != nil {
 		return nil, err
 	}
 	if !exists {
 		if opts.StreamOptions == nil {
-			return nil, fmt.Errorf("stream not found: %s", streamName)
+			return nil, fmt.Errorf("stream not found: %s", opts.Stream)
 		}
-		err = c.createStream(streamName, *opts.StreamOptions)
+		err = c.createStream(opts.Stream, *opts.StreamOptions)
 		if err != nil {
 			return nil, fmt.Errorf("error creating stream: %w", err)
 		}
@@ -100,11 +98,11 @@ func (c *strmConsumer) Consume(ctx context.Context, streamName string, opts Cons
 				connectOpts.SetOffset(OffsetSpec.Offset(offset))
 			}
 		}
-		return c.env.NewConsumer(streamName, handleMessages, &connectOpts)
+		return c.env.NewConsumer(opts.Stream, handleMessages, &connectOpts)
 	}
 
 	ctx = whileAll(ctx.Done(), c.done)
-	done, err := newReconnectingConsumer(ctx, streamName, connect)
+	done, err := newReconnectingConsumer(ctx, opts.Stream, connect)
 	if err != nil {
 		return nil, err
 	}
