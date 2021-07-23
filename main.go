@@ -17,11 +17,18 @@ import (
 )
 
 const streamUri = "rabbitmq-stream://guest:guest@localhost:5552/livepeer"
-const exchange = "lp_golivepeer_metadata"
 
-var streamName = "lp_stream_health_v" + time.Now().UTC().Format(time.RFC3339)
-
-var healthcore = &health.Core{}
+var (
+	healthcore    = &health.Core{}
+	streamOptions = health.RawStreamOptions{
+		Stream:              "lp_stream_health_v" + time.Now().UTC().Format(time.RFC3339),
+		Exchange:            "lp_golivepeer_metadata",
+		ConsumerName:        "healthy-streams-" + hostname(),
+		MaxLengthBytes:      "1gb", // TODO prod: 90GB?
+		MaxSegmentSizeBytes: "5kb", // TODO prod: 500MB
+		MaxAge:              "1h",  // TODO prod: 30 days?
+	}
+)
 
 func main() {
 	stream.SetLevelInfo(logs.DEBUG)
@@ -37,8 +44,7 @@ func main() {
 	}
 	health.StreamConsumer = consumer
 
-	host, _ := os.Hostname()
-	err = health.Stream(ctx, healthcore, streamName, exchange, "healthy-streams-"+host)
+	err = health.Stream(ctx, healthcore, streamOptions)
 	if err != nil {
 		glog.Fatalf("Error starting health stream. err=%q", err)
 	}
@@ -61,9 +67,8 @@ func contextUntilSignal(parent context.Context, sigs ...os.Signal) context.Conte
 func waitSignal(sigs ...os.Signal) {
 	sigc := make(chan os.Signal, 1)
 	signal.Notify(sigc, sigs...)
+	defer signal.Stop(sigc)
 
-	// TODO: Investigate what happens if we get other signals here, since we
-	// theoretically only wanted the ones in sigs slice :thinking_face:
 	signal := <-sigc
 	switch signal {
 	case syscall.SIGINT:
@@ -73,4 +78,12 @@ func waitSignal(sigs ...os.Signal) {
 	default:
 		glog.Infof("Got signal %d, shutting down", signal)
 	}
+}
+
+func hostname() string {
+	host, err := os.Hostname()
+	if err != nil {
+		glog.Fatalf("Failed to read hostname. err=%q", err)
+	}
+	return host
 }

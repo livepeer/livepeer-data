@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/golang/glog"
@@ -12,35 +13,42 @@ import (
 )
 
 var (
-	streamOptions = stream.StreamOptions{
-		MaxLengthBytes:      event.ByteCapacity.GB(1), // TODO prod: 90GB?
-		MaxSegmentSizeBytes: event.ByteCapacity.KB(5), // TODO prod: 500MB
-		MaxAge:              1 * time.Hour,            // TODO prod: 30 days?
-	}
 	bindingKey = "#.stream_health.transcode.#"
 
 	StreamConsumer event.StreamConsumer
 )
 
-type StreamOptions struct {
-	StreamName, ExchangeName string
-	ConsumerName             string
+type RawStreamOptions struct {
+	Stream, Exchange string
+	ConsumerName     string
+
+	MaxLengthBytes      string
+	MaxSegmentSizeBytes string
+	MaxAge              string
 }
 
-func Stream(ctx context.Context, healthcore *Core, streamName, exchange, consumerName string) error {
+func Stream(ctx context.Context, healthcore *Core, opts RawStreamOptions) error {
 	if StreamConsumer == nil {
 		return errors.New("StreamConsumer must be initialized")
 	}
 
-	msgs, err := StreamConsumer.Consume(ctx, streamName, event.ConsumeOptions{
+	maxAge, err := time.ParseDuration(opts.MaxAge)
+	if err != nil {
+		return fmt.Errorf("invalid stream max age: %w", err)
+	}
+	msgs, err := StreamConsumer.Consume(ctx, opts.Stream, event.ConsumeOptions{
 		StreamOptions: &event.StreamOptions{
-			StreamOptions: streamOptions,
+			StreamOptions: stream.StreamOptions{
+				MaxLengthBytes:      event.ByteCapacity.From(opts.MaxLengthBytes),
+				MaxSegmentSizeBytes: event.ByteCapacity.From(opts.MaxSegmentSizeBytes),
+				MaxAge:              maxAge,
+			},
 			Bindings: []event.BindingArgs{
-				{Key: bindingKey, Exchange: exchange},
+				{Key: bindingKey, Exchange: opts.Exchange},
 			},
 		},
 		ConsumerOptions: stream.NewConsumerOptions().
-			SetConsumerName(consumerName).
+			SetConsumerName(opts.ConsumerName).
 			SetOffset(timeOffsetBy(maxStatsWindow)),
 		MemorizeOffset: true,
 	})
