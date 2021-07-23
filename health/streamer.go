@@ -2,14 +2,12 @@ package health
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
 
 	"github.com/golang/glog"
 	"github.com/livepeer/healthy-streams/event"
-	"github.com/rabbitmq/rabbitmq-stream-go-client/pkg/stream"
 )
 
 var (
@@ -51,34 +49,21 @@ func Stream(ctx context.Context, healthcore *Core, flags StreamFlags) error {
 	}
 
 	go func() {
-		for msg := range msgs {
-			for _, data := range msg.Data {
-				handleMessageData(data, msg.Consumer, healthcore)
+		defer func() {
+			if rec := recover(); rec != nil {
+				glog.Fatalf("Panic in stream message handler. panicValue=%v", rec)
 			}
+		}()
+
+		for msg := range msgs {
+			if glog.V(10) {
+				cons := msg.Consumer
+				glog.Infof("Read message from stream. consumer=%q, stream=%q, offset=%v, data=%q",
+					cons.GetName(), cons.GetStreamName(), cons.GetOffset(), string(msg.GetData()))
+			}
+
+			healthcore.HandleMessage(msg)
 		}
 	}()
 	return nil
-}
-
-func handleMessageData(data []byte, consumer *stream.Consumer, healthcore *Core) {
-	defer func() {
-		if rec := recover(); rec != nil {
-			glog.Fatalf("Panic in stream message handler. panicValue=%v", rec)
-		}
-	}()
-
-	var evt *TranscodeEvent
-	err := json.Unmarshal(data, &evt)
-	if err != nil {
-		glog.Errorf("Malformed event in stream. err=%q, data=%q", err, data)
-		return
-	}
-
-	if glog.V(10) {
-		glog.Infof("Read event from stream. consumer=%q, stream=%q, offset=%d, seqNo=%d, startTimeAge=%q, latency=%q, success=%v",
-			consumer.GetName(), consumer.GetStreamName(), consumer.GetOffset(), evt.Segment.SeqNo,
-			time.Since(time.Unix(0, evt.StartTime)), time.Duration(evt.LatencyMs)*time.Millisecond, evt.Success)
-	}
-
-	healthcore.HandleEvent(evt)
 }
