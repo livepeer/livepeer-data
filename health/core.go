@@ -10,16 +10,9 @@ import (
 	"github.com/livepeer/healthy-streams/event"
 )
 
-const bindingKey = "#.stream_health.transcode.#"
-
 var (
-	healthyMustHaves = map[ConditionType]bool{
-		ConditionTranscoding: true,
-		ConditionRealTime:    true,
-	}
-	defaultConditions = []ConditionType{ConditionTranscoding, ConditionRealTime, ConditionNoErrors}
-	statsWindows      = []time.Duration{1 * time.Minute, 10 * time.Minute, 1 * time.Hour}
-	maxStatsWindow    = statsWindows[len(statsWindows)-1]
+	statsWindows   = []time.Duration{1 * time.Minute, 10 * time.Minute, 1 * time.Hour}
+	maxStatsWindow = statsWindows[len(statsWindows)-1]
 )
 
 // Purposedly made of built-in types only to bind directly to cli flags.
@@ -34,7 +27,19 @@ type CoreOptions struct {
 	Streaming StreamingOptions
 }
 
-type EventHandler = func(record *Record, evt Event) (newStatus Status, handled bool)
+type Reducer interface {
+	Bindings(golpExchange string) []event.BindingArgs
+	Conditions() []ConditionType
+	Reduce(current Status, state interface{}, evt Event) (Status, interface{})
+}
+
+type ReducerFunc func(Status, interface{}, Event) (Status, interface{})
+
+func (f ReducerFunc) Bindings(_ string) []event.BindingArgs { return nil }
+func (f ReducerFunc) Conditions() []ConditionType           { return nil }
+func (f ReducerFunc) Reduce(current Status, state interface{}, evt Event) (Status, interface{}) {
+	return f(current, state, evt)
+}
 
 type Core struct {
 	RecordStorage
@@ -43,14 +48,17 @@ type Core struct {
 	consumer event.StreamConsumer
 	started  bool
 
-	handlers []EventHandler
+	reducers       []Reducer
+	conditionTypes []ConditionType
 }
 
 func NewCore(opts CoreOptions, consumer event.StreamConsumer) *Core {
+	reducers := []Reducer{transcodeReducer{}, ReducerFunc(ReduceHealth), statsReducer{statsWindows}}
 	return &Core{
-		opts:     opts,
-		consumer: consumer,
-		handlers: []EventHandler{HandleTranscodeEvent},
+		opts:           opts,
+		consumer:       consumer,
+		reducers:       reducers,
+		conditionTypes: conditionTypes(reducers),
 	}
 }
 
@@ -60,7 +68,7 @@ func (c *Core) Start(ctx context.Context) error {
 	}
 	c.started = true
 
-	consumeOpts, err := consumeOptions(c.opts.Streaming)
+	consumeOpts, err := c.consumeOptions()
 	if err != nil {
 		return fmt.Errorf("invalid rabbitmq options: %w", err)
 	}
@@ -85,13 +93,61 @@ func (c *Core) HandleMessage(msg event.StreamMessage) {
 
 func (c *Core) handleSingleEvent(evt Event) {
 	mid := evt.ManifestID()
-	record := c.GetOrCreate(mid, defaultConditions, statsWindows)
+	record := c.GetOrCreate(mid, c.conditionTypes)
 
-	for _, handler := range c.handlers {
-		if newStatus, handled := handler(record, evt); handled {
-			record.LastStatus = newStatus
-			break
+	status := record.LastStatus
+	for _, reducer := range c.reducers {
+		state := record.ReducersState[reducer]
+		status, state = reducer.Reduce(status, state, evt)
+		record.ReducersState[reducer] = state
+	}
+	record.LastStatus = status
+	record.PastEvents = append(record.PastEvents, evt) // TODO: crop/drop these at some point
+}
+
+func (c *Core) consumeOptions() (event.ConsumeOptions, error) {
+	opts := c.opts.Streaming
+	streamOpts, err := event.ParseStreamOptions(opts.RawStreamOptions)
+	if err != nil {
+		return event.ConsumeOptions{}, fmt.Errorf("bad stream options: %w", err)
+	}
+
+	bindings := []event.BindingArgs{}
+	added := map[string]bool{}
+	for _, reducer := range c.reducers {
+		for _, newBind := range reducer.Bindings(c.opts.Streaming.Exchange) {
+			key := newBind.Key + " / " + newBind.Exchange
+			if added[key] {
+				return event.ConsumeOptions{}, fmt.Errorf("duplicate binding: %s", key)
+			}
+			added[key] = true
+			bindings = append(bindings, reducer.Bindings(c.opts.Streaming.Exchange)...)
 		}
 	}
-	record.PastEvents = append(record.PastEvents, evt) // TODO: crop/drop these at some point
+
+	startTime := time.Now().Add(-maxStatsWindow)
+	return event.ConsumeOptions{
+		Stream: opts.Stream,
+		StreamOptions: &event.StreamOptions{
+			StreamOptions: *streamOpts,
+			Bindings:      bindings,
+		},
+		ConsumerOptions: event.NewConsumerOptions(opts.ConsumerName, event.TimestampOffset(startTime)),
+		MemorizeOffset:  true,
+	}, nil
+}
+
+func conditionTypes(reducers []Reducer) []ConditionType {
+	added := map[ConditionType]bool{}
+	conds := []ConditionType{}
+	for _, reducer := range reducers {
+		for _, newCond := range reducer.Conditions() {
+			if added[newCond] {
+				continue
+			}
+			added[newCond] = true
+			conds = append(conds, newCond)
+		}
+	}
+	return conds
 }

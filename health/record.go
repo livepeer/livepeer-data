@@ -3,8 +3,6 @@ package health
 import (
 	"sync"
 	"time"
-
-	"github.com/livepeer/healthy-streams/stats"
 )
 
 type RecordStorage struct {
@@ -18,11 +16,11 @@ func (s *RecordStorage) Get(manifestId string) (*Record, bool) {
 	return nil, false
 }
 
-func (s *RecordStorage) GetOrCreate(manifestId string, conditions []ConditionType, statsWindows []time.Duration) *Record {
+func (s *RecordStorage) GetOrCreate(manifestId string, conditions []ConditionType) *Record {
 	if saved, ok := s.Get(manifestId); ok {
 		return saved
 	}
-	new := NewRecord(manifestId, conditions, statsWindows)
+	new := NewRecord(manifestId, conditions)
 	if actual, loaded := s.records.LoadOrStore(manifestId, new); loaded {
 		return actual.(*Record)
 	}
@@ -30,24 +28,19 @@ func (s *RecordStorage) GetOrCreate(manifestId string, conditions []ConditionTyp
 }
 
 type Record struct {
-	ManifestID   string
-	Conditions   []ConditionType
-	StatsWindows []time.Duration
+	ManifestID string
+	Conditions []ConditionType
 
-	PastEvents     []Event
-	HealthStats    stats.WindowAggregators
-	ConditionStats map[ConditionType]stats.WindowAggregators
+	PastEvents    []Event
+	ReducersState map[interface{}]interface{}
 
 	LastStatus Status
 }
 
-func NewRecord(mid string, conditions []ConditionType, statsWindows []time.Duration) *Record {
+func NewRecord(mid string, conditions []ConditionType) *Record {
 	rec := &Record{
-		ManifestID:     mid,
-		Conditions:     conditions,
-		StatsWindows:   statsWindows,
-		HealthStats:    stats.WindowAggregators{},
-		ConditionStats: map[ConditionType]stats.WindowAggregators{},
+		ManifestID: mid,
+		Conditions: conditions,
 		LastStatus: Status{
 			ManifestID: mid,
 			Healthy:    *NewCondition("", time.Time{}, nil, nil, nil),
@@ -56,7 +49,6 @@ func NewRecord(mid string, conditions []ConditionType, statsWindows []time.Durat
 	}
 	for i, cond := range conditions {
 		rec.LastStatus.Conditions[i] = NewCondition(cond, time.Time{}, nil, nil, nil)
-		rec.ConditionStats[cond] = stats.WindowAggregators{}
 	}
 	return rec
 }

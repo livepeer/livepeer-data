@@ -48,6 +48,8 @@ func NewCondition(condType ConditionType, ts time.Time, status *bool, frequency 
 			cond.LastTransitionTime = &ts
 		}
 		cond.Status = status
+	}
+	if frequency != nil {
 		cond.Frequency = frequency
 	}
 	return cond
