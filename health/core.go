@@ -10,11 +10,6 @@ import (
 	"github.com/livepeer/healthy-streams/event"
 )
 
-var (
-	statsWindows   = []time.Duration{1 * time.Minute, 10 * time.Minute, 1 * time.Hour}
-	maxStatsWindow = statsWindows[len(statsWindows)-1]
-)
-
 // Purposedly made of built-in types only to bind directly to cli flags.
 type StreamingOptions struct {
 	Stream, Exchange string
@@ -24,7 +19,8 @@ type StreamingOptions struct {
 }
 
 type CoreOptions struct {
-	Streaming StreamingOptions
+	Streaming       StreamingOptions
+	StartTimeOffset time.Duration
 }
 
 type Reducer interface {
@@ -53,13 +49,18 @@ type Core struct {
 }
 
 func NewCore(opts CoreOptions, consumer event.StreamConsumer) *Core {
-	reducers := []Reducer{transcodeReducer{}, ReducerFunc(ReduceHealth), statsReducer{statsWindows}}
 	return &Core{
-		opts:           opts,
-		consumer:       consumer,
-		reducers:       reducers,
-		conditionTypes: conditionTypes(reducers),
+		opts:     opts,
+		consumer: consumer,
 	}
+}
+
+func (c *Core) Use(reducers ...Reducer) *Core {
+	if c.started {
+		panic("must add reducers before starting")
+	}
+	c.reducers = append(c.reducers, reducers...)
+	return c
 }
 
 func (c *Core) Start(ctx context.Context) error {
@@ -67,6 +68,7 @@ func (c *Core) Start(ctx context.Context) error {
 		return errors.New("health core already started")
 	}
 	c.started = true
+	c.conditionTypes = conditionTypes(c.reducers)
 
 	consumeOpts, err := c.consumeOptions()
 	if err != nil {
@@ -125,7 +127,7 @@ func (c *Core) consumeOptions() (event.ConsumeOptions, error) {
 		}
 	}
 
-	startTime := time.Now().Add(-maxStatsWindow)
+	startTime := time.Now().Add(-c.opts.StartTimeOffset)
 	return event.ConsumeOptions{
 		Stream: opts.Stream,
 		StreamOptions: &event.StreamOptions{

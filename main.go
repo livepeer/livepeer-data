@@ -13,6 +13,7 @@ import (
 	"github.com/livepeer/healthy-streams/api"
 	"github.com/livepeer/healthy-streams/event"
 	"github.com/livepeer/healthy-streams/health"
+	"github.com/livepeer/healthy-streams/health/reducers"
 	"github.com/peterbourgon/ff"
 )
 
@@ -68,8 +69,13 @@ func main() {
 	}
 	defer consumer.Stop()
 
-	healthcore := health.NewCore(health.CoreOptions{Streaming: streamingOpts}, consumer)
-	if err := healthcore.Start(ctx); err != nil {
+	reducers, startTimeOffset := reducers.DefaultPipeline()
+	healthcore := health.NewCore(health.CoreOptions{
+		Streaming:       streamingOpts,
+		StartTimeOffset: startTimeOffset,
+	}, consumer)
+	err = healthcore.Use(reducers...).Start(ctx)
+	if err != nil {
 		glog.Fatalf("Error starting health core. err=%q", err)
 	}
 
