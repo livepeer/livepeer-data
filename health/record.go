@@ -6,7 +6,7 @@ import (
 )
 
 type RecordStorage struct {
-	records sync.Map
+	records sync.Map // TODO: crop/drop these at some point
 }
 
 func (s *RecordStorage) Get(manifestId string) (*Record, bool) {
@@ -28,22 +28,22 @@ func (s *RecordStorage) GetOrCreate(manifestId string, conditions []ConditionTyp
 }
 
 type Record struct {
-	ManifestID string
+	ID         string
 	Conditions []ConditionType
 
-	PastEvents    []Event
-	ReducersState map[int]interface{}
+	PastEvents []Event
 
-	LastStatus Status
+	ReducersState map[int]interface{}
+	LastStatus    Status
 }
 
-func NewRecord(mid string, conditions []ConditionType) *Record {
+func NewRecord(id string, conditions []ConditionType) *Record {
 	rec := &Record{
-		ManifestID: mid,
-		Conditions: conditions,
+		ID:            id,
+		Conditions:    conditions,
 		ReducersState: map[int]interface{}{},
 		LastStatus: Status{
-			ManifestID: mid,
+			ID:         id,
 			Healthy:    *NewCondition("", time.Time{}, nil, nil, nil),
 			Conditions: make([]*Condition, len(conditions)),
 		},
