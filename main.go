@@ -18,6 +18,10 @@ import (
 )
 
 var (
+	// Version content of this constant will be set at build time,
+	// using -ldflags, using output of the `git describe` command.
+	Version = "undefined"
+
 	host string
 	port uint
 
@@ -60,7 +64,7 @@ func init() {
 }
 
 func main() {
-	glog.Info("Stream health care system starting up...")
+	glog.Infof("Stream health care system starting up... version=%q", Version)
 	ctx := contextUntilSignal(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 
 	consumer, err := event.NewStreamConsumer(rabbitmqStreamUri, amqpUri)
