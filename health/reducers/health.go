@@ -2,6 +2,11 @@ package reducers
 
 import "github.com/livepeer/healthy-streams/health"
 
+var healthyMustHaves = map[health.ConditionType]bool{
+	ConditionTranscoding: true,
+	ConditionRealTime:    true,
+}
+
 var HealthReducer = health.ReducerFunc(reduceHealth)
 
 func reduceHealth(current health.Status, _ interface{}, evt health.Event) (health.Status, interface{}) {
@@ -15,7 +20,7 @@ func reduceHealth(current health.Status, _ interface{}, evt health.Event) (healt
 	healthyCond := health.NewCondition("", evt.Timestamp(), &isHealthy, nil, &current.Healthy)
 
 	return health.Status{
-		ManifestID: current.ManifestID,
+		ID:         current.ID,
 		Healthy:    *healthyCond,
 		Conditions: current.Conditions,
 	}, nil

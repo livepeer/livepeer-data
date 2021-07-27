@@ -7,7 +7,7 @@ import (
 )
 
 type Status struct {
-	ManifestID string       `json:"manifestId"`
+	ID         string       `json:"manifestId"`
 	Healthy    Condition    `json:"healthy"`
 	Conditions []*Condition `json:"conditions"`
 }
@@ -22,12 +22,6 @@ func (s Status) GetCondition(condType ConditionType) *Condition {
 }
 
 type ConditionType string
-
-const (
-	ConditionTranscoding ConditionType = "Transcoding"
-	ConditionRealTime    ConditionType = "RealTime"
-	ConditionNoErrors    ConditionType = "NoErrors"
-)
 
 type Condition struct {
 	Type               ConditionType  `json:"type,omitempty"`

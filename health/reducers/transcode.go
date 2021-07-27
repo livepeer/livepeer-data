@@ -5,13 +5,15 @@ import (
 	"github.com/livepeer/healthy-streams/health"
 )
 
-const transcodeBindingKey = "#.stream_health.transcode.#"
+const (
+	ConditionTranscoding health.ConditionType = "Transcoding"
+	ConditionRealTime    health.ConditionType = "RealTime"
+	ConditionNoErrors    health.ConditionType = "NoErrors"
 
-var transcodeConditions = []health.ConditionType{health.ConditionTranscoding, health.ConditionRealTime, health.ConditionNoErrors}
-var healthyMustHaves = map[health.ConditionType]bool{
-	health.ConditionTranscoding: true,
-	health.ConditionRealTime:    true,
-}
+	transcodeBindingKey = "#.stream_health.transcode.#"
+)
+
+var transcodeConditions = []health.ConditionType{ConditionTranscoding, ConditionRealTime, ConditionNoErrors}
 
 type TranscodeReducer struct{}
 
@@ -41,7 +43,7 @@ func (t TranscodeReducer) Reduce(current health.Status, _ interface{}, evtIface 
 	}
 
 	return health.Status{
-		ManifestID: current.ManifestID,
+		ID:         current.ID,
 		Healthy:    current.Healthy,
 		Conditions: conditions,
 	}, nil
@@ -49,12 +51,12 @@ func (t TranscodeReducer) Reduce(current health.Status, _ interface{}, evtIface 
 
 func conditionStatus(evt *health.TranscodeEvent, condType health.ConditionType) *bool {
 	switch condType {
-	case health.ConditionTranscoding:
+	case ConditionTranscoding:
 		return &evt.Success
-	case health.ConditionRealTime:
+	case ConditionRealTime:
 		isRealTime := evt.LatencyMs < int64(evt.Segment.Duration*1000)
 		return &isRealTime
-	case health.ConditionNoErrors:
+	case ConditionNoErrors:
 		noErrors := true
 		for _, attempt := range evt.Attempts {
 			noErrors = noErrors && attempt.Error == nil
