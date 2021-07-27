@@ -43,7 +43,7 @@ func init() {
 	fs.StringVar(&streamingOpts.ConsumerName, "consumerName", "", `Consumer name to use when consuming stream (default "healthy-streams-${hostname}")`)
 	fs.StringVar(&streamingOpts.MaxLengthBytes, "streamMaxLength", "50gb", "When creating a new stream, config for max total storage size")
 	fs.StringVar(&streamingOpts.MaxSegmentSizeBytes, "streamMaxSegmentSize", "500mb", "When creating a new stream, config for max stream segment size in storage")
-	fs.StringVar(&streamingOpts.MaxAge, "streamMaxAge", "720h", `When creating a new stream, config for max age of stored events`)
+	fs.DurationVar(&streamingOpts.MaxAge, "streamMaxAge", 30*24*time.Hour, `When creating a new stream, config for max age of stored events`)
 
 	fs.String("config", "", "config file (optional)")
 	ff.Parse(fs, os.Args[1:],

@@ -1,7 +1,6 @@
 package event
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/rabbitmq/rabbitmq-stream-go-client/pkg/stream"
@@ -13,18 +12,14 @@ var OffsetSpec = stream.OffsetSpecification{}
 type RawStreamOptions struct {
 	MaxLengthBytes      string
 	MaxSegmentSizeBytes string
-	MaxAge              string
+	MaxAge              time.Duration
 }
 
 func ParseStreamOptions(raw RawStreamOptions) (*stream.StreamOptions, error) {
-	maxAge, err := time.ParseDuration(raw.MaxAge)
-	if err != nil {
-		return nil, fmt.Errorf("max age: %w", err)
-	}
 	return &stream.StreamOptions{
 		MaxLengthBytes:      ByteCapacity.From(raw.MaxLengthBytes),
 		MaxSegmentSizeBytes: ByteCapacity.From(raw.MaxSegmentSizeBytes),
-		MaxAge:              maxAge,
+		MaxAge:              raw.MaxAge,
 	}, nil
 }
 
