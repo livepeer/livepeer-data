@@ -32,7 +32,7 @@ type Record struct {
 	Conditions []ConditionType
 
 	PastEvents    []Event
-	ReducersState map[interface{}]interface{}
+	ReducersState map[int]interface{}
 
 	LastStatus Status
 }
@@ -41,6 +41,7 @@ func NewRecord(mid string, conditions []ConditionType) *Record {
 	rec := &Record{
 		ManifestID: mid,
 		Conditions: conditions,
+		ReducersState: map[int]interface{}{},
 		LastStatus: Status{
 			ManifestID: mid,
 			Healthy:    *NewCondition("", time.Time{}, nil, nil, nil),

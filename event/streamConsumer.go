@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"runtime/debug"
 	"time"
 
 	"github.com/golang/glog"
@@ -142,7 +143,7 @@ func (c *strmConsumer) Consume(ctx context.Context, opts ConsumeOptions, handler
 	go func() {
 		defer func() {
 			if rec := recover(); rec != nil {
-				glog.Fatalf("Panic in stream message handler. panicValue=%v", rec)
+				glog.Fatalf("Panic in stream message handler. panicValue=%v, stack=%q", rec, debug.Stack())
 			}
 		}()
 		defer cancel()

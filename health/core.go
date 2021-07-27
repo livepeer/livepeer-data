@@ -98,10 +98,10 @@ func (c *Core) handleSingleEvent(evt Event) {
 	record := c.GetOrCreate(mid, c.conditionTypes)
 
 	status := record.LastStatus
-	for _, reducer := range c.reducers {
-		state := record.ReducersState[reducer]
+	for i, reducer := range c.reducers {
+		state := record.ReducersState[i]
 		status, state = reducer.Reduce(status, state, evt)
-		record.ReducersState[reducer] = state
+		record.ReducersState[i] = state
 	}
 	record.LastStatus = status
 	record.PastEvents = append(record.PastEvents, evt) // TODO: crop/drop these at some point
