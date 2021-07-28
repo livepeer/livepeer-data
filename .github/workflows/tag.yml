@@ -1,0 +1,24 @@
+name: CI pipeline for tags
+on:
+  push:
+    tags:
+      - "v*" # Push events to matching v*, i.e. v1.0, v4.20.13
+
+jobs:
+  build:
+    runs-on: ubuntu-20.04
+    steps:
+      - name: docker login
+        env:
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+        run: |
+          # docker login
+          docker version
+          docker login -u $DOCKER_USERNAME -p $DOCKER_PASSWORD
+
+      - name: docker build
+        run: make docker
+
+      - name: docker push
+        run: make docker_push
