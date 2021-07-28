@@ -1,4 +1,4 @@
-module github.com/livepeer/healthy-streams
+module github.com/livepeer/livepeer-data
 
 go 1.16
 

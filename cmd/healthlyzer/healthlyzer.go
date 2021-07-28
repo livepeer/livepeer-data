@@ -10,10 +10,10 @@ import (
 	"time"
 
 	"github.com/golang/glog"
-	"github.com/livepeer/healthy-streams/api"
-	"github.com/livepeer/healthy-streams/event"
-	"github.com/livepeer/healthy-streams/health"
-	"github.com/livepeer/healthy-streams/health/reducers"
+	"github.com/livepeer/livepeer-data/api"
+	"github.com/livepeer/livepeer-data/event"
+	"github.com/livepeer/livepeer-data/health"
+	"github.com/livepeer/livepeer-data/health/reducers"
 	"github.com/peterbourgon/ff"
 )
 
@@ -22,32 +22,29 @@ var (
 	// using -ldflags, using output of the `git describe` command.
 	Version = "undefined"
 
-	host string
-	port uint
+	// CLI flags
+	fs = flag.NewFlagSet("healthlyzer", flag.ExitOnError)
 
-	rabbitmqStreamUri, amqpUri string
-	streamingOpts              = health.StreamingOptions{}
+	host = fs.String("host", "localhost", "Hostname to bind to")
+	port = fs.Uint("port", 8080, "Port to listen on")
+
+	rabbitmqStreamUri = fs.String("rabbitmqStreamUri", "rabbitmq-stream://guest:guest@localhost:5552/livepeer", "Rabbitmq-stream URI to consume from")
+	amqpUri           = fs.String("amqpUri", "", "Explicit AMQP URI in case of non-default protocols/ports (optional). Must point to the same cluster as rabbitmqStreamUri")
+	streamingOpts     = health.StreamingOptions{} // flags bound in init below
 )
 
 func init() {
-	flag.Set("logtostderr", "true")
-	fs := flag.NewFlagSet("healthstream", flag.ExitOnError)
-
-	glogVFlag := flag.Lookup("v")
-	verbosity := fs.Int("v", 0, "Log verbosity {0-10}")
-
-	fs.StringVar(&host, "host", "localhost", "Hostname to bind to")
-	fs.UintVar(&port, "port", 8080, "Port to listen on")
-
 	// Streaming options
-	fs.StringVar(&rabbitmqStreamUri, "rabbitmqStreamUri", "rabbitmq-stream://guest:guest@localhost:5552/livepeer", "Rabbitmq-stream URI to consume from")
-	fs.StringVar(&amqpUri, "amqpUri", "", "Explicit AMQP URI in case of non-default protocols/ports (optional). Must point to the same cluster as rabbitmqStreamUri")
 	fs.StringVar(&streamingOpts.Stream, "streamName", "lp_stream_health_v0", "Name of RabbitMQ stream to create and consume from")
 	fs.StringVar(&streamingOpts.Exchange, "exchange", "lp_golivepeer_metadata", "Name of RabbitMQ exchange to bind the stream to on creation")
-	fs.StringVar(&streamingOpts.ConsumerName, "consumerName", "", `Consumer name to use when consuming stream (default "healthy-streams-${hostname}")`)
+	fs.StringVar(&streamingOpts.ConsumerName, "consumerName", "", `Consumer name to use when consuming stream (default "healthlyzer-${hostname}")`)
 	fs.StringVar(&streamingOpts.MaxLengthBytes, "streamMaxLength", "50gb", "When creating a new stream, config for max total storage size")
 	fs.StringVar(&streamingOpts.MaxSegmentSizeBytes, "streamMaxSegmentSize", "500mb", "When creating a new stream, config for max stream segment size in storage")
 	fs.DurationVar(&streamingOpts.MaxAge, "streamMaxAge", 30*24*time.Hour, `When creating a new stream, config for max age of stored events`)
+
+	flag.Set("logtostderr", "true")
+	glogVFlag := flag.Lookup("v")
+	verbosity := fs.Int("v", 0, "Log verbosity {0-10}")
 
 	fs.String("config", "", "config file (optional)")
 	ff.Parse(fs, os.Args[1:],
@@ -59,7 +56,7 @@ func init() {
 	glogVFlag.Value.Set(strconv.Itoa(*verbosity))
 
 	if streamingOpts.ConsumerName == "" {
-		streamingOpts.ConsumerName = "healthy-streams-" + hostname()
+		streamingOpts.ConsumerName = "healthlyzer-" + hostname()
 	}
 }
 
@@ -67,7 +64,7 @@ func main() {
 	glog.Infof("Stream health care system starting up... version=%q", Version)
 	ctx := contextUntilSignal(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 
-	consumer, err := event.NewStreamConsumer(rabbitmqStreamUri, amqpUri)
+	consumer, err := event.NewStreamConsumer(*rabbitmqStreamUri, *amqpUri)
 	if err != nil {
 		glog.Fatalf("Error creating stream consumer. err=%q", err)
 	}
@@ -84,7 +81,7 @@ func main() {
 	}
 
 	glog.Info("Starting server...")
-	err = api.ListenAndServe(ctx, host, port, 1*time.Second, healthcore)
+	err = api.ListenAndServe(ctx, *host, *port, 1*time.Second, healthcore)
 	if err != nil {
 		glog.Fatalf("Error starting api server. err=%q", err)
 	}

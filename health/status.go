@@ -3,11 +3,11 @@ package health
 import (
 	"time"
 
-	"github.com/livepeer/healthy-streams/stats"
+	"github.com/livepeer/livepeer-data/stats"
 )
 
 type Status struct {
-	ID         string       `json:"manifestId"`
+	ID         string       `json:"id"`
 	Healthy    Condition    `json:"healthy"`
 	Conditions []*Condition `json:"conditions"`
 }

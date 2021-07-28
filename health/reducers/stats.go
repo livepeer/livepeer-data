@@ -3,8 +3,8 @@ package reducers
 import (
 	"time"
 
-	"github.com/livepeer/healthy-streams/health"
-	"github.com/livepeer/healthy-streams/stats"
+	"github.com/livepeer/livepeer-data/health"
+	"github.com/livepeer/livepeer-data/stats"
 )
 
 type statsAggrs struct {
