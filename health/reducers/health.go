@@ -1,6 +1,6 @@
 package reducers
 
-import "github.com/livepeer/healthy-streams/health"
+import "github.com/livepeer/livepeer-data/health"
 
 var healthyMustHaves = map[health.ConditionType]bool{
 	ConditionTranscoding: true,

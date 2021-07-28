@@ -3,7 +3,7 @@ package reducers
 import (
 	"time"
 
-	"github.com/livepeer/healthy-streams/health"
+	"github.com/livepeer/livepeer-data/health"
 )
 
 var (

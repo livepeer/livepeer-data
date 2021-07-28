@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/golang/glog"
-	"github.com/livepeer/healthy-streams/health"
+	"github.com/livepeer/livepeer-data/health"
 	"golang.org/x/sync/errgroup"
 )
 

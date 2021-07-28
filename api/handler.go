@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/golang/glog"
-	"github.com/livepeer/healthy-streams/health"
+	"github.com/livepeer/livepeer-data/health"
 )
 
 func NewHandler(healthcore *health.Core) http.Handler {

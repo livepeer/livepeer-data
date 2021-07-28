@@ -1,21 +1,22 @@
 version ?= $(shell git describe --dirty)
 ldflags := -X 'main.Version=$(version)'
+builddir := ./build/
 
-all: healthystreams
+all: healthlyzer
 
-.PHONY: all healthystreams run docker push
+.PHONY: all healthlyzer run docker push
 
-healthystreams:
-	go build -ldflags="$(ldflags)" -o healthystreams main.go
+healthlyzer:
+	go build -o $(builddir) -ldflags="$(ldflags)" cmd/healthlyzer/healthlyzer.go
 
 run:
-	go run -ldflags="$(ldflags)" main.go $(args)
+	go run -ldflags="$(ldflags)" cmd/healthlyzer/healthlyzer.go $(args)
 
 docker:
-	docker build -t livepeer/healthystreams:latest --build-arg version=$(version) .
+	docker build -t livepeer/lpdata:latest --build-arg version=$(version) .
 
 docker_run: docker
-	docker run -it --rm --network=host livepeer/healthystreams $(args)
+	docker run -it --rm --network=host livepeer/lpdata $(args)
 
-push:
-	docker push livepeer/healthystreams:latest
+docker_push:
+	docker push livepeer/lpdata:latest

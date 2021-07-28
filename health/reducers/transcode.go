@@ -1,8 +1,8 @@
 package reducers
 
 import (
-	"github.com/livepeer/healthy-streams/event"
-	"github.com/livepeer/healthy-streams/health"
+	"github.com/livepeer/livepeer-data/event"
+	"github.com/livepeer/livepeer-data/health"
 )
 
 const (

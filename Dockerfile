@@ -2,7 +2,7 @@ FROM golang:1.16-alpine as builder
 
 RUN apk add --update make
 
-WORKDIR /build
+WORKDIR /app
 
 ENV GOFLAGS "-mod=readonly"
 
@@ -15,12 +15,12 @@ RUN echo $version
 
 COPY . .
 
-RUN make healthystreams "version=$version"
+RUN make "version=$version"
 
 FROM alpine
 
 WORKDIR /app
 
-COPY --from=builder /build/healthystreams .
+COPY --from=builder /app/build/* .
 
-ENTRYPOINT [ "./healthystreams" ]
+ENTRYPOINT [ "./healthlyzer" ]

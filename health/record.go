@@ -9,19 +9,19 @@ type RecordStorage struct {
 	records sync.Map // TODO: crop/drop these at some point
 }
 
-func (s *RecordStorage) Get(manifestId string) (*Record, bool) {
-	if saved, ok := s.records.Load(manifestId); ok {
+func (s *RecordStorage) Get(id string) (*Record, bool) {
+	if saved, ok := s.records.Load(id); ok {
 		return saved.(*Record), true
 	}
 	return nil, false
 }
 
-func (s *RecordStorage) GetOrCreate(manifestId string, conditions []ConditionType) *Record {
-	if saved, ok := s.Get(manifestId); ok {
+func (s *RecordStorage) GetOrCreate(id string, conditions []ConditionType) *Record {
+	if saved, ok := s.Get(id); ok {
 		return saved
 	}
-	new := NewRecord(manifestId, conditions)
-	if actual, loaded := s.records.LoadOrStore(manifestId, new); loaded {
+	new := NewRecord(id, conditions)
+	if actual, loaded := s.records.LoadOrStore(id, new); loaded {
 		return actual.(*Record)
 	}
 	return new
