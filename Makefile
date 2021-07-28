@@ -4,15 +4,15 @@ ldflags := -X 'main.Version=$(version)'
 builddir := ./build/
 dockerimg := livepeer/data
 
-all: healthlyzer
+all: healthanalyzer
 
-.PHONY: all healthlyzer run docker docker_run docker_push
+.PHONY: all healthanalyzer run docker docker_run docker_push
 
-healthlyzer:
-	go build -o $(builddir) -ldflags="$(ldflags)" cmd/healthlyzer/healthlyzer.go
+healthanalyzer:
+	go build -o $(builddir) -ldflags="$(ldflags)" cmd/healthanalyzer/healthanalyzer.go
 
 run:
-	go run -ldflags="$(ldflags)" cmd/healthlyzer/healthlyzer.go $(args)
+	go run -ldflags="$(ldflags)" cmd/healthanalyzer/healthanalyzer.go $(args)
 
 docker:
 	docker build -t $(dockerimg) -t $(dockerimg):$(version) --build-arg version=$(version) .

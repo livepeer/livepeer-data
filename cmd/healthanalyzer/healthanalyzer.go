@@ -23,7 +23,7 @@ var (
 	Version = "undefined"
 
 	// CLI flags
-	fs = flag.NewFlagSet("healthlyzer", flag.ExitOnError)
+	fs = flag.NewFlagSet("healthanalyzer", flag.ExitOnError)
 
 	host = fs.String("host", "localhost", "Hostname to bind to")
 	port = fs.Uint("port", 8080, "Port to listen on")
@@ -37,7 +37,7 @@ func init() {
 	// Streaming options
 	fs.StringVar(&streamingOpts.Stream, "streamName", "lp_stream_health_v0", "Name of RabbitMQ stream to create and consume from")
 	fs.StringVar(&streamingOpts.Exchange, "exchange", "lp_golivepeer_metadata", "Name of RabbitMQ exchange to bind the stream to on creation")
-	fs.StringVar(&streamingOpts.ConsumerName, "consumerName", "", `Consumer name to use when consuming stream (default "healthlyzer-${hostname}")`)
+	fs.StringVar(&streamingOpts.ConsumerName, "consumerName", "", `Consumer name to use when consuming stream (default "healthanalyzer-${hostname}")`)
 	fs.StringVar(&streamingOpts.MaxLengthBytes, "streamMaxLength", "50gb", "When creating a new stream, config for max total storage size")
 	fs.StringVar(&streamingOpts.MaxSegmentSizeBytes, "streamMaxSegmentSize", "500mb", "When creating a new stream, config for max stream segment size in storage")
 	fs.DurationVar(&streamingOpts.MaxAge, "streamMaxAge", 30*24*time.Hour, `When creating a new stream, config for max age of stored events`)
@@ -56,7 +56,7 @@ func init() {
 	glogVFlag.Value.Set(strconv.Itoa(*verbosity))
 
 	if streamingOpts.ConsumerName == "" {
-		streamingOpts.ConsumerName = "healthlyzer-" + hostname()
+		streamingOpts.ConsumerName = "healthanalyzer-" + hostname()
 	}
 }
 

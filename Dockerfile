@@ -23,4 +23,4 @@ WORKDIR /app
 
 COPY --from=builder /app/build/* .
 
-ENTRYPOINT [ "./healthlyzer" ]
+ENTRYPOINT [ "./healthanalyzer" ]
