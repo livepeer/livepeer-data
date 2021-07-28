@@ -22,5 +22,3 @@ FROM alpine
 WORKDIR /app
 
 COPY --from=builder /app/build/* .
-
-ENTRYPOINT [ "./healthanalyzer" ]

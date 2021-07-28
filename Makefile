@@ -1,24 +1,24 @@
-version ?= $(shell git describe --dirty)
-ldflags := -X 'main.Version=$(version)'
+version ?= $(shell git describe --tag --dirty)
+cmd ?= healthanalyzer
 
-builddir := ./build/
+allCmds := $(shell ls ./cmd/)
 dockerimg := livepeer/data
 
-all: healthanalyzer
+.PHONY: all $(allCmds) docker docker_run docker_push
 
-.PHONY: all healthanalyzer run docker docker_run docker_push
+all: $(allCmds)
 
-healthanalyzer:
-	go build -o $(builddir) -ldflags="$(ldflags)" cmd/healthanalyzer/healthanalyzer.go
+$(allCmds):
+	$(MAKE) -C ./cmd/$@
 
 run:
-	go run -ldflags="$(ldflags)" cmd/healthanalyzer/healthanalyzer.go $(args)
+	$(MAKE) -C ./cmd/$(cmd) run
 
 docker:
 	docker build -t $(dockerimg) -t $(dockerimg):$(version) --build-arg version=$(version) .
 
 docker_run: docker
-	docker run -it --rm --network=host $(dockerimg) $(args)
+	docker run -it --rm --network=host --entrypoint=./$(cmd) $(dockerimg) $(args)
 
 docker_push:
 	docker push $(dockerimg):$(version)
