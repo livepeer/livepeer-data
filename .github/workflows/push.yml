@@ -1,4 +1,4 @@
-name: CI pipeline for pushes
+name: Push CI
 on: push
 
 jobs:

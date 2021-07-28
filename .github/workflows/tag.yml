@@ -1,4 +1,4 @@
-name: CI pipeline for tags
+name: Tag CI
 on:
   push:
     tags:
