@@ -11,9 +11,9 @@ import (
 
 	"github.com/golang/glog"
 	"github.com/livepeer/livepeer-data/api"
-	"github.com/livepeer/livepeer-data/event"
 	"github.com/livepeer/livepeer-data/health"
 	"github.com/livepeer/livepeer-data/health/reducers"
+	"github.com/livepeer/livepeer-data/pkg/event"
 	"github.com/peterbourgon/ff"
 )
 
@@ -68,7 +68,7 @@ func main() {
 	if err != nil {
 		glog.Fatalf("Error creating stream consumer. err=%q", err)
 	}
-	defer consumer.Stop()
+	defer consumer.Close()
 
 	reducers, startTimeOffset := reducers.DefaultPipeline()
 	healthcore := health.NewCore(health.CoreOptions{

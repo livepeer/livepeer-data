@@ -15,39 +15,6 @@ import (
 )
 
 type (
-	BindingArgs struct {
-		Key      string
-		Exchange string
-		Args     amqp.Table
-	}
-
-	StreamOptions struct {
-		stream.StreamOptions
-		Bindings []BindingArgs
-	}
-
-	ConsumeOptions struct {
-		Stream string
-		*StreamOptions
-		*stream.ConsumerOptions
-		MemorizeOffset bool
-	}
-
-	StreamMessage struct {
-		stream.ConsumerContext
-		*streamAmqp.Message
-	}
-
-	Handler interface {
-		HandleMessage(msg StreamMessage)
-	}
-
-	StreamConsumer interface {
-		ConsumeChan(ctx context.Context, opts ConsumeOptions) (<-chan StreamMessage, error)
-		Consume(ctx context.Context, opts ConsumeOptions, handler Handler) error
-		Stop() error
-	}
-
 	strmConsumer struct {
 		streamUri, amqpUri string
 
@@ -80,7 +47,7 @@ func NewStreamConsumer(streamUri, amqpUri string) (StreamConsumer, error) {
 	return &strmConsumer{streamUri, amqpUri, env, make(chan struct{})}, nil
 }
 
-func (c *strmConsumer) Stop() error {
+func (c *strmConsumer) Close() error {
 	close(c.done)
 	return c.env.Close()
 }
@@ -174,9 +141,9 @@ func (c *strmConsumer) createStream(streamName string, opts StreamOptions) error
 	return nil
 }
 
-type connectFunc = func(prevConsumer stream.ConsumerContext) (*stream.Consumer, error)
+type connectConsumerFunc = func(prevConsumer stream.ConsumerContext) (*stream.Consumer, error)
 
-func newReconnectingConsumer(ctx context.Context, streamName string, connect connectFunc) (<-chan struct{}, error) {
+func newReconnectingConsumer(ctx context.Context, streamName string, connect connectConsumerFunc) (<-chan struct{}, error) {
 	consumer, err := connect(stream.ConsumerContext{})
 	if err != nil {
 		return nil, err
@@ -204,7 +171,7 @@ func newReconnectingConsumer(ctx context.Context, streamName string, connect con
 	return done, nil
 }
 
-func ensureConnect(ctx context.Context, streamName string, connect connectFunc, prevConsumer stream.ConsumerContext) *stream.Consumer {
+func ensureConnect(ctx context.Context, streamName string, connect connectConsumerFunc, prevConsumer stream.ConsumerContext) *stream.Consumer {
 	for {
 		consumer, err := connect(prevConsumer)
 		if err == nil {

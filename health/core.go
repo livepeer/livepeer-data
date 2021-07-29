@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/golang/glog"
-	"github.com/livepeer/livepeer-data/event"
+	"github.com/livepeer/livepeer-data/pkg/event"
 )
 
 // Purposedly made of built-in types only to bind directly to cli flags.
