@@ -2,10 +2,12 @@ name: Tag CI
 on:
   push:
     tags:
-      - "v*" # Push events to matching v*, i.e. v1.0, v4.20.13
+      # (Semver)[https://semver.org] tags only. e.g. v1.2.3-beta.5
+      - v[0-9]+.[0-9]+.[0-9]+
+      - v[0-9]+.[0-9]+.[0-9]+-*
 
 jobs:
-  build:
+  publish:
     runs-on: ubuntu-20.04
     steps:
       - name: Check out code
