@@ -31,23 +31,24 @@ type amqpChan interface {
 	Publish(exchange, key string, mandatory, immediate bool, msg amqp.Publishing) error
 }
 
-type connectFunc func(ctx context.Context, uri, exchange string, confirms chan amqp.Confirmation, closed chan *amqp.Error) (amqpChan, error)
+type connectFunc func(ctx context.Context, uri, exchange, queue string, confirms chan amqp.Confirmation, closed chan *amqp.Error) (amqpChan, error)
 
 type amqpProducer struct {
 	ctx             context.Context
 	amqpURI         string
 	exchange, keyNs string
+	queue           string
 	publishQ        chan *publishMessage
 	connectFn       connectFunc
 }
 
-func NewAMQPProducer(ctx context.Context, uri, exchange, keyNs string) (Producer, error) {
-	return newAMQPProducerInternal(ctx, uri, exchange, keyNs, amqpConnect)
+func NewAMQPProducer(ctx context.Context, uri, exchange, queue, keyNs string) (Producer, error) {
+	return newAMQPProducerInternal(ctx, uri, exchange, queue, keyNs, amqpConnect)
 }
 
-func newAMQPProducerInternal(ctx context.Context, uri, exchange, keyNs string, connectFn connectFunc) (Producer, error) {
+func newAMQPProducerInternal(ctx context.Context, uri, exchange, queue, keyNs string, connectFn connectFunc) (Producer, error) {
 	testCtx, cancel := context.WithCancel(ctx)
-	_, err := connectFn(testCtx, uri, exchange, nil, nil)
+	_, err := connectFn(testCtx, uri, exchange, queue, nil, nil)
 	cancel()
 	if err != nil {
 		return nil, err
@@ -57,6 +58,7 @@ func newAMQPProducerInternal(ctx context.Context, uri, exchange, keyNs string, c
 		amqpURI:   uri,
 		exchange:  exchange,
 		keyNs:     keyNs,
+		queue:     queue,
 		publishQ:  make(chan *publishMessage, PublishQueueSize),
 		connectFn: connectFn,
 	}
@@ -65,6 +67,7 @@ func newAMQPProducerInternal(ctx context.Context, uri, exchange, keyNs string, c
 }
 
 func (p *amqpProducer) Publish(ctx context.Context, key string, body interface{}) error {
+	glog.Infof("Publishing amqp message to queue=%s msg=%+v", body)
 	bodyRaw, err := json.Marshal(body)
 	if err != nil {
 		return fmt.Errorf("failed to marshal body to json: %w", err)
@@ -122,7 +125,7 @@ func (p *amqpProducer) connectAndLoopPublish() error {
 		closed      = make(chan *amqp.Error, 1)
 	)
 	defer cancel()
-	channel, err := p.connectFn(ctx, p.amqpURI, p.exchange, confirms, closed)
+	channel, err := p.connectFn(ctx, p.amqpURI, p.exchange, p.queue, confirms, closed)
 	if err != nil {
 		return fmt.Errorf("error setting up AMQP connection: %w", err)
 	}
@@ -190,7 +193,7 @@ func (p *amqpProducer) retryMsg(msg *publishMessage) {
 	}
 }
 
-func amqpConnect(ctx context.Context, uri, exchange string,
+func amqpConnect(ctx context.Context, uri, exchange, queue string,
 	confirms chan amqp.Confirmation, closed chan *amqp.Error) (amqpChan, error) {
 
 	conn, err := amqp.Dial(uri)
@@ -218,10 +221,19 @@ func amqpConnect(ctx context.Context, uri, exchange string,
 		internal    = false
 		noWait      = false
 	)
-	err = channel.ExchangeDeclare(exchange, "topic", durable, autoDeleted, internal, noWait, nil)
-	if err != nil {
-		conn.Close()
-		return nil, fmt.Errorf("exchange declare: %w", err)
+	if exchange != "" {
+		err = channel.ExchangeDeclare(exchange, "topic", durable, autoDeleted, internal, noWait, nil)
+		if err != nil {
+			conn.Close()
+			return nil, fmt.Errorf("exchange declare: %w", err)
+		}
+	}
+	if queue != "" {
+		_, err = channel.QueueDeclare(queue, durable, autoDeleted, false, noWait, nil)
+		if err != nil {
+			conn.Close()
+			return nil, fmt.Errorf("queue declare: %w", err)
+		}
 	}
 	if confirms != nil {
 		channel.NotifyPublish(confirms)
