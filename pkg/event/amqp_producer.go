@@ -13,25 +13,11 @@ import (
 )
 
 const (
-	PublishQueueSize     = 100
+	PublishChannelSize   = 100
 	RetryMinDelay        = 5 * time.Second
 	PublishLogSampleRate = 1
 	MaxRetries           = 3
 )
-
-type publishMessage struct {
-	amqp.Publishing
-	Exchange, Key string
-
-	// internal loop state
-	retries int
-}
-
-type amqpChan interface {
-	Publish(exchange, key string, mandatory, immediate bool, msg amqp.Publishing) error
-}
-
-type connectFunc func(ctx context.Context, uri, exchange, queue string, confirms chan amqp.Confirmation, closed chan *amqp.Error) (amqpChan, error)
 
 type amqpProducer struct {
 	ctx             context.Context
@@ -42,11 +28,24 @@ type amqpProducer struct {
 	connectFn       connectFunc
 }
 
-func NewAMQPProducer(ctx context.Context, uri, exchange, queue, keyNs string) (Producer, error) {
-	return newAMQPProducerInternal(ctx, uri, exchange, queue, keyNs, amqpConnect)
+func NewAMQPProducerToExchange(ctx context.Context, uri, exchange, keyNs string) (Producer, error) {
+	return newAMQPProducerInternal(ctx, uri, exchange, keyNs, "", amqpConnect)
 }
 
-func newAMQPProducerInternal(ctx context.Context, uri, exchange, queue, keyNs string, connectFn connectFunc) (Producer, error) {
+func NewAMQPProducerToQueue(ctx context.Context, uri, queue string) (Producer, error) {
+	return newAMQPProducerInternal(ctx, uri, "", "", queue, amqpConnect)
+}
+
+type amqpChan interface {
+	Publish(exchange, key string, mandatory, immediate bool, msg amqp.Publishing) error
+}
+
+type connectFunc func(ctx context.Context, uri, exchange, queue string, confirms chan amqp.Confirmation, closed chan *amqp.Error) (amqpChan, error)
+
+func newAMQPProducerInternal(ctx context.Context, uri, exchange, keyNs, queue string, connectFn connectFunc) (Producer, error) {
+	if queue != "" && (exchange != "" || keyNs != "") {
+		return nil, errors.New("when sending directly to a queue, exchange and keyNs must be empty")
+	}
 	testCtx, cancel := context.WithCancel(ctx)
 	_, err := connectFn(testCtx, uri, exchange, queue, nil, nil)
 	cancel()
@@ -59,21 +58,23 @@ func newAMQPProducerInternal(ctx context.Context, uri, exchange, queue, keyNs st
 		exchange:  exchange,
 		keyNs:     keyNs,
 		queue:     queue,
-		publishQ:  make(chan *publishMessage, PublishQueueSize),
+		publishQ:  make(chan *publishMessage, PublishChannelSize),
 		connectFn: connectFn,
 	}
 	go amqp.mainLoop()
 	return amqp, nil
 }
 
-func (p *amqpProducer) Publish(ctx context.Context, key string, body interface{}) error {
-	glog.Infof("Publishing amqp message to queue=%s msg=%+v", body)
+func (p *amqpProducer) Publish(ctx context.Context, key string, body interface{}, persistent bool) error {
+	if p.queue != "" && key != "" {
+		return errors.New("when sending directly to a queue, key must always be empty")
+	}
 	bodyRaw, err := json.Marshal(body)
 	if err != nil {
 		return fmt.Errorf("failed to marshal body to json: %w", err)
 	}
 	select {
-	case p.publishQ <- p.newPublishMessage(key, bodyRaw):
+	case p.publishQ <- p.newPublishMessage(key, bodyRaw, persistent):
 		return nil
 	case <-ctx.Done():
 		return ctx.Err()
@@ -82,19 +83,35 @@ func (p *amqpProducer) Publish(ctx context.Context, key string, body interface{}
 	}
 }
 
-func (p *amqpProducer) newPublishMessage(key string, bodyRaw []byte) *publishMessage {
-	if p.keyNs != "" {
+type publishMessage struct {
+	amqp.Publishing
+	Exchange, Key string
+
+	// internal loop state
+	retries int
+}
+
+func (p *amqpProducer) newPublishMessage(key string, bodyRaw []byte, persistent bool) *publishMessage {
+	exchange := p.exchange
+	if p.queue != "" {
+		exchange = ""
+		key = p.queue
+	} else if p.keyNs != "" {
 		key = p.keyNs + "." + key
 	}
+	deliveryMode := amqp.Transient
+	if persistent {
+		deliveryMode = amqp.Persistent
+	}
 	return &publishMessage{
-		Exchange: p.exchange,
+		Exchange: exchange,
 		Key:      key,
 		Publishing: amqp.Publishing{
 			Headers:         amqp.Table{},
 			ContentType:     "application/json",
 			ContentEncoding: "",
 			Body:            bodyRaw,
-			DeliveryMode:    amqp.Transient,
+			DeliveryMode:    deliveryMode,
 			Priority:        1,
 		},
 	}
@@ -121,7 +138,7 @@ func (p *amqpProducer) mainLoop() {
 func (p *amqpProducer) connectAndLoopPublish() error {
 	var (
 		ctx, cancel = context.WithCancel(p.ctx)
-		confirms    = make(chan amqp.Confirmation, PublishQueueSize)
+		confirms    = make(chan amqp.Confirmation, PublishChannelSize)
 		closed      = make(chan *amqp.Error, 1)
 	)
 	defer cancel()

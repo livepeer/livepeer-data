@@ -9,7 +9,7 @@ import (
 )
 
 type Producer interface {
-	Publish(ctx context.Context, key string, body interface{}) error
+	Publish(ctx context.Context, key string, body interface{}, persistent bool) error
 }
 
 type (
