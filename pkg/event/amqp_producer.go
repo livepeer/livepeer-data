@@ -15,7 +15,7 @@ import (
 const (
 	PublishChannelSize   = 100
 	RetryMinDelay        = 5 * time.Second
-	PublishLogSampleRate = 1
+	PublishLogSampleRate = 0.1
 	MaxRetries           = 3
 )
 
@@ -187,7 +187,6 @@ func (p *amqpProducer) connectAndLoopPublish() error {
 				glog.Errorf("Received confirmation for unknown message: tag=%v, success=%v", tag, success)
 				break
 			}
-			glog.V(4).Infof("Sampled: Confirmation received: exchange=%q, key=%q, tag=%v, success=%v", p.exchange, msg.Key, tag, success)
 			delete(outstandingMsgs, tag)
 			if !success {
 				p.retryMsg(msg)
