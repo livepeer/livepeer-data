@@ -28,11 +28,11 @@ type amqpProducer struct {
 	connectFn       connectFunc
 }
 
-func NewAMQPProducerToExchange(ctx context.Context, uri, exchange, keyNs string) (Producer, error) {
+func NewAMQPExchangeProducer(ctx context.Context, uri, exchange, keyNs string) (Producer, error) {
 	return newAMQPProducerInternal(ctx, uri, exchange, keyNs, "", amqpConnect)
 }
 
-func NewAMQPProducerToQueue(ctx context.Context, uri, queue string) (Producer, error) {
+func NewAMQPQueueProducer(ctx context.Context, uri, queue string) (Producer, error) {
 	return newAMQPProducerInternal(ctx, uri, "", "", queue, amqpConnect)
 }
 
