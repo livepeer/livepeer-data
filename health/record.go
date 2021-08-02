@@ -33,8 +33,9 @@ type Record struct {
 	ID         string
 	Conditions []ConditionType
 
-	sync.Mutex
+	sync.RWMutex
 	PastEvents []data.Event
+	EventSubs  []chan<- data.Event
 
 	ReducersState map[int]interface{}
 	LastStatus    Status

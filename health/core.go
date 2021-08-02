@@ -14,6 +14,8 @@ import (
 
 var ErrStreamNotFound = errors.New("stream not found")
 
+const eventSubscriptionBufSize = 10
+
 // Purposedly made of built-in types only to bind directly to cli flags.
 type StreamingOptions struct {
 	Stream, ConsumerName string
@@ -119,9 +121,43 @@ func (c *Core) GetPastEvents(manifestID string, from, to *time.Time) ([]data.Eve
 	if !ok {
 		return nil, ErrStreamNotFound
 	}
+	record.RLock()
+	defer record.RUnlock()
+	return getPastEventsLocked(record, from, to)
+}
+
+func (c *Core) SubscribeEvents(ctx context.Context, manifestID string, from *time.Time) ([]data.Event, <-chan data.Event, error) {
+	var err error
+	record, ok := c.storage.Get(manifestID)
+	if !ok {
+		return nil, nil, ErrStreamNotFound
+	}
 	record.Lock()
 	defer record.Unlock()
-	return getPastEventsLocked(record, from, to)
+
+	var pastEvents []data.Event
+	if from != nil {
+		pastEvents, err = getPastEventsLocked(record, from, nil)
+		if err != nil {
+			return nil, nil, err
+		}
+	}
+	subs := make(chan data.Event, eventSubscriptionBufSize)
+	record.EventSubs = append(record.EventSubs, subs)
+	go func() {
+		defer close(subs)
+		<-ctx.Done()
+
+		record.Lock()
+		defer record.Unlock()
+		for i := range record.EventSubs {
+			if subs == record.EventSubs[i] {
+				record.EventSubs = append(record.EventSubs[:i], record.EventSubs[i+1:]...)
+				return
+			}
+		}
+	}()
+	return pastEvents, subs, nil
 }
 
 func getPastEventsLocked(record *Record, from, to *time.Time) ([]data.Event, error) {
