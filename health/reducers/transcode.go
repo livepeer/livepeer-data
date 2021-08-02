@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/livepeer/livepeer-data/health"
+	"github.com/livepeer/livepeer-data/pkg/data"
 	"github.com/livepeer/livepeer-data/pkg/event"
 )
 
@@ -45,8 +46,8 @@ func (t TranscodeReducer) Conditions() []health.ConditionType {
 	return transcodeConditions
 }
 
-func (t TranscodeReducer) Reduce(current health.Status, _ interface{}, evtIface health.Event) (health.Status, interface{}) {
-	evt, ok := evtIface.(*health.TranscodeEvent)
+func (t TranscodeReducer) Reduce(current health.Status, _ interface{}, evtIface data.Event) (health.Status, interface{}) {
+	evt, ok := evtIface.(*data.TranscodeEvent)
 	if !ok {
 		return current, nil
 	}
@@ -69,7 +70,7 @@ func (t TranscodeReducer) Reduce(current health.Status, _ interface{}, evtIface 
 	}, nil
 }
 
-func conditionStatus(evt *health.TranscodeEvent, condType health.ConditionType) *bool {
+func conditionStatus(evt *data.TranscodeEvent, condType health.ConditionType) *bool {
 	switch condType {
 	case ConditionTranscoding:
 		return &evt.Success

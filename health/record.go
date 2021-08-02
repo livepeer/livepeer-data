@@ -3,6 +3,8 @@ package health
 import (
 	"sync"
 	"time"
+
+	"github.com/livepeer/livepeer-data/pkg/data"
 )
 
 type RecordStorage struct {
@@ -31,7 +33,7 @@ type Record struct {
 	ID         string
 	Conditions []ConditionType
 
-	PastEvents []Event
+	PastEvents []data.Event
 
 	ReducersState map[int]interface{}
 	LastStatus    Status

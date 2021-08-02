@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/golang/glog"
+	"github.com/livepeer/livepeer-data/pkg/data"
 	"github.com/livepeer/livepeer-data/pkg/event"
 )
 
@@ -25,14 +26,14 @@ type CoreOptions struct {
 type Reducer interface {
 	Bindings() []event.BindingArgs
 	Conditions() []ConditionType
-	Reduce(current Status, state interface{}, evt Event) (Status, interface{})
+	Reduce(current Status, state interface{}, evt data.Event) (Status, interface{})
 }
 
-type ReducerFunc func(Status, interface{}, Event) (Status, interface{})
+type ReducerFunc func(Status, interface{}, data.Event) (Status, interface{})
 
 func (f ReducerFunc) Bindings() []event.BindingArgs { return nil }
 func (f ReducerFunc) Conditions() []ConditionType   { return nil }
-func (f ReducerFunc) Reduce(current Status, state interface{}, evt Event) (Status, interface{}) {
+func (f ReducerFunc) Reduce(current Status, state interface{}, evt data.Event) (Status, interface{}) {
 	return f(current, state, evt)
 }
 
@@ -82,17 +83,17 @@ func (c *Core) Start(ctx context.Context) error {
 }
 
 func (c *Core) HandleMessage(msg event.StreamMessage) {
-	for _, data := range msg.Data {
-		evt, err := ParseEvent(data)
+	for _, rawEvt := range msg.Data {
+		evt, err := data.ParseEvent(rawEvt)
 		if err != nil {
-			glog.Errorf("Health core received malformed message. err=%q, data=%q", err, data)
+			glog.Errorf("Health core received malformed message. err=%q, data=%q", err, rawEvt)
 			continue
 		}
 		c.handleSingleEvent(evt)
 	}
 }
 
-func (c *Core) handleSingleEvent(evt Event) {
+func (c *Core) handleSingleEvent(evt data.Event) {
 	mid := evt.ManifestID()
 	record := c.GetOrCreate(mid, c.conditionTypes)
 
