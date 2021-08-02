@@ -33,6 +33,7 @@ type Record struct {
 	ID         string
 	Conditions []ConditionType
 
+	sync.Mutex
 	PastEvents []data.Event
 
 	ReducersState map[int]interface{}

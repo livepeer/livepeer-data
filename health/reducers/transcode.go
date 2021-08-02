@@ -14,7 +14,7 @@ const (
 	ConditionRealTime    health.ConditionType = "RealTime"
 	ConditionNoErrors    health.ConditionType = "NoErrors"
 
-	transcodeBindingKeyFormat = "*.stream_health.transcode.%s.*"
+	transcodeBindingKeyFormat = "*.stream_health.transcode.%s.#"
 )
 
 var transcodeConditions = []health.ConditionType{ConditionTranscoding, ConditionRealTime, ConditionNoErrors}

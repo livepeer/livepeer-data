@@ -4,12 +4,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/golang/glog"
 	"github.com/livepeer/livepeer-data/pkg/data"
 	"github.com/livepeer/livepeer-data/pkg/event"
 )
+
+var ErrStreamNotFound = errors.New("stream not found")
 
 // Purposedly made of built-in types only to bind directly to cli flags.
 type StreamingOptions struct {
@@ -23,29 +26,15 @@ type CoreOptions struct {
 	StartTimeOffset time.Duration
 }
 
-type Reducer interface {
-	Bindings() []event.BindingArgs
-	Conditions() []ConditionType
-	Reduce(current Status, state interface{}, evt data.Event) (Status, interface{})
-}
-
-type ReducerFunc func(Status, interface{}, data.Event) (Status, interface{})
-
-func (f ReducerFunc) Bindings() []event.BindingArgs { return nil }
-func (f ReducerFunc) Conditions() []ConditionType   { return nil }
-func (f ReducerFunc) Reduce(current Status, state interface{}, evt data.Event) (Status, interface{}) {
-	return f(current, state, evt)
-}
-
 type Core struct {
-	RecordStorage
-
 	opts     CoreOptions
 	consumer event.StreamConsumer
 	started  bool
 
 	reducers       []Reducer
 	conditionTypes []ConditionType
+
+	storage RecordStorage
 }
 
 func NewCore(opts CoreOptions, consumer event.StreamConsumer) *Core {
@@ -95,7 +84,7 @@ func (c *Core) HandleMessage(msg event.StreamMessage) {
 
 func (c *Core) handleSingleEvent(evt data.Event) {
 	mid := evt.ManifestID()
-	record := c.GetOrCreate(mid, c.conditionTypes)
+	record := c.storage.GetOrCreate(mid, c.conditionTypes)
 
 	status := record.LastStatus
 	for i, reducer := range c.reducers {
@@ -103,8 +92,60 @@ func (c *Core) handleSingleEvent(evt data.Event) {
 		status, state = reducer.Reduce(status, state, evt)
 		record.ReducersState[i] = state
 	}
+
+	record.Lock()
+	defer record.Unlock()
 	record.LastStatus = status
-	record.PastEvents = append(record.PastEvents, evt) // TODO: crop/drop these at some point
+	record.PastEvents = append(record.PastEvents, evt) // TODO: Sort these. Also crop/drop them at some point
+	for _, subs := range record.EventSubs {
+		select {
+		case subs <- evt:
+		default:
+			glog.Warningf("Buffer full for health event subscription, skipping message. manifestId=%q, eventTs=%q", mid, evt.Timestamp())
+		}
+	}
+}
+
+func (c *Core) GetStatus(manifestID string) (Status, error) {
+	record, ok := c.storage.Get(manifestID)
+	if !ok {
+		return Status{}, ErrStreamNotFound
+	}
+	return record.LastStatus, nil
+}
+
+func (c *Core) GetPastEvents(manifestID string, from, to *time.Time) ([]data.Event, error) {
+	record, ok := c.storage.Get(manifestID)
+	if !ok {
+		return nil, ErrStreamNotFound
+	}
+	record.Lock()
+	defer record.Unlock()
+	return getPastEventsLocked(record, from, to)
+}
+
+func getPastEventsLocked(record *Record, from, to *time.Time) ([]data.Event, error) {
+	fromIdx, toIdx := 0, len(record.PastEvents)
+	if from != nil {
+		fromIdx = firstIdxAfter(record.PastEvents, *from)
+	}
+	if to != nil {
+		toIdx = firstIdxAfter(record.PastEvents, *to)
+	}
+	if toIdx < fromIdx {
+		return nil, errors.New("from timestamp must be lower than to timestamp")
+	}
+
+	ret := make([]data.Event, toIdx-fromIdx)
+	copy(ret, record.PastEvents[fromIdx:toIdx])
+	return ret, nil
+}
+
+func firstIdxAfter(events []data.Event, threshold time.Time) int {
+	return sort.Search(len(events), func(i int) bool {
+		ts := events[i].Timestamp()
+		return ts.After(threshold)
+	})
 }
 
 func (c *Core) consumeOptions() (event.ConsumeOptions, error) {
@@ -113,18 +154,9 @@ func (c *Core) consumeOptions() (event.ConsumeOptions, error) {
 	if err != nil {
 		return event.ConsumeOptions{}, fmt.Errorf("bad stream options: %w", err)
 	}
-
-	bindings := []event.BindingArgs{}
-	added := map[string]bool{}
-	for _, reducer := range c.reducers {
-		for _, newBind := range reducer.Bindings() {
-			key := newBind.Key + " / " + newBind.Exchange
-			if added[key] {
-				return event.ConsumeOptions{}, fmt.Errorf("duplicate binding: %s", key)
-			}
-			added[key] = true
-			bindings = append(bindings, newBind)
-		}
+	bindings, err := bindingArgs(c.reducers)
+	if err != nil {
+		return event.ConsumeOptions{}, err
 	}
 
 	startTime := time.Now().Add(-c.opts.StartTimeOffset)
@@ -137,6 +169,22 @@ func (c *Core) consumeOptions() (event.ConsumeOptions, error) {
 		ConsumerOptions: event.NewConsumerOptions(opts.ConsumerName, event.TimestampOffset(startTime)),
 		MemorizeOffset:  true,
 	}, nil
+}
+
+func bindingArgs(reducers []Reducer) ([]event.BindingArgs, error) {
+	added := map[string]bool{}
+	bindings := []event.BindingArgs{}
+	for _, reducer := range reducers {
+		for _, newBind := range reducer.Bindings() {
+			key := newBind.Key + " / " + newBind.Exchange
+			if added[key] {
+				return nil, fmt.Errorf("duplicate binding: %s", key)
+			}
+			added[key] = true
+			bindings = append(bindings, newBind)
+		}
+	}
+	return bindings, nil
 }
 
 func conditionTypes(reducers []Reducer) []ConditionType {

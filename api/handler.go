@@ -23,13 +23,17 @@ func getStreamHealth(healthcore *health.Core) http.HandlerFunc {
 			return
 		}
 		manifestID := parts[4]
-		record, ok := healthcore.Get(manifestID)
-		if !ok {
-			rw.WriteHeader(http.StatusNotFound)
+		status, err := healthcore.GetStatus(manifestID)
+		if err != nil {
+			status := http.StatusInternalServerError
+			if err == health.ErrStreamNotFound {
+				status = http.StatusNotFound
+			}
+			rw.WriteHeader(status)
 			return
 		}
 		rw.WriteHeader(http.StatusOK)
-		if err := json.NewEncoder(rw).Encode(record.LastStatus); err != nil {
+		if err := json.NewEncoder(rw).Encode(status); err != nil {
 			glog.Errorf("Error writing stream health JSON response. err=%q", err)
 		}
 	}
