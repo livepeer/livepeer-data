@@ -1,6 +1,9 @@
 package reducers
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/livepeer/livepeer-data/health"
 	"github.com/livepeer/livepeer-data/pkg/event"
 )
@@ -10,15 +13,32 @@ const (
 	ConditionRealTime    health.ConditionType = "RealTime"
 	ConditionNoErrors    health.ConditionType = "NoErrors"
 
-	transcodeBindingKey = "#.stream_health.transcode.#"
+	transcodeBindingKeyFormat = "*.stream_health.transcode.%s.*"
 )
 
 var transcodeConditions = []health.ConditionType{ConditionTranscoding, ConditionRealTime, ConditionNoErrors}
 
-type TranscodeReducer struct{}
+type TranscodeReducer struct {
+	GolpExchange  string
+	ShardPrefixes string
+}
 
-func (t TranscodeReducer) Bindings(golpExchange string) []event.BindingArgs {
-	return []event.BindingArgs{{Key: transcodeBindingKey, Exchange: golpExchange}}
+func (t TranscodeReducer) Bindings() []event.BindingArgs {
+	if t.ShardPrefixes == "" {
+		return []event.BindingArgs{{
+			Key:      fmt.Sprintf(transcodeBindingKeyFormat, "*"),
+			Exchange: t.GolpExchange,
+		}}
+	}
+	prefixes := strings.Split(t.ShardPrefixes, ",")
+	bindings := make([]event.BindingArgs, len(prefixes))
+	for i, prefix := range prefixes {
+		bindings[i] = event.BindingArgs{
+			Key:      fmt.Sprintf(transcodeBindingKeyFormat, prefix),
+			Exchange: t.GolpExchange,
+		}
+	}
+	return bindings
 }
 
 func (t TranscodeReducer) Conditions() []health.ConditionType {

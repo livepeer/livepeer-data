@@ -12,8 +12,7 @@ import (
 
 // Purposedly made of built-in types only to bind directly to cli flags.
 type StreamingOptions struct {
-	Stream, Exchange string
-	ConsumerName     string
+	Stream, ConsumerName string
 
 	event.RawStreamOptions
 }
@@ -24,15 +23,15 @@ type CoreOptions struct {
 }
 
 type Reducer interface {
-	Bindings(golpExchange string) []event.BindingArgs
+	Bindings() []event.BindingArgs
 	Conditions() []ConditionType
 	Reduce(current Status, state interface{}, evt Event) (Status, interface{})
 }
 
 type ReducerFunc func(Status, interface{}, Event) (Status, interface{})
 
-func (f ReducerFunc) Bindings(_ string) []event.BindingArgs { return nil }
-func (f ReducerFunc) Conditions() []ConditionType           { return nil }
+func (f ReducerFunc) Bindings() []event.BindingArgs { return nil }
+func (f ReducerFunc) Conditions() []ConditionType   { return nil }
 func (f ReducerFunc) Reduce(current Status, state interface{}, evt Event) (Status, interface{}) {
 	return f(current, state, evt)
 }
@@ -117,13 +116,13 @@ func (c *Core) consumeOptions() (event.ConsumeOptions, error) {
 	bindings := []event.BindingArgs{}
 	added := map[string]bool{}
 	for _, reducer := range c.reducers {
-		for _, newBind := range reducer.Bindings(c.opts.Streaming.Exchange) {
+		for _, newBind := range reducer.Bindings() {
 			key := newBind.Key + " / " + newBind.Exchange
 			if added[key] {
 				return event.ConsumeOptions{}, fmt.Errorf("duplicate binding: %s", key)
 			}
 			added[key] = true
-			bindings = append(bindings, reducer.Bindings(c.opts.Streaming.Exchange)...)
+			bindings = append(bindings, newBind)
 		}
 	}
 

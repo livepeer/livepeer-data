@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -23,21 +24,24 @@ var (
 	Version = "undefined"
 
 	// CLI flags
-	fs = flag.NewFlagSet("healthanalyzer", flag.ExitOnError)
+	fs = flag.NewFlagSet("analyzer", flag.ExitOnError)
 
 	host = fs.String("host", "localhost", "Hostname to bind to")
 	port = fs.Uint("port", 8080, "Port to listen on")
 
-	rabbitmqStreamUri = fs.String("rabbitmqStreamUri", "rabbitmq-stream://guest:guest@localhost:5552/livepeer", "Rabbitmq-stream URI to consume from")
-	amqpUri           = fs.String("amqpUri", "", "Explicit AMQP URI in case of non-default protocols/ports (optional). Must point to the same cluster as rabbitmqStreamUri")
-	streamingOpts     = health.StreamingOptions{} // flags bound in init below
+	rabbitmqUri = fs.String("rabbitmqUri", "amqp://guest:guest@localhost:5672/livepeer", "URI for RabbitMQ server to consume from. Can be specified as a default AMQP URI which will be converted to stream protocol.")
+	amqpUriFlag = fs.String("amqpUri", "", "Explicit AMQP URI in case of non-default protocols/ports (optional). Must point to the same cluster as rabbitmqUri")
+
+	golivepeerExchange = fs.String("golivepeerExchange", "lp_golivepeer_metadata", "Name of RabbitMQ exchange to bind the stream to on creation")
+	shardPrefixes      = fs.String("shardPrefixes", "", "Comma-separated list of prefixes of manifest IDs to process events from")
+
+	streamingOpts = health.StreamingOptions{} // flags bound in init below
 )
 
 func init() {
 	// Streaming options
-	fs.StringVar(&streamingOpts.Stream, "streamName", "lp_stream_health_v0", "Name of RabbitMQ stream to create and consume from")
-	fs.StringVar(&streamingOpts.Exchange, "exchange", "lp_golivepeer_metadata", "Name of RabbitMQ exchange to bind the stream to on creation")
-	fs.StringVar(&streamingOpts.ConsumerName, "consumerName", "", `Consumer name to use when consuming stream (default "healthanalyzer-${hostname}")`)
+	fs.StringVar(&streamingOpts.Stream, "rabbitmqStreamName", "lp_stream_health_v0", "Name of RabbitMQ stream to create and consume from")
+	fs.StringVar(&streamingOpts.ConsumerName, "consumerName", "", `Consumer name to use when consuming stream (default "analyzer-${hostname}")`)
 	fs.StringVar(&streamingOpts.MaxLengthBytes, "streamMaxLength", "50gb", "When creating a new stream, config for max total storage size")
 	fs.StringVar(&streamingOpts.MaxSegmentSizeBytes, "streamMaxSegmentSize", "500mb", "When creating a new stream, config for max stream segment size in storage")
 	fs.DurationVar(&streamingOpts.MaxAge, "streamMaxAge", 30*24*time.Hour, `When creating a new stream, config for max age of stored events`)
@@ -56,7 +60,7 @@ func init() {
 	glogVFlag.Value.Set(strconv.Itoa(*verbosity))
 
 	if streamingOpts.ConsumerName == "" {
-		streamingOpts.ConsumerName = "healthanalyzer-" + hostname()
+		streamingOpts.ConsumerName = "analyzer-" + hostname()
 	}
 }
 
@@ -64,13 +68,18 @@ func main() {
 	glog.Infof("Stream health care system starting up... version=%q", Version)
 	ctx := contextUntilSignal(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 
-	consumer, err := event.NewStreamConsumer(*rabbitmqStreamUri, *amqpUri)
+	streamUri, amqpUri := *rabbitmqUri, *amqpUriFlag
+	if amqpUri == "" && strings.HasPrefix(streamUri, "amqp:") {
+		amqpUri = streamUri
+		streamUri = ""
+	}
+	consumer, err := event.NewStreamConsumer(streamUri, amqpUri)
 	if err != nil {
 		glog.Fatalf("Error creating stream consumer. err=%q", err)
 	}
 	defer consumer.Close()
 
-	reducers, startTimeOffset := reducers.DefaultPipeline()
+	reducers, startTimeOffset := reducers.DefaultPipeline(*golivepeerExchange, *shardPrefixes)
 	healthcore := health.NewCore(health.CoreOptions{
 		Streaming:       streamingOpts,
 		StartTimeOffset: startTimeOffset,

@@ -1,5 +1,5 @@
 version ?= $(shell git describe --tag --dirty)
-cmd ?= healthanalyzer
+cmd ?= analyzer
 
 allCmds := $(shell ls ./cmd/)
 dockerimg := livepeer/data

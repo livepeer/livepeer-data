@@ -2,6 +2,7 @@ package event
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/url"
 	"runtime/debug"
@@ -30,12 +31,9 @@ func init() {
 }
 
 func NewStreamConsumer(streamUri, amqpUri string) (StreamConsumer, error) {
-	var err error
-	if amqpUri == "" {
-		amqpUri, err = toAmqpScheme(streamUri)
-		if err != nil {
-			return nil, fmt.Errorf("error converting stream uri %q to amqp: %w", streamUri, err)
-		}
+	streamUri, amqpUri, err := coalesceUris(streamUri, amqpUri)
+	if err != nil {
+		return nil, err
 	}
 	opts := stream.NewEnvironmentOptions().
 		SetMaxConsumersPerClient(5).
@@ -221,22 +219,41 @@ func bindQueue(uri, queue string, bindings []BindingArgs) error {
 	return nil
 }
 
-func toAmqpScheme(uri string) (string, error) {
+var streamToAmqp = map[string]string{"rabbitmq-stream+tls": "amqps", "rabbitmq-stream": "amqp"}
+var amqpToStream = map[string]string{"amqps": "rabbitmq-stream+tls", "amqp": "rabbitmq-stream"}
+
+func coalesceUris(streamUri, amqpUri string) (string, string, error) {
+	if streamUri == "" && amqpUri == "" {
+		return "", "", errors.New("must provide either stream or amqp uri")
+	}
+	var err error
+	if streamUri == "" {
+		streamUri, err = changeScheme(amqpUri, "5672", "5552", amqpToStream)
+		if err != nil {
+			return "", "", fmt.Errorf("error converting amqp uri %q to stream: %w", amqpUri, err)
+		}
+	} else if amqpUri == "" {
+		amqpUri, err = changeScheme(streamUri, "5552", "5672", streamToAmqp)
+		if err != nil {
+			return "", "", fmt.Errorf("error converting stream uri %q to amqp: %w", streamUri, err)
+		}
+	}
+	return streamUri, amqpUri, nil
+}
+
+func changeScheme(uri string, fromPort, toPort string, schemeMap map[string]string) (string, error) {
 	url, err := url.Parse(uri)
 	if err != nil {
 		return "", err
 	}
-	switch url.Scheme {
-	case "rabbitmq-stream+tls":
-		url.Scheme = "amqps"
-	case "rabbitmq-stream":
-		url.Scheme = "amqp"
-	default:
+	newScheme, ok := schemeMap[url.Scheme]
+	if !ok {
 		return "", fmt.Errorf("unknown scheme: %s", url.Scheme)
 	}
-	if port := url.Port(); port != "5552" {
-		return "", fmt.Errorf("cannot convert non-default port: %s", port)
+	url.Scheme = newScheme
+	if port := url.Port(); port != fromPort {
+		return "", fmt.Errorf("cannot convert from non-default port: %s", port)
 	}
-	url.Host = url.Hostname() + ":5672"
+	url.Host = url.Hostname() + ":" + toPort
 	return url.String(), nil
 }
