@@ -85,7 +85,7 @@ func (c *Core) HandleMessage(msg event.StreamMessage) {
 }
 
 func (c *Core) handleSingleEvent(evt data.Event) {
-	mid := evt.ManifestID()
+	mid, ts := evt.ManifestID(), evt.Timestamp()
 	record := c.storage.GetOrCreate(mid, c.conditionTypes)
 
 	status := record.LastStatus
@@ -98,12 +98,12 @@ func (c *Core) handleSingleEvent(evt data.Event) {
 	record.Lock()
 	defer record.Unlock()
 	record.LastStatus = status
-	record.PastEvents = append(record.PastEvents, evt) // TODO: Sort these. Also crop/drop them at some point
+	record.PastEvents = insertEventSortedCropped(record.PastEvents, evt, c.opts.StartTimeOffset) // TODO: Rename StartTimeOffset to sth that makes sense here as well
 	for _, subs := range record.EventSubs {
 		select {
 		case subs <- evt:
 		default:
-			glog.Warningf("Buffer full for health event subscription, skipping message. manifestId=%q, eventTs=%q", mid, evt.Timestamp())
+			glog.Warningf("Buffer full for health event subscription, skipping message. manifestId=%q, eventTs=%q", mid, ts)
 		}
 	}
 }
@@ -236,4 +236,27 @@ func conditionTypes(reducers []Reducer) []ConditionType {
 		}
 	}
 	return conds
+}
+
+func insertEventSortedCropped(events []data.Event, event data.Event, maxWindow time.Duration) []data.Event {
+	ts := event.Timestamp()
+	insertIdx := len(events)
+	for insertIdx > 0 && ts.Before(events[insertIdx-1].Timestamp()) {
+		insertIdx--
+	}
+	events = insertEventAtIdx(events, insertIdx, event)
+
+	maxTs := events[len(events)-1].Timestamp()
+	threshold := maxTs.Add(-maxWindow)
+	for !threshold.Before(events[0].Timestamp()) {
+		events = events[1:]
+	}
+	return events
+}
+
+func insertEventAtIdx(slc []data.Event, idx int, val data.Event) []data.Event {
+	slc = append(slc, nil)
+	copy(slc[idx+1:], slc[idx:])
+	slc[idx] = val
+	return slc
 }
