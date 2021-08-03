@@ -26,19 +26,24 @@ var (
 	// CLI flags
 	fs = flag.NewFlagSet("analyzer", flag.ExitOnError)
 
-	host = fs.String("host", "localhost", "Hostname to bind to")
-	port = fs.Uint("port", 8080, "Port to listen on")
-
 	rabbitmqUri = fs.String("rabbitmqUri", "amqp://guest:guest@localhost:5672/livepeer", "URI for RabbitMQ server to consume from. Can be specified as a default AMQP URI which will be converted to stream protocol.")
 	amqpUriFlag = fs.String("amqpUri", "", "Explicit AMQP URI in case of non-default protocols/ports (optional). Must point to the same cluster as rabbitmqUri")
 
 	golivepeerExchange = fs.String("golivepeerExchange", "lp_golivepeer_metadata", "Name of RabbitMQ exchange to bind the stream to on creation")
 	shardPrefixes      = fs.String("shardPrefixes", "", "Comma-separated list of prefixes of manifest IDs to process events from")
 
-	streamingOpts = health.StreamingOptions{} // flags bound in init below
+	// flags bound in init below
+	serverOpts    = api.ServerOptions{}
+	streamingOpts = health.StreamingOptions{}
 )
 
 func init() {
+	// Server options
+	fs.StringVar(&serverOpts.Host, "host", "localhost", "Hostname to bind to")
+	fs.UintVar(&serverOpts.Port, "port", 8080, "Port to listen on")
+	fs.StringVar(&serverOpts.APIRoot, "apiRoot", "/data", "Root path where to bind the API to")
+	fs.DurationVar(&serverOpts.ShutdownGracePeriod, "shutdownGracePerod", 15*time.Second, "Grace period to wait for server shutdown before using the force")
+
 	// Streaming options
 	fs.StringVar(&streamingOpts.Stream, "rabbitmqStreamName", "lp_stream_health_v0", "Name of RabbitMQ stream to create and consume from")
 	fs.StringVar(&streamingOpts.ConsumerName, "consumerName", "", `Consumer name to use when consuming stream (default "analyzer-${hostname}")`)
@@ -90,7 +95,7 @@ func main() {
 	}
 
 	glog.Info("Starting server...")
-	err = api.ListenAndServe(ctx, *host, *port, 1*time.Second, healthcore)
+	err = api.ListenAndServe(ctx, serverOpts, healthcore)
 	if err != nil {
 		glog.Fatalf("Error starting api server. err=%q", err)
 	}

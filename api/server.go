@@ -12,15 +12,22 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-func ListenAndServe(ctx context.Context, host string, port uint, shutdownGracePeriod time.Duration, healthcore *health.Core) error {
+type ServerOptions struct {
+	Host                string
+	Port                uint
+	APIRoot             string
+	ShutdownGracePeriod time.Duration
+}
+
+func ListenAndServe(ctx context.Context, opts ServerOptions, healthcore *health.Core) error {
 	srv := &http.Server{
-		Addr:    fmt.Sprintf("%s:%d", host, port),
-		Handler: NewHandler(healthcore),
+		Addr:    fmt.Sprintf("%s:%d", opts.Host, opts.Port),
+		Handler: NewHandler(opts.APIRoot, healthcore),
 	}
 	eg, ctx := errgroup.WithContext(ctx)
 	eg.Go(func() error {
 		<-ctx.Done()
-		shutCtx, cancel := context.WithTimeout(context.Background(), shutdownGracePeriod)
+		shutCtx, cancel := context.WithTimeout(context.Background(), opts.ShutdownGracePeriod)
 		defer cancel()
 		if err := srv.Shutdown(shutCtx); err != nil {
 			if closeErr := srv.Close(); closeErr != nil {
