@@ -4,20 +4,16 @@ import (
 	"time"
 )
 
-const transcodeEventType = "transcode"
+const EventTypeTranscode EventType = "transcode"
 
 func NewTranscodeEvent(nodeID, mid string, seg SegmentMetadata, startTime time.Time, success bool, attempts []TranscodeAttemptInfo) *TranscodeEvent {
-	now := time.Now()
+	base := newEventBase(EventTypeTranscode, mid)
 	return &TranscodeEvent{
-		Base: Base{
-			Type:        transcodeEventType,
-			Timestamp_:  now.UnixNano(),
-			ManifestID_: string(mid),
-		},
+		Base:      base,
 		NodeID:    nodeID,
 		Segment:   seg,
-		StartTime: startTime.UnixNano(),
-		LatencyMs: now.Sub(startTime).Milliseconds(),
+		StartTime: UnixNanoTime{startTime},
+		LatencyMs: base.Timestamp_.Sub(startTime).Milliseconds(),
 		Success:   success,
 		Attempts:  attempts,
 	}
@@ -27,7 +23,7 @@ type TranscodeEvent struct {
 	Base
 	NodeID    string                 `json:"nodeId"`
 	Segment   SegmentMetadata        `json:"segment"`
-	StartTime int64                  `json:"startTime"`
+	StartTime UnixNanoTime           `json:"startTime"`
 	LatencyMs int64                  `json:"latencyMs"`
 	Success   bool                   `json:"success"`
 	Attempts  []TranscodeAttemptInfo `json:"attempts"`

@@ -11,7 +11,7 @@ func ParseEvent(data []byte) (Event, error) {
 		return nil, fmt.Errorf("error unmarshalling base event: %w", err)
 	}
 	switch base.Type {
-	case transcodeEventType:
+	case EventTypeTranscode:
 		var trans *TranscodeEvent
 		if err := json.Unmarshal(data, &trans); err != nil {
 			return nil, fmt.Errorf("error unmarshalling transcode event: %w", err)
