@@ -4,6 +4,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/livepeer/livepeer-data/pkg/data"
 )
 
@@ -35,6 +36,7 @@ type Record struct {
 
 	sync.RWMutex
 	PastEvents []data.Event
+	EventsByID map[uuid.UUID]data.Event
 	EventSubs  []chan<- data.Event
 
 	ReducersState map[int]interface{}
@@ -45,6 +47,7 @@ func NewRecord(id string, conditions []ConditionType) *Record {
 	rec := &Record{
 		ID:            id,
 		Conditions:    conditions,
+		EventsByID:    map[uuid.UUID]data.Event{},
 		ReducersState: map[int]interface{}{},
 		LastStatus: Status{
 			ID:         id,

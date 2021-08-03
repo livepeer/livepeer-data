@@ -8,11 +8,13 @@ import (
 	"time"
 
 	"github.com/golang/glog"
+	"github.com/google/uuid"
 	"github.com/livepeer/livepeer-data/pkg/data"
 	"github.com/livepeer/livepeer-data/pkg/event"
 )
 
 var ErrStreamNotFound = errors.New("stream not found")
+var ErrEventNotFound = errors.New("event not found")
 
 const eventSubscriptionBufSize = 10
 
@@ -97,8 +99,13 @@ func (c *Core) handleSingleEvent(evt data.Event) {
 
 	record.Lock()
 	defer record.Unlock()
+	var removed []data.Event
 	record.LastStatus = status
-	record.PastEvents = insertEventSortedCropped(record.PastEvents, evt, c.opts.StartTimeOffset) // TODO: Rename StartTimeOffset to sth that makes sense here as well
+	record.PastEvents, removed = insertEventSortedCropped(record.PastEvents, evt, c.opts.StartTimeOffset) // TODO: Rename StartTimeOffset to sth that makes sense here as well
+	record.EventsByID[evt.ID()] = evt
+	for _, remEvt := range removed {
+		delete(record.EventsByID, remEvt.ID())
+	}
 	for _, subs := range record.EventSubs {
 		select {
 		case subs <- evt:
@@ -123,10 +130,10 @@ func (c *Core) GetPastEvents(manifestID string, from, to *time.Time) ([]data.Eve
 	}
 	record.RLock()
 	defer record.RUnlock()
-	return getPastEventsLocked(record, from, to)
+	return getPastEventsLocked(record, nil, from, to)
 }
 
-func (c *Core) SubscribeEvents(ctx context.Context, manifestID string, from *time.Time) ([]data.Event, <-chan data.Event, error) {
+func (c *Core) SubscribeEvents(ctx context.Context, manifestID string, lastSeenEvtID *uuid.UUID, from *time.Time) ([]data.Event, <-chan data.Event, error) {
 	var err error
 	record, ok := c.storage.Get(manifestID)
 	if !ok {
@@ -136,8 +143,8 @@ func (c *Core) SubscribeEvents(ctx context.Context, manifestID string, from *tim
 	defer record.Unlock()
 
 	var pastEvents []data.Event
-	if from != nil {
-		pastEvents, err = getPastEventsLocked(record, from, nil)
+	if lastSeenEvtID != nil || from != nil {
+		pastEvents, err = getPastEventsLocked(record, lastSeenEvtID, from, nil)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -160,9 +167,15 @@ func (c *Core) SubscribeEvents(ctx context.Context, manifestID string, from *tim
 	return pastEvents, subs, nil
 }
 
-func getPastEventsLocked(record *Record, from, to *time.Time) ([]data.Event, error) {
+func getPastEventsLocked(record *Record, lastSeenEvtID *uuid.UUID, from, to *time.Time) ([]data.Event, error) {
 	fromIdx, toIdx := 0, len(record.PastEvents)
-	if from != nil {
+	if lastSeenEvtID != nil {
+		evtIdx, err := findEventIdx(record.PastEvents, record.EventsByID, *lastSeenEvtID)
+		if err != nil {
+			return nil, err
+		}
+		fromIdx = evtIdx + 1
+	} else if from != nil {
 		fromIdx = firstIdxAfter(record.PastEvents, *from)
 	}
 	if to != nil {
@@ -182,6 +195,24 @@ func firstIdxAfter(events []data.Event, threshold time.Time) int {
 		ts := events[i].Timestamp()
 		return ts.After(threshold)
 	})
+}
+
+func findEventIdx(events []data.Event, byID map[uuid.UUID]data.Event, evtID uuid.UUID) (int, error) {
+	evt, ok := byID[evtID]
+	if !ok {
+		return -1, ErrEventNotFound
+	}
+	timestamp := evt.Timestamp()
+	afterTsIdx := firstIdxAfter(events, timestamp)
+
+	for idx := afterTsIdx - 1; idx >= 0; idx-- {
+		if evt := events[idx]; evt.ID() == evtID {
+			return idx, nil
+		} else if timestamp.After(evt.Timestamp()) {
+			break
+		}
+	}
+	return -1, errors.New("internal: event from map not found in slice")
 }
 
 func (c *Core) consumeOptions() (event.ConsumeOptions, error) {
@@ -238,7 +269,7 @@ func conditionTypes(reducers []Reducer) []ConditionType {
 	return conds
 }
 
-func insertEventSortedCropped(events []data.Event, event data.Event, maxWindow time.Duration) []data.Event {
+func insertEventSortedCropped(events []data.Event, event data.Event, maxWindow time.Duration) (updated []data.Event, removed []data.Event) {
 	ts := event.Timestamp()
 	insertIdx := len(events)
 	for insertIdx > 0 && ts.Before(events[insertIdx-1].Timestamp()) {
@@ -248,10 +279,12 @@ func insertEventSortedCropped(events []data.Event, event data.Event, maxWindow t
 
 	maxTs := events[len(events)-1].Timestamp()
 	threshold := maxTs.Add(-maxWindow)
-	for !threshold.Before(events[0].Timestamp()) {
-		events = events[1:]
+	for cropIdx := 0; cropIdx < len(events); cropIdx++ {
+		if threshold.Before(events[cropIdx].Timestamp()) {
+			return events[cropIdx:], events[:cropIdx]
+		}
 	}
-	return events
+	return []data.Event{}, events
 }
 
 func insertEventAtIdx(slc []data.Event, idx int, val data.Event) []data.Event {
