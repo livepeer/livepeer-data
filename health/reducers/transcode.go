@@ -14,7 +14,7 @@ const (
 	ConditionRealTime    health.ConditionType = "RealTime"
 	ConditionNoErrors    health.ConditionType = "NoErrors"
 
-	transcodeBindingKeyFormat = "*.stream_health.transcode.%s.#"
+	transcodeBindingKeyFormat = "broadcaster.stream_health.transcode.%s.#"
 )
 
 var transcodeConditions = []health.ConditionType{ConditionTranscoding, ConditionRealTime, ConditionNoErrors}
@@ -27,16 +27,16 @@ type TranscodeReducer struct {
 func (t TranscodeReducer) Bindings() []event.BindingArgs {
 	if t.ShardPrefixes == "" {
 		return []event.BindingArgs{{
-			Key:      fmt.Sprintf(transcodeBindingKeyFormat, "*"),
 			Exchange: t.GolpExchange,
+			Key:      fmt.Sprintf(transcodeBindingKeyFormat, "*"),
 		}}
 	}
 	prefixes := strings.Split(t.ShardPrefixes, ",")
 	bindings := make([]event.BindingArgs, len(prefixes))
 	for i, prefix := range prefixes {
 		bindings[i] = event.BindingArgs{
-			Key:      fmt.Sprintf(transcodeBindingKeyFormat, prefix),
 			Exchange: t.GolpExchange,
+			Key:      fmt.Sprintf(transcodeBindingKeyFormat, prefix),
 		}
 	}
 	return bindings
