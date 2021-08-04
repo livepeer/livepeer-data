@@ -22,7 +22,7 @@ type ServerOptions struct {
 func ListenAndServe(ctx context.Context, opts ServerOptions, healthcore *health.Core) error {
 	srv := &http.Server{
 		Addr:    fmt.Sprintf("%s:%d", opts.Host, opts.Port),
-		Handler: NewHandler(opts.APIRoot, healthcore),
+		Handler: NewHandler(ctx, opts.APIRoot, healthcore),
 	}
 	eg, ctx := errgroup.WithContext(ctx)
 	eg.Go(func() error {

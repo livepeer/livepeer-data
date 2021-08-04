@@ -133,7 +133,7 @@ func (c *Core) GetPastEvents(manifestID string, from, to *time.Time) ([]data.Eve
 	return getPastEventsLocked(record, nil, from, to)
 }
 
-func (c *Core) SubscribeEvents(ctx context.Context, manifestID string, lastSeenEvtID *uuid.UUID, from *time.Time) ([]data.Event, <-chan data.Event, error) {
+func (c *Core) SubscribeEvents(ctx context.Context, manifestID string, lastEvtID *uuid.UUID, from *time.Time) ([]data.Event, <-chan data.Event, error) {
 	var err error
 	record, ok := c.storage.Get(manifestID)
 	if !ok {
@@ -143,8 +143,8 @@ func (c *Core) SubscribeEvents(ctx context.Context, manifestID string, lastSeenE
 	defer record.Unlock()
 
 	var pastEvents []data.Event
-	if lastSeenEvtID != nil || from != nil {
-		pastEvents, err = getPastEventsLocked(record, lastSeenEvtID, from, nil)
+	if lastEvtID != nil || from != nil {
+		pastEvents, err = getPastEventsLocked(record, lastEvtID, from, nil)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -167,10 +167,10 @@ func (c *Core) SubscribeEvents(ctx context.Context, manifestID string, lastSeenE
 	return pastEvents, subs, nil
 }
 
-func getPastEventsLocked(record *Record, lastSeenEvtID *uuid.UUID, from, to *time.Time) ([]data.Event, error) {
+func getPastEventsLocked(record *Record, lastEvtID *uuid.UUID, from, to *time.Time) ([]data.Event, error) {
 	fromIdx, toIdx := 0, len(record.PastEvents)
-	if lastSeenEvtID != nil {
-		evtIdx, err := findEventIdx(record.PastEvents, record.EventsByID, *lastSeenEvtID)
+	if lastEvtID != nil {
+		evtIdx, err := findEventIdx(record.PastEvents, record.EventsByID, *lastEvtID)
 		if err != nil {
 			return nil, err
 		}
