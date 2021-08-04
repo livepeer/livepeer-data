@@ -30,7 +30,8 @@ var (
 	amqpUriFlag = fs.String("amqpUri", "", "Explicit AMQP URI in case of non-default protocols/ports (optional). Must point to the same cluster as rabbitmqUri")
 
 	golivepeerExchange = fs.String("golivepeerExchange", "lp_golivepeer_metadata", "Name of RabbitMQ exchange to bind the stream to on creation")
-	shardPrefixes      = fs.String("shardPrefixes", "", "Comma-separated list of prefixes of manifest IDs to process events from")
+	shardPrefixesStr   = fs.String("shardPrefixes", "", "Comma-separated list of prefixes of manifest IDs to process events from")
+	shardPrefixes      []string
 
 	// flags bound in init below
 	serverOpts    = api.ServerOptions{}
@@ -67,6 +68,9 @@ func init() {
 	if streamingOpts.ConsumerName == "" {
 		streamingOpts.ConsumerName = "analyzer-" + hostname()
 	}
+	if *shardPrefixesStr != "" {
+		shardPrefixes = strings.Split(*shardPrefixesStr, ",")
+	}
 }
 
 func main() {
@@ -84,7 +88,7 @@ func main() {
 	}
 	defer consumer.Close()
 
-	reducers, startTimeOffset := reducers.DefaultPipeline(*golivepeerExchange, *shardPrefixes)
+	reducers, startTimeOffset := reducers.DefaultPipeline(*golivepeerExchange, shardPrefixes)
 	healthcore := health.NewCore(health.CoreOptions{
 		Streaming:       streamingOpts,
 		StartTimeOffset: startTimeOffset,

@@ -2,7 +2,6 @@ package reducers
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/livepeer/livepeer-data/health"
 	"github.com/livepeer/livepeer-data/pkg/data"
@@ -21,19 +20,18 @@ var transcodeConditions = []health.ConditionType{ConditionTranscoding, Condition
 
 type TranscodeReducer struct {
 	GolpExchange  string
-	ShardPrefixes string
+	ShardPrefixes []string
 }
 
 func (t TranscodeReducer) Bindings() []event.BindingArgs {
-	if t.ShardPrefixes == "" {
+	if len(t.ShardPrefixes) == 0 {
 		return []event.BindingArgs{{
 			Exchange: t.GolpExchange,
 			Key:      fmt.Sprintf(transcodeBindingKeyFormat, "*"),
 		}}
 	}
-	prefixes := strings.Split(t.ShardPrefixes, ",")
-	bindings := make([]event.BindingArgs, len(prefixes))
-	for i, prefix := range prefixes {
+	bindings := make([]event.BindingArgs, len(t.ShardPrefixes))
+	for i, prefix := range t.ShardPrefixes {
 		bindings[i] = event.BindingArgs{
 			Exchange: t.GolpExchange,
 			Key:      fmt.Sprintf(transcodeBindingKeyFormat, prefix),

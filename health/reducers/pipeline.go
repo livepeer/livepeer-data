@@ -11,7 +11,7 @@ var (
 	maxStatsWindow = statsWindows[len(statsWindows)-1]
 )
 
-func DefaultPipeline(golpExchange, shardPrefixes string) (reducers []health.Reducer, starTimeOffset time.Duration) {
+func DefaultPipeline(golpExchange string, shardPrefixes []string) (reducers []health.Reducer, starTimeOffset time.Duration) {
 	return []health.Reducer{
 		TranscodeReducer{golpExchange, shardPrefixes},
 		HealthReducer,
