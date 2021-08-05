@@ -48,6 +48,15 @@ func NewCore(opts CoreOptions, consumer event.StreamConsumer) *Core {
 	}
 }
 
+func (c *Core) IsHealthy() bool {
+	err := c.consumer.CheckConnection()
+	if err != nil {
+		glog.Warningf("Health core is unhealthy. consumerErr=%q", err)
+		return false
+	}
+	return true
+}
+
 func (c *Core) Use(reducers ...Reducer) *Core {
 	if c.started {
 		panic("must add reducers before starting")

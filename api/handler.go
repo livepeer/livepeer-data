@@ -28,13 +28,23 @@ type apiHandler struct {
 
 func NewHandler(serverCtx context.Context, apiRoot string, healthcore *health.Core) http.Handler {
 	handler := &apiHandler{serverCtx, healthcore}
+
 	router := httprouter.New()
-	{
-		streamRoot := path.Join(apiRoot, "/stream/:manifestId")
-		router.GET(streamRoot+"/health", handler.getStreamHealth)
-		router.GET(streamRoot+"/events", handler.subscribeEvents)
-	}
+	router.HandlerFunc("GET", "/_healthz", handler.healthcheck)
+
+	streamRoot := path.Join(apiRoot, "/stream/:manifestId")
+	router.GET(streamRoot+"/health", handler.getStreamHealth)
+	router.GET(streamRoot+"/events", handler.subscribeEvents)
+
 	return router
+}
+
+func (h *apiHandler) healthcheck(rw http.ResponseWriter, r *http.Request) {
+	status := http.StatusOK
+	if !h.core.IsHealthy() {
+		status = http.StatusServiceUnavailable
+	}
+	rw.WriteHeader(status)
 }
 
 func (h *apiHandler) getStreamHealth(rw http.ResponseWriter, r *http.Request, params httprouter.Params) {

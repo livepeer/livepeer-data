@@ -26,18 +26,6 @@ func ListenAndServe(ctx context.Context, opts ServerOptions, healthcore *health.
 	}
 	eg, ctx := errgroup.WithContext(ctx)
 	eg.Go(func() error {
-		<-ctx.Done()
-		shutCtx, cancel := context.WithTimeout(context.Background(), opts.ShutdownGracePeriod)
-		defer cancel()
-		if err := srv.Shutdown(shutCtx); err != nil {
-			if closeErr := srv.Close(); closeErr != nil {
-				err = fmt.Errorf("shutdownErr=%w closeErr=%q", err, closeErr)
-			}
-			return fmt.Errorf("api server shutdown error: %w", err)
-		}
-		return nil
-	})
-	eg.Go(func() error {
 		ln, err := net.Listen("tcp", srv.Addr)
 		if err != nil {
 			return fmt.Errorf("api server listen error: %w", err)
@@ -47,6 +35,18 @@ func ListenAndServe(ctx context.Context, opts ServerOptions, healthcore *health.
 
 		if err := srv.Serve(ln); err != http.ErrServerClosed {
 			return fmt.Errorf("api serve error: %w", err)
+		}
+		return nil
+	})
+	eg.Go(func() error {
+		<-ctx.Done()
+		shutCtx, cancel := context.WithTimeout(context.Background(), opts.ShutdownGracePeriod)
+		defer cancel()
+		if err := srv.Shutdown(shutCtx); err != nil {
+			if closeErr := srv.Close(); closeErr != nil {
+				err = fmt.Errorf("shutdownErr=%w closeErr=%q", err, closeErr)
+			}
+			return fmt.Errorf("api server shutdown error: %w", err)
 		}
 		return nil
 	})

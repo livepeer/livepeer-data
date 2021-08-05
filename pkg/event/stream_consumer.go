@@ -51,6 +51,21 @@ func (c *strmConsumer) Close() error {
 	return c.env.Close()
 }
 
+func (c *strmConsumer) CheckConnection() error {
+	// create separate env for test to avoid infinite connect retry from lib
+	env, err := stream.NewEnvironment(
+		stream.NewEnvironmentOptions().SetUri(c.streamUri.String()))
+	if err != nil {
+		return err
+	}
+	_, err = env.StreamExists("__dummy__")
+	if err != nil {
+		env.Close()
+		return err
+	}
+	return env.Close()
+}
+
 func (c *strmConsumer) ConsumeChan(ctx context.Context, opts ConsumeOptions) (<-chan StreamMessage, error) {
 	exists, err := c.env.StreamExists(opts.Stream)
 	if err != nil {
