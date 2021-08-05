@@ -20,7 +20,7 @@ docker:
 docker_run: deps_start docker
 	docker run -it --rm --name=$(cmd) --entrypoint=./$(cmd) \
 		--network=livepeer-data_default -p 8080:8080 \
-		-e LP_RABBITMQURI=rabbitmq-stream://rabbitmq/livepeer \
+		-e LP_HOST=0.0.0.0 -e LP_RABBITMQURI=rabbitmq-stream://rabbitmq/livepeer \
 		$(dockerimg) $(args)
 
 docker_push:
