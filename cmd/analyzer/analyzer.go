@@ -78,9 +78,8 @@ func main() {
 	ctx := contextUntilSignal(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 
 	streamUri, amqpUri := *rabbitmqUri, *amqpUriFlag
-	if amqpUri == "" && strings.HasPrefix(streamUri, "amqp:") {
-		amqpUri = streamUri
-		streamUri = ""
+	if amqpUri == "" && strings.HasPrefix(streamUri, "amqp") {
+		streamUri, amqpUri = "", streamUri
 	}
 	consumer, err := event.NewStreamConsumer(streamUri, amqpUri)
 	if err != nil {

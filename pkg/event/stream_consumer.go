@@ -17,7 +17,7 @@ import (
 
 type (
 	strmConsumer struct {
-		streamUri, amqpUri string
+		streamUri, amqpUri *url.URL
 
 		env  *stream.Environment
 		done chan struct{}
@@ -30,14 +30,15 @@ func init() {
 	}
 }
 
-func NewStreamConsumer(streamUri, amqpUri string) (StreamConsumer, error) {
-	streamUri, amqpUri, err := coalesceUris(streamUri, amqpUri)
+func NewStreamConsumer(streamUriStr, amqpUriStr string) (StreamConsumer, error) {
+	streamUri, amqpUri, err := parseUris(streamUriStr, amqpUriStr)
 	if err != nil {
 		return nil, err
 	}
+	glog.Infof("Connecting to RabbitMQ. streamUri=%q, amqpUri=%q", streamUri.Redacted(), amqpUri.Redacted())
 	opts := stream.NewEnvironmentOptions().
 		SetMaxConsumersPerClient(5).
-		SetUri(streamUri)
+		SetUri(streamUri.String())
 	env, err := stream.NewEnvironment(opts)
 	if err != nil {
 		return nil, err
@@ -197,8 +198,8 @@ func whileAll(done1, done2 <-chan struct{}) context.Context {
 	return ctx
 }
 
-func bindQueue(uri, queue string, bindings []BindingArgs) error {
-	conn, err := amqp.Dial(uri)
+func bindQueue(uri *url.URL, queue string, bindings []BindingArgs) error {
+	conn, err := amqp.Dial(uri.String())
 	if err != nil {
 		return fmt.Errorf("dial %q: %w", uri, err)
 	}
@@ -219,41 +220,67 @@ func bindQueue(uri, queue string, bindings []BindingArgs) error {
 	return nil
 }
 
-var streamToAmqp = map[string]string{"rabbitmq-stream+tls": "amqps", "rabbitmq-stream": "amqp"}
-var amqpToStream = map[string]string{"amqps": "rabbitmq-stream+tls", "amqp": "rabbitmq-stream"}
+var (
+	protoAmqp, protoAmqps       = protocol{"amqp", "5672"}, protocol{"amqps", "5671"}
+	protoStream, protoStreamTls = protocol{"rabbitmq-stream", "5552"}, protocol{"rabbitmq-stream+tls", "5551"}
+	amqpDefaultUser             = url.UserPassword("guest", "guest")
+)
 
-func coalesceUris(streamUri, amqpUri string) (string, string, error) {
-	if streamUri == "" && amqpUri == "" {
-		return "", "", errors.New("must provide either stream or amqp uri")
+func parseUris(streamUriStr, amqpUriStr string) (*url.URL, *url.URL, error) {
+	if streamUriStr == "" && amqpUriStr == "" {
+		return nil, nil, errors.New("must provide either stream or amqp uri")
 	}
+	var streamUri, amqpUri *url.URL
 	var err error
-	if streamUri == "" {
-		streamUri, err = changeScheme(amqpUri, "5672", "5552", amqpToStream)
+	if streamUriStr != "" {
+		streamUri, err = url.Parse(streamUriStr)
 		if err != nil {
-			return "", "", fmt.Errorf("error converting amqp uri %q to stream: %w", amqpUri, err)
+			return nil, nil, fmt.Errorf("error parsing stream uri: %w", err)
 		}
-	} else if amqpUri == "" {
-		amqpUri, err = changeScheme(streamUri, "5552", "5672", streamToAmqp)
+	} else if amqpUriStr != "" {
+		amqpUri, err = url.Parse(amqpUriStr)
 		if err != nil {
-			return "", "", fmt.Errorf("error converting stream uri %q to amqp: %w", streamUri, err)
+			return nil, nil, fmt.Errorf("error parsing amqp uri: %w", err)
 		}
 	}
-	return streamUri, amqpUri, nil
+
+	streamFallback := withProtocol(amqpUri, protoStream, protoAmqps.scheme, protoStreamTls)
+	amqpFallback := withProtocol(streamUri, protoAmqp, protoStreamTls.scheme, protoAmqps)
+	return coalesceUri(streamUri, streamFallback), coalesceUri(amqpUri, amqpFallback), nil
 }
 
-func changeScheme(uri string, fromPort, toPort string, schemeMap map[string]string) (string, error) {
-	url, err := url.Parse(uri)
-	if err != nil {
-		return "", err
+func coalesceUri(value *url.URL, fallback url.URL) *url.URL {
+	result := fallback
+	if value != nil {
+		result = *value
 	}
-	newScheme, ok := schemeMap[url.Scheme]
-	if !ok {
-		return "", fmt.Errorf("unknown scheme: %s", url.Scheme)
+	if result.Scheme == "" {
+		result.Scheme = fallback.Scheme
 	}
-	url.Scheme = newScheme
-	if port := url.Port(); port != fromPort {
-		return "", fmt.Errorf("cannot convert from non-default port: %s", port)
+	if result.Port() == "" && fallback.Port() != "" {
+		result.Host += ":" + fallback.Port()
 	}
-	url.Host = url.Hostname() + ":" + toPort
-	return url.String(), nil
+	if u := result.User; u == nil || u.String() == "" {
+		result.User = fallback.User
+		if u := result.User; u == nil || u.String() == "" {
+			result.User = amqpDefaultUser
+		}
+	}
+	return &result
+}
+
+type protocol struct{ scheme, port string }
+
+func withProtocol(src *url.URL, defaultProto protocol, srcTlsScheme string, tlsProto protocol) url.URL {
+	var result url.URL
+	if src != nil {
+		result = *src
+	}
+	proto := defaultProto
+	if result.Scheme == srcTlsScheme {
+		proto = tlsProto
+	}
+	result.Scheme = proto.scheme
+	result.Host = result.Hostname() + ":" + proto.port
+	return result
 }
