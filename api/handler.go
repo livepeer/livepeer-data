@@ -52,14 +52,14 @@ func (h *apiHandler) getStreamHealth(rw http.ResponseWriter, r *http.Request, pa
 
 func (h *apiHandler) subscribeEvents(rw http.ResponseWriter, r *http.Request, params httprouter.Params) {
 	var (
-		manifestID         = params.ByName("manifestId")
-		accept             = strings.ToLower(r.Header.Get("Accept"))
-		from, err1         = parseInputTimestamp(r.URL.Query().Get("from"))
-		to, err2           = parseInputTimestamp(r.URL.Query().Get("to"))
-		mustFindLast, err3 = strconv.ParseBool(r.URL.Query().Get("mustFindLast"))
-		lastEventID, err4  = parseInputUUID(r.Header.Get("Last-Event-ID"))
+		manifestID        = params.ByName("manifestId")
+		accept            = strings.ToLower(r.Header.Get("Accept"))
+		from, err1        = parseInputTimestamp(r.URL.Query().Get("from"))
+		to, err2          = parseInputTimestamp(r.URL.Query().Get("to"))
+		lastEventID, err3 = parseInputUUID(r.Header.Get("Last-Event-ID"))
+		mustFindLast, _   = strconv.ParseBool(r.URL.Query().Get("mustFindLast"))
 	)
-	if errs := nonNilErrs(err1, err2, err3, err4); len(errs) > 0 {
+	if errs := nonNilErrs(err1, err2, err3); len(errs) > 0 {
 		respondError(rw, http.StatusBadRequest, errs...)
 		return
 	}
