@@ -5,10 +5,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"mime"
 	"net/http"
 	"path"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/golang/glog"
@@ -62,45 +62,88 @@ func (h *apiHandler) getStreamHealth(rw http.ResponseWriter, r *http.Request, pa
 
 func (h *apiHandler) subscribeEvents(rw http.ResponseWriter, r *http.Request, params httprouter.Params) {
 	var (
-		manifestID        = params.ByName("manifestId")
-		accept            = strings.ToLower(r.Header.Get("Accept"))
-		from, err1        = parseInputTimestamp(r.URL.Query().Get("from"))
-		to, err2          = parseInputTimestamp(r.URL.Query().Get("to"))
-		lastEventID, err3 = parseInputUUID(r.Header.Get("Last-Event-ID"))
-		mustFindLast, _   = strconv.ParseBool(r.URL.Query().Get("mustFindLast"))
+		manifestID             = params.ByName("manifestId")
+		accept, _, err         = mime.ParseMediaType(r.Header.Get("Accept"))
+		from, err1             = parseInputTimestamp(r.URL.Query().Get("from"))
+		to, err2               = parseInputTimestamp(r.URL.Query().Get("to"))
+		lastEventID, err3      = parseInputUUID(r.Header.Get("Last-Event-ID"))
+		lastEventIDQuery, err4 = parseInputUUID(r.URL.Query().Get("lastEventId"))
+		mustFindLast, _        = strconv.ParseBool(r.URL.Query().Get("mustFindLast"))
 	)
-	if errs := nonNilErrs(err1, err2, err3); len(errs) > 0 {
+	if lastEventID == nil {
+		lastEventID = lastEventIDQuery
+	}
+	if errs := nonNilErrs(err, err1, err2, err3, err4); len(errs) > 0 {
 		respondError(rw, http.StatusBadRequest, errs...)
 		return
 	}
-	if !strings.Contains(accept, "text/event-stream") {
-		events, err := h.core.GetPastEvents(manifestID, from, to)
-		if err != nil {
-			respondError(rw, http.StatusInternalServerError, err)
-			return
-		}
-		response := map[string]interface{}{"events": events}
-		respondJson(rw, http.StatusOK, response)
-		return
-	}
 
+	var (
+		pastEvents   []data.Event
+		subscription <-chan data.Event
+	)
 	ctx, cancel := unionCtx(r.Context(), h.serverCtx)
 	defer cancel()
-	pastEvents, subscription, err := h.core.SubscribeEvents(ctx, manifestID, lastEventID, from)
-	if err == health.ErrEventNotFound && !mustFindLast {
-		pastEvents, subscription, err = h.core.SubscribeEvents(ctx, manifestID, nil, nil)
+	if to != nil {
+		if from == nil {
+			respondError(rw, http.StatusBadRequest, errors.New("query 'from' is required when using 'to'"))
+			return
+		}
+		pastEvents, err = h.core.GetPastEvents(manifestID, from, to)
+	} else {
+		pastEvents, subscription, err = h.core.SubscribeEvents(ctx, manifestID, lastEventID, from)
+		if err == health.ErrEventNotFound && !mustFindLast {
+			pastEvents, subscription, err = h.core.SubscribeEvents(ctx, manifestID, nil, nil)
+		}
 	}
 	if err != nil {
 		respondError(rw, http.StatusInternalServerError, err)
 		return
 	}
 
-	sseEvents := makeSSEEventChan(ctx, pastEvents, subscription)
-	err = sse.ServeEvents(ctx, rw, sseEvents)
-	if err != nil {
-		glog.Errorf("Error serving SSE events. err=%q", err)
-		respondError(rw, http.StatusInternalServerError, err)
-		return
+	switch accept {
+	case "text/event-stream", "*/*":
+		sseEvents := makeSSEEventChan(ctx, pastEvents, subscription)
+		err = sse.ServeEvents(ctx, rw, sseEvents)
+		if err != nil {
+			glog.Errorf("Error serving SSE events. err=%q", err)
+			respondError(rw, http.StatusInternalServerError, err)
+		}
+	case "application/json":
+		events, ok := getFirstAvailableEvents(ctx, pastEvents, subscription)
+		if !ok {
+			respondError(rw, http.StatusServiceUnavailable, errors.New("server shutting down"))
+			return
+		}
+		respondJson(rw, http.StatusOK, map[string]interface{}{"events": events})
+	default:
+		respondError(rw, http.StatusUnsupportedMediaType, fmt.Errorf("unsupported media type: %s", accept))
+	}
+}
+
+func getFirstAvailableEvents(ctx context.Context, pastEvents []data.Event, subscription <-chan data.Event) ([]data.Event, bool) {
+	if len(pastEvents) > 0 || subscription == nil {
+		return pastEvents, true
+	}
+	select {
+	case <-ctx.Done():
+		return nil, false
+	case evt := <-subscription:
+		pastEvents = append(pastEvents, evt)
+		for recvImmediate(subscription, &evt) {
+			pastEvents = append(pastEvents, evt)
+		}
+		return pastEvents, true
+	}
+}
+
+func recvImmediate(subscription <-chan data.Event, out *data.Event) bool {
+	select {
+	case evt, ok := <-subscription:
+		*out = evt
+		return ok
+	default:
+		return false
 	}
 }
 
@@ -125,6 +168,9 @@ func makeSSEEventChan(ctx context.Context, pastEvents []data.Event, subscription
 			if !send(evt) {
 				return
 			}
+		}
+		if subscription == nil {
+			return
 		}
 		for evt := range subscription {
 			if !send(evt) {
@@ -198,28 +244,4 @@ func nonNilErrs(errs ...error) []error {
 		}
 	}
 	return nonNil
-}
-
-type errorResponse struct {
-	Errors []string
-}
-
-func respondError(rw http.ResponseWriter, defaultStatus int, errs ...error) {
-	status := defaultStatus
-	response := errorResponse{}
-	for _, err := range errs {
-		response.Errors = append(response.Errors, err.Error())
-		if errors.Is(err, health.ErrStreamNotFound) || errors.Is(err, health.ErrEventNotFound) {
-			status = http.StatusNotFound
-		}
-	}
-	respondJson(rw, status, response)
-}
-
-func respondJson(rw http.ResponseWriter, status int, response interface{}) {
-	rw.Header().Set("Content-Type", "application/json; charset=utf-8")
-	rw.WriteHeader(status)
-	if err := json.NewEncoder(rw).Encode(response); err != nil {
-		glog.Errorf("Error writing response. err=%q, response=%+v", err, response)
-	}
 }

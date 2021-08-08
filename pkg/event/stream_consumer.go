@@ -248,12 +248,12 @@ func parseUris(streamUriStr, amqpUriStr string) (*url.URL, *url.URL, error) {
 	var streamUri, amqpUri *url.URL
 	var err error
 	if streamUriStr != "" {
-		streamUri, err = url.Parse(streamUriStr)
+		streamUri, err = url.ParseRequestURI(streamUriStr)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error parsing stream uri: %w", err)
 		}
 	} else if amqpUriStr != "" {
-		amqpUri, err = url.Parse(amqpUriStr)
+		amqpUri, err = url.ParseRequestURI(amqpUriStr)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error parsing amqp uri: %w", err)
 		}

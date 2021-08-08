@@ -53,9 +53,9 @@ func ServeEvents(ctx context.Context, rw http.ResponseWriter, events <-chan Even
 
 func recvImmediate(events <-chan Event, out *Event) bool {
 	select {
-	case evt := <-events:
+	case evt, ok := <-events:
 		*out = evt
-		return true
+		return ok
 	default:
 		return false
 	}
