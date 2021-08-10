@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"mime"
 	"net/http"
 	"path"
 	"strconv"
@@ -16,10 +15,14 @@ import (
 	"github.com/julienschmidt/httprouter"
 	"github.com/livepeer/livepeer-data/health"
 	"github.com/livepeer/livepeer-data/pkg/data"
-	"github.com/livepeer/livepeer-data/pkg/sse"
+	"github.com/livepeer/livepeer-data/pkg/jsse"
 )
 
-const sseBufferSize = 128
+const (
+	sseRetryBackoff = 10 * time.Second
+	ssePingDelay    = 20 * time.Second
+	sseBufferSize   = 128
+)
 
 type apiHandler struct {
 	serverCtx context.Context
@@ -62,18 +65,17 @@ func (h *apiHandler) getStreamHealth(rw http.ResponseWriter, r *http.Request, pa
 
 func (h *apiHandler) subscribeEvents(rw http.ResponseWriter, r *http.Request, params httprouter.Params) {
 	var (
-		manifestID             = params.ByName("manifestId")
-		accept, _, err         = mime.ParseMediaType(r.Header.Get("Accept"))
-		from, err1             = parseInputTimestamp(r.URL.Query().Get("from"))
-		to, err2               = parseInputTimestamp(r.URL.Query().Get("to"))
-		lastEventID, err3      = parseInputUUID(r.Header.Get("Last-Event-ID"))
-		lastEventIDQuery, err4 = parseInputUUID(r.URL.Query().Get("lastEventId"))
-		mustFindLast, _        = strconv.ParseBool(r.URL.Query().Get("mustFindLast"))
+		manifestID = params.ByName("manifestId")
+		sseOpts    = jsse.InitOptions(r).
+				WithClientRetryBackoff(sseRetryBackoff).
+				WithPing(ssePingDelay)
+
+		lastEventID, err = parseInputUUID(sseOpts.LastEventID)
+		from, err1       = parseInputTimestamp(r.URL.Query().Get("from"))
+		to, err2         = parseInputTimestamp(r.URL.Query().Get("to"))
+		mustFindLast, _  = strconv.ParseBool(r.URL.Query().Get("mustFindLast"))
 	)
-	if lastEventID == nil {
-		lastEventID = lastEventIDQuery
-	}
-	if errs := nonNilErrs(err, err1, err2, err3, err4); len(errs) > 0 {
+	if errs := nonNilErrs(err, err1, err2); len(errs) > 0 {
 		respondError(rw, http.StatusBadRequest, errs...)
 		return
 	}
@@ -101,79 +103,37 @@ func (h *apiHandler) subscribeEvents(rw http.ResponseWriter, r *http.Request, pa
 		return
 	}
 
-	switch accept {
-	case "text/event-stream", "*/*":
-		sseEvents := makeSSEEventChan(ctx, pastEvents, subscription)
-		err = sse.ServeEvents(ctx, rw, sseEvents)
-		if err != nil {
-			glog.Errorf("Error serving SSE events. err=%q", err)
-			respondError(rw, http.StatusInternalServerError, err)
+	sseEvents := makeSSEEventChan(ctx, pastEvents, subscription)
+	err = jsse.ServeEvents(ctx, sseOpts, rw, sseEvents)
+	if err != nil {
+		status := http.StatusInternalServerError
+		if httpErr, ok := err.(jsse.HTTPError); ok {
+			status, err = httpErr.StatusCode, httpErr.Cause
 		}
-	case "application/json":
-		events, ok := getFirstAvailableEvents(ctx, pastEvents, subscription)
-		if !ok {
-			respondError(rw, http.StatusServiceUnavailable, errors.New("server shutting down"))
-			return
-		}
-		respondJson(rw, http.StatusOK, map[string]interface{}{"events": events})
-	default:
-		respondError(rw, http.StatusUnsupportedMediaType, fmt.Errorf("unsupported media type: %s", accept))
+		glog.Errorf("Error serving events. err=%q", err)
+		respondError(rw, status, err)
 	}
 }
 
-func getFirstAvailableEvents(ctx context.Context, pastEvents []data.Event, subscription <-chan data.Event) ([]data.Event, bool) {
-	if len(pastEvents) > 0 || subscription == nil {
-		return pastEvents, true
-	}
-	select {
-	case <-ctx.Done():
-		return nil, false
-	case evt := <-subscription:
-		pastEvents = append(pastEvents, evt)
-		for recvImmediate(subscription, &evt) {
-			pastEvents = append(pastEvents, evt)
+func makeSSEEventChan(ctx context.Context, pastEvents []data.Event, subscription <-chan data.Event) <-chan jsse.Event {
+	if subscription == nil {
+		events := make(chan jsse.Event, len(pastEvents))
+		for _, evt := range pastEvents {
+			sendEvent(ctx, events, evt)
 		}
-		return pastEvents, true
+		close(events)
+		return events
 	}
-}
-
-func recvImmediate(subscription <-chan data.Event, out *data.Event) bool {
-	select {
-	case evt, ok := <-subscription:
-		*out = evt
-		return ok
-	default:
-		return false
-	}
-}
-
-func makeSSEEventChan(ctx context.Context, pastEvents []data.Event, subscription <-chan data.Event) <-chan sse.Event {
-	events := make(chan sse.Event, sseBufferSize)
-	send := func(evt data.Event) bool {
-		sseEvt, err := toSSEEvent(evt)
-		if err != nil {
-			glog.Errorf("Skipping bad event due to error converting to SSE. evtID=%q, manifestID=%q, err=%q", evt.ID(), evt.ManifestID(), err)
-			return true
-		}
-		select {
-		case events <- sseEvt:
-			return true
-		case <-ctx.Done():
-			return false
-		}
-	}
+	events := make(chan jsse.Event, sseBufferSize)
 	go func() {
 		defer close(events)
 		for _, evt := range pastEvents {
-			if !send(evt) {
+			if !sendEvent(ctx, events, evt) {
 				return
 			}
 		}
-		if subscription == nil {
-			return
-		}
 		for evt := range subscription {
-			if !send(evt) {
+			if !sendEvent(ctx, events, evt) {
 				return
 			}
 		}
@@ -181,12 +141,26 @@ func makeSSEEventChan(ctx context.Context, pastEvents []data.Event, subscription
 	return events
 }
 
-func toSSEEvent(evt data.Event) (sse.Event, error) {
+func sendEvent(ctx context.Context, dest chan<- jsse.Event, evt data.Event) bool {
+	sseEvt, err := toSSEEvent(evt)
+	if err != nil {
+		glog.Errorf("Skipping bad event due to error converting to SSE. evtID=%q, manifestID=%q, err=%q", evt.ID(), evt.ManifestID(), err)
+		return true
+	}
+	select {
+	case dest <- sseEvt:
+		return true
+	case <-ctx.Done():
+		return false
+	}
+}
+
+func toSSEEvent(evt data.Event) (jsse.Event, error) {
 	data, err := json.Marshal(evt)
 	if err != nil {
-		return sse.Event{}, err
+		return jsse.Event{}, err
 	}
-	return sse.Event{
+	return jsse.Event{
 		ID:    evt.ID().String(),
 		Event: "lp_event",
 		Data:  data,
