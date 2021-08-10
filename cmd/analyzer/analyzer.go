@@ -23,22 +23,27 @@ var (
 	// using -ldflags, using output of the `git describe` command.
 	Version = "undefined"
 
-	// CLI flags
-	fs = flag.NewFlagSet("analyzer", flag.ExitOnError)
+	// CLI flags, bound in init below
+	rabbitmqUri string
+	amqpUri     string
 
-	rabbitmqUri = fs.String("rabbitmqUri", "amqp://guest:guest@localhost:5672/livepeer", "URI for RabbitMQ server to consume from. Can be specified as a default AMQP URI which will be converted to stream protocol.")
-	amqpUriFlag = fs.String("amqpUri", "", "Explicit AMQP URI in case of non-default protocols/ports (optional). Must point to the same cluster as rabbitmqUri")
-
-	golivepeerExchange = fs.String("golivepeerExchange", "lp_golivepeer_metadata", "Name of RabbitMQ exchange to bind the stream to on creation")
-	shardPrefixesStr   = fs.String("shardPrefixes", "", "Comma-separated list of prefixes of manifest IDs to process events from")
+	golivepeerExchange string
+	shardPrefixesFlag  string
 	shardPrefixes      []string
 
-	// flags bound in init below
 	serverOpts    = api.ServerOptions{}
 	streamingOpts = health.StreamingOptions{}
 )
 
 func init() {
+	fs := flag.NewFlagSet("analyzer", flag.ExitOnError)
+
+	fs.StringVar(&rabbitmqUri, "rabbitmqUri", "amqp://guest:guest@localhost:5672/livepeer", "URI for RabbitMQ server to consume from. Can be specified as a default AMQP URI which will be converted to stream protocol.")
+	fs.StringVar(&amqpUri, "amqpUri", "", "Explicit AMQP URI in case of non-default protocols/ports (optional). Must point to the same cluster as rabbitmqUri")
+
+	fs.StringVar(&golivepeerExchange, "golivepeerExchange", "lp_golivepeer_metadata", "Name of RabbitMQ exchange to bind the stream to on creation")
+	fs.StringVar(&shardPrefixesFlag, "shardPrefixes", "", "Comma-separated list of prefixes of manifest IDs to process events from")
+
 	// Server options
 	fs.StringVar(&serverOpts.Host, "host", "localhost", "Hostname to bind to")
 	fs.UintVar(&serverOpts.Port, "port", 8080, "Port to listen on")
@@ -68,8 +73,8 @@ func init() {
 	if streamingOpts.ConsumerName == "" {
 		streamingOpts.ConsumerName = "analyzer-" + hostname()
 	}
-	if *shardPrefixesStr != "" {
-		shardPrefixes = strings.Split(*shardPrefixesStr, ",")
+	if shardPrefixesFlag != "" {
+		shardPrefixes = strings.Split(shardPrefixesFlag, ",")
 	}
 }
 
@@ -77,7 +82,7 @@ func main() {
 	glog.Infof("Stream health care system starting up... version=%q", Version)
 	ctx := contextUntilSignal(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 
-	streamUri, amqpUri := *rabbitmqUri, *amqpUriFlag
+	streamUri := rabbitmqUri
 	if amqpUri == "" && strings.HasPrefix(streamUri, "amqp") {
 		streamUri, amqpUri = "", streamUri
 	}
@@ -87,7 +92,7 @@ func main() {
 	}
 	defer consumer.Close()
 
-	reducers, startTimeOffset := reducers.DefaultPipeline(*golivepeerExchange, shardPrefixes)
+	reducers, startTimeOffset := reducers.DefaultPipeline(golivepeerExchange, shardPrefixes)
 	healthcore := health.NewCore(health.CoreOptions{
 		Streaming:       streamingOpts,
 		StartTimeOffset: startTimeOffset,
