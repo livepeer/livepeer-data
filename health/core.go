@@ -26,8 +26,9 @@ type StreamingOptions struct {
 }
 
 type CoreOptions struct {
-	Streaming       StreamingOptions
-	StartTimeOffset time.Duration
+	Streaming        StreamingOptions
+	StartTimeOffset  time.Duration
+	MemoryRecordsTtl time.Duration
 }
 
 type Core struct {
@@ -80,6 +81,9 @@ func (c *Core) Start(ctx context.Context) error {
 	err = c.consumer.Consume(ctx, consumeOpts, c)
 	if err != nil {
 		return fmt.Errorf("failed to consume stream: %w", err)
+	}
+	if c.opts.MemoryRecordsTtl > 0 {
+		c.storage.StartCleanupLoop(ctx, c.opts.MemoryRecordsTtl)
 	}
 	return nil
 }

@@ -31,8 +31,9 @@ var (
 	shardPrefixesFlag  string
 	shardPrefixes      []string
 
-	serverOpts    = api.ServerOptions{}
-	streamingOpts = health.StreamingOptions{}
+	serverOpts       api.ServerOptions
+	streamingOpts    health.StreamingOptions
+	memoryRecordsTtl time.Duration
 )
 
 func init() {
@@ -56,6 +57,7 @@ func init() {
 	fs.StringVar(&streamingOpts.MaxLengthBytes, "stream-max-length", "50gb", "When creating a new stream, config for max total storage size")
 	fs.StringVar(&streamingOpts.MaxSegmentSizeBytes, "stream-max-segment-size", "500mb", "When creating a new stream, config for max stream segment size in storage")
 	fs.DurationVar(&streamingOpts.MaxAge, "stream-max-age", 30*24*time.Hour, `When creating a new stream, config for max age of stored events`)
+	fs.DurationVar(&memoryRecordsTtl, "memory-records-ttl", 24*time.Hour, `How long to keep data records in memory about inactive streams`)
 
 	flag.Set("logtostderr", "true")
 	glogVFlag := flag.Lookup("v")
@@ -94,8 +96,9 @@ func main() {
 
 	reducers, startTimeOffset := reducers.DefaultPipeline(golivepeerExchange, shardPrefixes)
 	healthcore := health.NewCore(health.CoreOptions{
-		Streaming:       streamingOpts,
-		StartTimeOffset: startTimeOffset,
+		Streaming:        streamingOpts,
+		StartTimeOffset:  startTimeOffset,
+		MemoryRecordsTtl: memoryRecordsTtl,
 	}, consumer)
 	err = healthcore.Use(reducers...).Start(ctx)
 	if err != nil {
