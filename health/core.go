@@ -158,21 +158,7 @@ func (c *Core) SubscribeEvents(ctx context.Context, manifestID string, lastEvtID
 			return nil, nil, err
 		}
 	}
-	subs := make(chan data.Event, eventSubscriptionBufSize)
-	record.EventSubs = append(record.EventSubs, subs)
-	go func() {
-		defer close(subs)
-		<-ctx.Done()
-
-		record.Lock()
-		defer record.Unlock()
-		for i := range record.EventSubs {
-			if subs == record.EventSubs[i] {
-				record.EventSubs = append(record.EventSubs[:i], record.EventSubs[i+1:]...)
-				return
-			}
-		}
-	}()
+	subs := record.SubscribeLocked(ctx, make(chan data.Event, eventSubscriptionBufSize))
 	return pastEvents, subs, nil
 }
 
