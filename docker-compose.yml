@@ -1,0 +1,34 @@
+version: "3.2"
+services:
+  rabbitmq:
+    image: rabbitmq:3.9-rc-management
+    container_name: rabbitmq
+    ports:
+      - 5552:5552
+      - 5672:5672
+      - 15672:15672
+    volumes:
+        - ./.docker/rabbitmq/data/:/var/lib/rabbitmq/
+    networks:
+      - default
+    environment:
+      RABBITMQ_NODENAME: rabbit@rabbitmq
+      RABBITMQ_SERVER_ADDITIONAL_ERL_ARGS: "-rabbitmq_stream advertised_host rabbitmq"
+    entrypoint: bash -c
+    command: |
+      'set -ex
+      cat > /etc/rabbitmq/rabbitmq.conf <<EOF
+        default_vhost = livepeer
+        loopback_users = none
+      EOF
+      rabbitmq-plugins enable --offline rabbitmq_stream
+      bash -c "until rabbitmqadmin --vhost=livepeer declare exchange name=lp_golivepeer_metadata type=topic; do sleep 1; done;" &
+      docker-entrypoint.sh rabbitmq-server'
+    healthcheck:
+      test: rabbitmq-diagnostics check_running
+      start_period: 5s
+      interval: 10s
+
+networks:
+  default:
+    driver: bridge

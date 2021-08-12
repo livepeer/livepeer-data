@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	PublishChannelSize   = 100
+	PublishChannelSize   = 1024
 	RetryMinDelay        = 5 * time.Second
 	PublishLogSampleRate = 0.1
 	MaxRetries           = 3

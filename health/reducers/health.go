@@ -1,6 +1,9 @@
 package reducers
 
-import "github.com/livepeer/livepeer-data/health"
+import (
+	"github.com/livepeer/livepeer-data/health"
+	"github.com/livepeer/livepeer-data/pkg/data"
+)
 
 var healthyMustHaves = map[health.ConditionType]bool{
 	ConditionTranscoding: true,
@@ -9,7 +12,7 @@ var healthyMustHaves = map[health.ConditionType]bool{
 
 var HealthReducer = health.ReducerFunc(reduceHealth)
 
-func reduceHealth(current health.Status, _ interface{}, evt health.Event) (health.Status, interface{}) {
+func reduceHealth(current health.Status, _ interface{}, evt data.Event) (health.Status, interface{}) {
 	healthyMustsCount := 0
 	for _, cond := range current.Conditions {
 		if healthyMustHaves[cond.Type] && cond.Status != nil && *cond.Status {

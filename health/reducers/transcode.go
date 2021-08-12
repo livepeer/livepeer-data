@@ -1,7 +1,10 @@
 package reducers
 
 import (
+	"fmt"
+
 	"github.com/livepeer/livepeer-data/health"
+	"github.com/livepeer/livepeer-data/pkg/data"
 	"github.com/livepeer/livepeer-data/pkg/event"
 )
 
@@ -10,23 +13,39 @@ const (
 	ConditionRealTime    health.ConditionType = "RealTime"
 	ConditionNoErrors    health.ConditionType = "NoErrors"
 
-	transcodeBindingKey = "#.stream_health.transcode.#"
+	transcodeBindingKeyFormat = "broadcaster.stream_health.transcode.%s.#"
 )
 
 var transcodeConditions = []health.ConditionType{ConditionTranscoding, ConditionRealTime, ConditionNoErrors}
 
-type TranscodeReducer struct{}
+type TranscodeReducer struct {
+	GolpExchange  string
+	ShardPrefixes []string
+}
 
-func (t TranscodeReducer) Bindings(golpExchange string) []event.BindingArgs {
-	return []event.BindingArgs{{Key: transcodeBindingKey, Exchange: golpExchange}}
+func (t TranscodeReducer) Bindings() []event.BindingArgs {
+	if len(t.ShardPrefixes) == 0 {
+		return []event.BindingArgs{{
+			Exchange: t.GolpExchange,
+			Key:      fmt.Sprintf(transcodeBindingKeyFormat, "*"),
+		}}
+	}
+	bindings := make([]event.BindingArgs, len(t.ShardPrefixes))
+	for i, prefix := range t.ShardPrefixes {
+		bindings[i] = event.BindingArgs{
+			Exchange: t.GolpExchange,
+			Key:      fmt.Sprintf(transcodeBindingKeyFormat, prefix),
+		}
+	}
+	return bindings
 }
 
 func (t TranscodeReducer) Conditions() []health.ConditionType {
 	return transcodeConditions
 }
 
-func (t TranscodeReducer) Reduce(current health.Status, _ interface{}, evtIface health.Event) (health.Status, interface{}) {
-	evt, ok := evtIface.(*health.TranscodeEvent)
+func (t TranscodeReducer) Reduce(current health.Status, _ interface{}, evtIface data.Event) (health.Status, interface{}) {
+	evt, ok := evtIface.(*data.TranscodeEvent)
 	if !ok {
 		return current, nil
 	}
@@ -49,7 +68,7 @@ func (t TranscodeReducer) Reduce(current health.Status, _ interface{}, evtIface 
 	}, nil
 }
 
-func conditionStatus(evt *health.TranscodeEvent, condType health.ConditionType) *bool {
+func conditionStatus(evt *data.TranscodeEvent, condType health.ConditionType) *bool {
 	switch condType {
 	case ConditionTranscoding:
 		return &evt.Success

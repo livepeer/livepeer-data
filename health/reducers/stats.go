@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/livepeer/livepeer-data/health"
+	"github.com/livepeer/livepeer-data/pkg/data"
 	"github.com/livepeer/livepeer-data/stats"
 )
 
@@ -13,7 +14,7 @@ type statsAggrs struct {
 }
 
 func StatsReducer(statsWindows []time.Duration) health.ReducerFunc {
-	return func(current health.Status, stateIface interface{}, evt health.Event) (health.Status, interface{}) {
+	return func(current health.Status, stateIface interface{}, evt data.Event) (health.Status, interface{}) {
 		var state *statsAggrs
 		if stateIface != nil {
 			state = stateIface.(*statsAggrs)

@@ -43,6 +43,7 @@ type (
 	StreamConsumer interface {
 		ConsumeChan(ctx context.Context, opts ConsumeOptions) (<-chan StreamMessage, error)
 		Consume(ctx context.Context, opts ConsumeOptions, handler Handler) error
+		CheckConnection() error
 		Close() error
 	}
 )
