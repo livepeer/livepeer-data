@@ -5,17 +5,23 @@ import (
 	"time"
 )
 
-type UnixNanoTime struct{ time.Time }
+const nanosInMillis = int64(time.Millisecond / time.Nanosecond)
 
-func (u UnixNanoTime) MarshalJSON() ([]byte, error) {
-	return json.Marshal(u.UnixNano())
+type UnixMillisTime struct{ time.Time }
+
+func (u UnixMillisTime) UnixMillis() int64 {
+	return u.UnixNano() / nanosInMillis
 }
 
-func (u *UnixNanoTime) UnmarshalJSON(data []byte) error {
-	var unixNano int64
-	if err := json.Unmarshal(data, &unixNano); err != nil {
+func (u UnixMillisTime) MarshalJSON() ([]byte, error) {
+	return json.Marshal(u.UnixMillis())
+}
+
+func (u *UnixMillisTime) UnmarshalJSON(data []byte) error {
+	var unixMillis int64
+	if err := json.Unmarshal(data, &unixMillis); err != nil {
 		return err
 	}
-	u.Time = time.Unix(0, unixNano).UTC()
+	u.Time = time.Unix(0, unixMillis*nanosInMillis).UTC()
 	return nil
 }

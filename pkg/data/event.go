@@ -6,6 +6,7 @@ import (
 	"github.com/google/uuid"
 )
 
+// TODO: Call these just Message for consistency with livepeer-com
 type Event interface {
 	ID() uuid.UUID
 	Timestamp() time.Time
@@ -15,10 +16,10 @@ type Event interface {
 type EventType string
 
 type Base struct {
-	Type        EventType    `json:"type"`
-	ID_         uuid.UUID    `json:"id"`
-	Timestamp_  UnixNanoTime `json:"timestamp"`
-	ManifestID_ string       `json:"manifestId"`
+	Type        EventType      `json:"type"`
+	ID_         uuid.UUID      `json:"id"`
+	Timestamp_  UnixMillisTime `json:"timestamp"`
+	ManifestID_ string         `json:"manifestId"`
 }
 
 var _ Event = (*Base)(nil)
@@ -27,7 +28,7 @@ func newEventBase(type_ EventType, mid string) Base {
 	return Base{
 		Type:        type_,
 		ID_:         uuid.New(),
-		Timestamp_:  UnixNanoTime{time.Now().UTC()},
+		Timestamp_:  UnixMillisTime{time.Now().UTC()},
 		ManifestID_: mid,
 	}
 }

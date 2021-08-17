@@ -12,7 +12,7 @@ func NewTranscodeEvent(nodeID, mid string, seg SegmentMetadata, startTime time.T
 		Base:      base,
 		NodeID:    nodeID,
 		Segment:   seg,
-		StartTime: UnixNanoTime{startTime},
+		StartTime: UnixMillisTime{startTime},
 		LatencyMs: base.Timestamp_.Sub(startTime).Milliseconds(),
 		Success:   success,
 		Attempts:  attempts,
@@ -23,7 +23,7 @@ type TranscodeEvent struct {
 	Base
 	NodeID    string                 `json:"nodeId"`
 	Segment   SegmentMetadata        `json:"segment"`
-	StartTime UnixNanoTime           `json:"startTime"`
+	StartTime UnixMillisTime         `json:"startTime"`
 	LatencyMs int64                  `json:"latencyMs"`
 	Success   bool                   `json:"success"`
 	Attempts  []TranscodeAttemptInfo `json:"attempts"`
