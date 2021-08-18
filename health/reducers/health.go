@@ -20,6 +20,13 @@ func reduceHealth(current health.Status, _ interface{}, evt data.Event) (health.
 		}
 	}
 	isHealthy := healthyMustsCount == len(healthyMustHaves)
+	for _, ms := range current.Multistream {
+		for _, cond := range ms.Conditions {
+			if cond.Type == ConditionMultistreamConnected && cond.Status != nil && !*cond.Status {
+				isHealthy = false
+			}
+		}
+	}
 	healthyCond := health.NewCondition("", evt.Timestamp(), &isHealthy, nil, &current.Healthy)
 
 	return health.Status{
