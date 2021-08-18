@@ -14,7 +14,7 @@ type statsAggrs struct {
 }
 
 func StatsReducer(statsWindows []time.Duration) health.ReducerFunc {
-	return func(current health.Status, stateIface interface{}, evt data.Event) (health.Status, interface{}) {
+	return func(current *health.Status, stateIface interface{}, evt data.Event) (*health.Status, interface{}) {
 		var state *statsAggrs
 		if stateIface != nil {
 			state = stateIface.(*statsAggrs)
@@ -35,7 +35,7 @@ func StatsReducer(statsWindows []time.Duration) health.ReducerFunc {
 			}
 			conditions[i] = reduceCondStats(cond, ts, statsAggr, statsWindows)
 		}
-		return health.Status{
+		return &health.Status{
 			ID:         current.ID,
 			Healthy:    *reduceCondStats(&current.Healthy, ts, state.HealthStats, statsWindows),
 			Conditions: conditions,

@@ -44,7 +44,7 @@ func (t TranscodeReducer) Conditions() []health.ConditionType {
 	return transcodeConditions
 }
 
-func (t TranscodeReducer) Reduce(current health.Status, _ interface{}, evtIface data.Event) (health.Status, interface{}) {
+func (t TranscodeReducer) Reduce(current *health.Status, _ interface{}, evtIface data.Event) (*health.Status, interface{}) {
 	evt, ok := evtIface.(*data.TranscodeEvent)
 	if !ok {
 		return current, nil
@@ -59,7 +59,7 @@ func (t TranscodeReducer) Reduce(current health.Status, _ interface{}, evtIface 
 		}
 	}
 
-	return health.Status{
+	return &health.Status{
 		ID:         current.ID,
 		Healthy:    current.Healthy,
 		Conditions: conditions,

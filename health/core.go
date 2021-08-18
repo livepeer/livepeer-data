@@ -128,10 +128,10 @@ func (c *Core) handleSingleEvent(evt data.Event) {
 	}
 }
 
-func (c *Core) GetStatus(manifestID string) (Status, error) {
+func (c *Core) GetStatus(manifestID string) (*Status, error) {
 	record, ok := c.storage.Get(manifestID)
 	if !ok {
-		return Status{}, ErrStreamNotFound
+		return nil, ErrStreamNotFound
 	}
 	return record.LastStatus, nil
 }

@@ -29,7 +29,7 @@ func (t MultistreamReducer) Conditions() []health.ConditionType {
 	return nil
 }
 
-func (t MultistreamReducer) Reduce(current health.Status, _ interface{}, evtIface data.Event) (health.Status, interface{}) {
+func (t MultistreamReducer) Reduce(current *health.Status, _ interface{}, evtIface data.Event) (*health.Status, interface{}) {
 	evt, ok := evtIface.(*data.WebhookEvent)
 	if !ok {
 		return current, nil
@@ -54,7 +54,7 @@ func (t MultistreamReducer) Reduce(current health.Status, _ interface{}, evtIfac
 		}
 	}
 
-	return health.Status{
+	return &health.Status{
 		ID:          current.ID,
 		Healthy:     current.Healthy,
 		Conditions:  current.Conditions,

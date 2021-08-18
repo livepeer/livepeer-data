@@ -12,7 +12,7 @@ var healthyMustHaves = map[health.ConditionType]bool{
 
 var HealthReducer = health.ReducerFunc(reduceHealth)
 
-func reduceHealth(current health.Status, _ interface{}, evt data.Event) (health.Status, interface{}) {
+func reduceHealth(current *health.Status, _ interface{}, evt data.Event) (*health.Status, interface{}) {
 	healthyMustsCount := 0
 	for _, cond := range current.Conditions {
 		if healthyMustHaves[cond.Type] && cond.Status != nil && *cond.Status {
@@ -29,7 +29,7 @@ func reduceHealth(current health.Status, _ interface{}, evt data.Event) (health.
 	}
 	healthyCond := health.NewCondition("", evt.Timestamp(), &isHealthy, nil, &current.Healthy)
 
-	return health.Status{
+	return &health.Status{
 		ID:         current.ID,
 		Healthy:    *healthyCond,
 		Conditions: current.Conditions,
