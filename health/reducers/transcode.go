@@ -52,13 +52,11 @@ func (t TranscodeReducer) Reduce(current health.Status, _ interface{}, evtIface 
 
 	ts := evt.Timestamp()
 	conditions := make([]*health.Condition, len(current.Conditions))
-	for i, cond := range current.Conditions {
-		status := conditionStatus(evt, cond.Type)
-		if status == nil {
-			conditions[i] = cond
-			continue
+	copy(conditions, current.Conditions)
+	for i, cond := range conditions {
+		if status := conditionStatus(evt, cond.Type); status != nil {
+			conditions[i] = health.NewCondition(cond.Type, ts, status, nil, cond)
 		}
-		conditions[i] = health.NewCondition(cond.Type, ts, status, nil, cond)
 	}
 
 	return health.Status{

@@ -3,13 +3,20 @@ package health
 import (
 	"time"
 
+	"github.com/livepeer/livepeer-data/pkg/data"
 	"github.com/livepeer/livepeer-data/stats"
 )
 
 type Status struct {
-	ID         string       `json:"id"`
-	Healthy    Condition    `json:"healthy"`
-	Conditions []*Condition `json:"conditions"`
+	ID          string               `json:"id"`
+	Healthy     Condition            `json:"healthy"`
+	Conditions  []*Condition         `json:"conditions"`
+	Multistream []*MultistreamStatus `json:"multistream,omitempty"`
+}
+
+type MultistreamStatus struct {
+	Target     data.MultistreamTargetInfo
+	Conditions []*Condition
 }
 
 func (s Status) GetCondition(condType ConditionType) *Condition {
