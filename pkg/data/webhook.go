@@ -30,3 +30,13 @@ type WebhookEvent struct {
 	SessionID string          `json:"sessionId,omitempty"`
 	Payload   json.RawMessage `json:"payload,omitempty"`
 }
+
+type MultistreamWebhookPayload struct {
+	Target MultistreamTargetInfo `json:"target"`
+}
+
+type MultistreamTargetInfo struct {
+	ID      string `json:"id"`
+	Name    string `json:"name"`
+	Profile string `json:"profile"`
+}
