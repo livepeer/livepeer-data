@@ -8,9 +8,13 @@ import (
 const EventTypeWebhook EventType = "webhook_event"
 
 func NewWebhookEvent(mid, event, userID, streamID, sessionID string, payload interface{}) (*WebhookEvent, error) {
-	rawPayload, err := json.Marshal(payload)
-	if err != nil {
-		return nil, fmt.Errorf("error marshalling webhook event payload: %w", err)
+	var rawPayload []byte
+	var err error
+	if payload != nil {
+		rawPayload, err = json.Marshal(payload)
+		if err != nil {
+			return nil, fmt.Errorf("error marshalling webhook event payload: %w", err)
+		}
 	}
 	return &WebhookEvent{
 		Base:      newEventBase(EventTypeWebhook, mid),
