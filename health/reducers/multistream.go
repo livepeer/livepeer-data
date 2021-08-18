@@ -12,7 +12,9 @@ import (
 )
 
 const (
-	ConditionMultistreamConnected health.ConditionType = "Connected"
+	ConditionMultistreamHealthy health.ConditionType = "MultistreamHealthy"
+
+	ConditionSingleMultistreamConnected health.ConditionType = "Connected"
 
 	webhooksExchange      = "webhooks_default_exchange"
 	multistreamBindingKey = "events.multistream.#"
@@ -25,8 +27,7 @@ func (t MultistreamReducer) Bindings() []event.BindingArgs {
 }
 
 func (t MultistreamReducer) Conditions() []health.ConditionType {
-	// We hold separate conditions under the multistream root field in status obj.
-	return nil
+	return []health.ConditionType{ConditionMultistreamHealthy}
 }
 
 func (t MultistreamReducer) Reduce(current *health.Status, _ interface{}, evtIface data.Event) (*health.Status, interface{}) {
@@ -53,11 +54,19 @@ func (t MultistreamReducer) Reduce(current *health.Status, _ interface{}, evtIfa
 			conditions[i] = health.NewCondition(cond.Type, ts, status, nil, cond)
 		}
 	}
+	rootConditions := make([]*health.Condition, len(current.Conditions))
+	copy(rootConditions, current.Conditions)
+	for i, cond := range rootConditions {
+		if cond.Type == ConditionMultistreamHealthy {
+			status := allTargetsConnected(multistream)
+			conditions[i] = health.NewCondition(cond.Type, ts, &status, nil, cond)
+		}
+	}
 
 	return &health.Status{
 		ID:          current.ID,
 		Healthy:     current.Healthy,
-		Conditions:  current.Conditions,
+		Conditions:  rootConditions,
 		Multistream: multistream,
 	}, nil
 }
@@ -68,9 +77,20 @@ var connectedCondByEvent = map[string]bool{
 	"multistream.error":        false,
 }
 
+func allTargetsConnected(multistream []*health.MultistreamStatus) bool {
+	for _, ms := range multistream {
+		for _, cond := range ms.Conditions {
+			if cond.Type == ConditionSingleMultistreamConnected && (cond.Status == nil || !*cond.Status) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
 func multistreamConditionStatus(evt *data.WebhookEvent, condType health.ConditionType) *bool {
 	switch condType {
-	case ConditionMultistreamConnected:
+	case ConditionSingleMultistreamConnected:
 		connected, ok := connectedCondByEvent[evt.Event]
 		if !ok {
 			glog.Errorf("Unknown multistream webhook event. event=%q", evt.Event)
@@ -96,7 +116,7 @@ func cloneAppendMultistreamStatus(current []*health.MultistreamStatus, target da
 	multistream = append(multistream, &health.MultistreamStatus{
 		Target: target,
 		Conditions: []*health.Condition{
-			health.NewCondition(ConditionMultistreamConnected, time.Time{}, nil, nil, nil),
+			health.NewCondition(ConditionSingleMultistreamConnected, time.Time{}, nil, nil, nil),
 		},
 	})
 	return multistream, len(multistream) - 1
