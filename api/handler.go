@@ -144,7 +144,7 @@ func makeSSEEventChan(ctx context.Context, pastEvents []data.Event, subscription
 func sendEvent(ctx context.Context, dest chan<- jsse.Event, evt data.Event) bool {
 	sseEvt, err := toSSEEvent(evt)
 	if err != nil {
-		glog.Errorf("Skipping bad event due to error converting to SSE. evtID=%q, manifestID=%q, err=%q", evt.ID(), evt.ManifestID(), err)
+		glog.Errorf("Skipping bad event due to error converting to SSE. evtID=%q, streamID=%q, err=%q", evt.ID(), evt.StreamID(), err)
 		return true
 	}
 	select {

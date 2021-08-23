@@ -7,7 +7,7 @@ import (
 
 const EventTypeWebhook EventType = "webhook_event"
 
-func NewWebhookEvent(mid, event, userID, streamID, sessionID string, payload interface{}) (*WebhookEvent, error) {
+func NewWebhookEvent(streamID, event, userID, sessionID string, payload interface{}) (*WebhookEvent, error) {
 	var rawPayload []byte
 	var err error
 	if payload != nil {
@@ -17,10 +17,9 @@ func NewWebhookEvent(mid, event, userID, streamID, sessionID string, payload int
 		}
 	}
 	return &WebhookEvent{
-		Base:      newEventBase(EventTypeWebhook, mid),
+		Base:      newEventBase(EventTypeWebhook, streamID),
 		Event:     event,
 		UserID:    userID,
-		StreamID:  streamID,
 		SessionID: sessionID,
 		Payload:   rawPayload,
 	}, nil
@@ -30,7 +29,6 @@ type WebhookEvent struct {
 	Base
 	Event     string          `json:"event"`
 	UserID    string          `json:"userId"`
-	StreamID  string          `json:"streamId"`
 	SessionID string          `json:"sessionId,omitempty"`
 	Payload   json.RawMessage `json:"payload,omitempty"`
 }

@@ -6,8 +6,8 @@ import (
 
 const EventTypeTranscode EventType = "transcode"
 
-func NewTranscodeEvent(nodeID, mid string, seg SegmentMetadata, startTime time.Time, success bool, attempts []TranscodeAttemptInfo) *TranscodeEvent {
-	base := newEventBase(EventTypeTranscode, mid)
+func NewTranscodeEvent(nodeID, streamID string, seg SegmentMetadata, startTime time.Time, success bool, attempts []TranscodeAttemptInfo) *TranscodeEvent {
+	base := newEventBase(EventTypeTranscode, streamID)
 	return &TranscodeEvent{
 		Base:      base,
 		NodeID:    nodeID,
