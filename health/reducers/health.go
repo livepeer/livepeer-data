@@ -6,9 +6,9 @@ import (
 )
 
 var healthyRequirementDefaults = map[health.ConditionType]bool{
-	ConditionTranscoding:        false,
-	ConditionTranscodeRealTime:  false,
-	ConditionMultistreamHealthy: true,
+	ConditionTranscoding:       false,
+	ConditionTranscodeRealTime: false,
+	ConditionMultistreaming:    true,
 }
 
 var HealthReducer = health.ReducerFunc(reduceHealth)

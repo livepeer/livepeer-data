@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	ConditionMultistreamHealthy health.ConditionType = "MultistreamHealthy"
+	ConditionMultistreaming health.ConditionType = "Multistreaming"
 
 	webhooksExchange      = "webhooks_default_exchange"
 	multistreamBindingKey = "events.multistream.#"
@@ -25,7 +25,7 @@ func (t MultistreamReducer) Bindings() []event.BindingArgs {
 }
 
 func (t MultistreamReducer) Conditions() []health.ConditionType {
-	return []health.ConditionType{ConditionMultistreamHealthy}
+	return []health.ConditionType{ConditionMultistreaming}
 }
 
 func (t MultistreamReducer) Reduce(current *health.Status, _ interface{}, evtIface data.Event) (*health.Status, interface{}) {
@@ -57,7 +57,7 @@ func (t MultistreamReducer) Reduce(current *health.Status, _ interface{}, evtIfa
 
 	conditions := current.ConditionsCopy()
 	for i, cond := range conditions {
-		if cond.Type == ConditionMultistreamHealthy {
+		if cond.Type == ConditionMultistreaming {
 			status := allTargetsConnected(multistream)
 			conditions[i] = health.NewCondition(cond.Type, ts, &status, nil, cond)
 		}
