@@ -14,7 +14,7 @@ import (
 const (
 	ConditionMultistreaming health.ConditionType = "Multistreaming"
 
-	webhooksExchange      = "webhooks_default_exchange"
+	webhooksExchange      = "webhook_default_exchange"
 	multistreamBindingKey = "events.multistream.#"
 )
 
