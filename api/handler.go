@@ -177,13 +177,9 @@ func parseInputTimestamp(str string) (*time.Time, error) {
 	}
 	ts, unixErr := strconv.ParseInt(str, 10, 64)
 	if unixErr != nil {
-		return nil, fmt.Errorf("bad time %q. must be in RFC3339 or Unix Timestamp (sec) formats. rfcErr: %s; unixErr: %s", str, rfcErr, unixErr)
+		return nil, fmt.Errorf("bad time %q. must be in RFC3339 or Unix Timestamp (millisecond) formats. rfcErr: %s; unixErr: %s", str, rfcErr, unixErr)
 	}
-	if ts > 1e13 {
-		t = time.Unix(0, ts)
-	} else {
-		t = time.Unix(ts, 0)
-	}
+	t = data.NewUnixMillisTime(ts).Time
 	return &t, nil
 }
 
