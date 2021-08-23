@@ -26,8 +26,8 @@ func StatsReducer(statsWindows []time.Duration) health.ReducerFunc {
 		}
 
 		ts := evt.Timestamp()
-		conditions := make([]*health.Condition, len(current.Conditions))
-		for i, cond := range current.Conditions {
+		conditions := current.ConditionsCopy()
+		for i, cond := range conditions {
 			statsAggr, ok := state.ConditionStats[cond.Type]
 			if !ok {
 				statsAggr = stats.WindowAggregators{}
@@ -35,12 +35,12 @@ func StatsReducer(statsWindows []time.Duration) health.ReducerFunc {
 			}
 			conditions[i] = reduceCondStats(cond, ts, statsAggr, statsWindows)
 		}
-		healthy := reduceCondStats(&current.Healthy, ts, state.HealthStats, statsWindows)
+		healthy := reduceCondStats(current.Healthy, ts, state.HealthStats, statsWindows)
 
-		status := *current
-		status.Healthy = *healthy
-		status.Conditions = conditions
-		return &status, state
+		return health.NewMergedStatus(current, health.Status{
+			Healthy:    healthy,
+			Conditions: conditions,
+		}), state
 	}
 }
 
@@ -48,9 +48,8 @@ func reduceCondStats(cond *health.Condition, ts time.Time, statsAggr stats.Windo
 	if cond.LastProbeTime == nil || *cond.LastProbeTime != ts {
 		return cond
 	}
-	newCond := *cond
-	newCond.Frequency = statsAggr.Averages(statsWindows, ts, ptrBoolToFloat(cond.Status))
-	return &newCond
+	frequency := statsAggr.Averages(statsWindows, ts, ptrBoolToFloat(cond.Status))
+	return health.NewCondition(cond.Type, ts, cond.Status, frequency, cond)
 }
 
 func ptrBoolToFloat(b *bool) *float64 {

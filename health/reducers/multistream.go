@@ -45,19 +45,17 @@ func (t MultistreamReducer) Reduce(current *health.Status, _ interface{}, evtIfa
 	}
 	target := payload.Target
 
-	multistream := make([]*health.MultistreamStatus, len(current.Multistream))
-	copy(multistream, current.Multistream)
+	multistream := current.MultistreamCopy()
 	multistream, idx := findOrCreateMultistreamStatus(multistream, target)
 	if status := connectedStatusFromEvent(evt); status != nil {
 		currConnected := multistream[idx].Connected
 		multistream[idx] = &health.MultistreamStatus{
 			Target:    target,
-			Connected: *health.NewCondition("", ts, status, nil, &currConnected),
+			Connected: health.NewCondition("", ts, status, nil, currConnected),
 		}
 	}
 
-	conditions := make([]*health.Condition, len(current.Conditions))
-	copy(conditions, current.Conditions)
+	conditions := current.ConditionsCopy()
 	for i, cond := range conditions {
 		if cond.Type == ConditionMultistreamHealthy {
 			status := allTargetsConnected(multistream)
@@ -65,10 +63,10 @@ func (t MultistreamReducer) Reduce(current *health.Status, _ interface{}, evtIfa
 		}
 	}
 
-	status := *current
-	status.Conditions = conditions
-	status.Multistream = multistream
-	return &status, nil
+	return health.NewMergedStatus(current, health.Status{
+		Conditions:  conditions,
+		Multistream: multistream,
+	}), nil
 }
 
 func allTargetsConnected(multistream []*health.MultistreamStatus) bool {
@@ -103,7 +101,7 @@ func findOrCreateMultistreamStatus(multistream []*health.MultistreamStatus, targ
 
 	multistream = append(multistream, &health.MultistreamStatus{
 		Target:    target,
-		Connected: *health.NewCondition("", time.Time{}, nil, nil, nil),
+		Connected: health.NewCondition("", time.Time{}, nil, nil, nil),
 	})
 	return multistream, len(multistream) - 1
 }

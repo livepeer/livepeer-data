@@ -59,9 +59,7 @@ func (t TranscodeReducer) Reduce(current *health.Status, _ interface{}, evtIface
 		}
 	}
 
-	status := *current
-	status.Conditions = conditions
-	return &status, nil
+	return health.NewMergedStatus(current, health.Status{Conditions: conditions}), nil
 }
 
 func conditionStatus(evt *data.TranscodeEvent, condType health.ConditionType) *bool {

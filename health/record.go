@@ -33,7 +33,7 @@ func NewRecord(id string, conditions []ConditionType) *Record {
 		ReducersState: map[int]interface{}{},
 		LastStatus: &Status{
 			ID:         id,
-			Healthy:    *NewCondition("", time.Time{}, nil, nil, nil),
+			Healthy:    NewCondition("", time.Time{}, nil, nil, nil),
 			Conditions: make([]*Condition, len(conditions)),
 		},
 	}
