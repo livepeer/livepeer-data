@@ -22,7 +22,12 @@ services:
         loopback_users = none
       EOF
       rabbitmq-plugins enable --offline rabbitmq_stream
-      bash -c "until rabbitmqadmin --vhost=livepeer declare exchange name=lp_golivepeer_metadata type=topic; do sleep 1; done;" &
+      bash <<EOF &
+        until rabbitmqadmin --vhost=livepeer declare exchange name=lp_golivepeer_metadata type=topic && \
+              rabbitmqadmin --vhost=livepeer declare exchange name=webhooks_default_exchange type=topic; do
+          sleep 1;
+        done
+      EOF
       docker-entrypoint.sh rabbitmq-server'
     healthcheck:
       test: rabbitmq-diagnostics check_running
