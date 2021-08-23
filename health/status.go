@@ -7,6 +7,9 @@ import (
 	"github.com/livepeer/livepeer-data/stats"
 )
 
+// Status is a soft-immutable struct. It should never be modified inline or a
+// lot of things could become inconsistent. Create a new instance/copy for any
+// mutation to be performed and beware of the internal slices and pointers.
 type Status struct {
 	ID          string               `json:"id"`
 	Healthy     Condition            `json:"healthy"`
@@ -15,8 +18,8 @@ type Status struct {
 }
 
 type MultistreamStatus struct {
-	Target     data.MultistreamTargetInfo
-	Conditions []*Condition
+	Target    data.MultistreamTargetInfo
+	Connected Condition
 }
 
 func (s Status) GetCondition(condType ConditionType) *Condition {

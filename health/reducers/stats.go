@@ -35,11 +35,12 @@ func StatsReducer(statsWindows []time.Duration) health.ReducerFunc {
 			}
 			conditions[i] = reduceCondStats(cond, ts, statsAggr, statsWindows)
 		}
-		return &health.Status{
-			ID:         current.ID,
-			Healthy:    *reduceCondStats(&current.Healthy, ts, state.HealthStats, statsWindows),
-			Conditions: conditions,
-		}, state
+		healthy := reduceCondStats(&current.Healthy, ts, state.HealthStats, statsWindows)
+
+		status := *current
+		status.Healthy = *healthy
+		status.Conditions = conditions
+		return &status, state
 	}
 }
 

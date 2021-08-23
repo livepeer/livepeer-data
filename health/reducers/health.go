@@ -27,9 +27,7 @@ func reduceHealth(current *health.Status, _ interface{}, evt data.Event) (*healt
 	isHealthy := healthyMustsCount == len(healthyRequirementDefaults)
 	healthyCond := health.NewCondition("", evt.Timestamp(), &isHealthy, nil, &current.Healthy)
 
-	return &health.Status{
-		ID:         current.ID,
-		Healthy:    *healthyCond,
-		Conditions: current.Conditions,
-	}, nil
+	status := *current
+	status.Healthy = *healthyCond
+	return &status, nil
 }

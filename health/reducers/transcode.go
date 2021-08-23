@@ -59,20 +59,9 @@ func (t TranscodeReducer) Reduce(current *health.Status, _ interface{}, evtIface
 		}
 	}
 
-	// This literal is breaking multistream because it doesn't copy the
-	// multistream field. Doesn't seem scalable to keep having to update all
-	// literals for copies so
-	//
-	// TODO: Create some kind of `.Clone()` function in `Status` to create a deep
-	// copy of the object that we can mutate freely in the pipeline. Consider
-	// calling it directly from `Core` and do all the mutations in place in these
-	// reducers (although they would stop being "reducers" per se, maybe better to
-	// keep copying on each of them)
-	return &health.Status{
-		ID:         current.ID,
-		Healthy:    current.Healthy,
-		Conditions: conditions,
-	}, nil
+	status := *current
+	status.Conditions = conditions
+	return &status, nil
 }
 
 func conditionStatus(evt *data.TranscodeEvent, condType health.ConditionType) *bool {
