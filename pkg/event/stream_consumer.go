@@ -67,18 +67,9 @@ func (c *strmConsumer) CheckConnection() error {
 }
 
 func (c *strmConsumer) ConsumeChan(ctx context.Context, opts ConsumeOptions) (<-chan StreamMessage, error) {
-	exists, err := c.env.StreamExists(opts.Stream)
+	err := c.ensureStream(opts.Stream, opts.StreamOptions)
 	if err != nil {
 		return nil, err
-	}
-	if !exists {
-		if opts.StreamOptions == nil {
-			return nil, fmt.Errorf("stream not found: %s", opts.Stream)
-		}
-		err = c.createStream(opts.Stream, *opts.StreamOptions)
-		if err != nil {
-			return nil, fmt.Errorf("error creating stream: %w", err)
-		}
 	}
 
 	msgChan := make(chan StreamMessage, 100)
@@ -136,20 +127,24 @@ func (c *strmConsumer) Consume(ctx context.Context, opts ConsumeOptions, handler
 	return nil
 }
 
-func (c *strmConsumer) createStream(streamName string, opts StreamOptions) error {
-	err := c.env.DeclareStream(streamName, &opts.StreamOptions)
+func (c *strmConsumer) ensureStream(streamName string, opts *StreamOptions) error {
+	exists, err := c.env.StreamExists(streamName)
 	if err != nil {
 		return err
 	}
-	if len(opts.Bindings) > 0 {
+	if !exists {
+		if opts == nil {
+			return fmt.Errorf("stream not found: %s", streamName)
+		}
+		err := c.env.DeclareStream(streamName, &opts.StreamOptions)
+		if err != nil {
+			return fmt.Errorf("error creating stream: %w", err)
+		}
+	}
+	if opts != nil && len(opts.Bindings) > 0 {
 		err = bindQueue(c.amqpUri, streamName, opts.Bindings)
 		if err != nil {
-			// stream creation is not idempotent, so delete it when binding fails
-			delErr := c.env.DeleteStream(streamName)
-			if delErr != nil {
-				err = fmt.Errorf("delete error: %q; after bind error: %w", delErr, err)
-			}
-			return err
+			return fmt.Errorf("error binding stream: %w", err)
 		}
 	}
 	return nil
