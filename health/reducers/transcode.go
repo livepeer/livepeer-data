@@ -9,14 +9,14 @@ import (
 )
 
 const (
-	ConditionTranscoding health.ConditionType = "Transcoding"
-	ConditionRealTime    health.ConditionType = "RealTime"
-	ConditionNoErrors    health.ConditionType = "NoErrors"
+	ConditionTranscoding       health.ConditionType = "Transcoding"
+	ConditionTranscodeRealTime health.ConditionType = "TranscodeRealTime"
+	ConditionTranscodeNoErrors health.ConditionType = "TranscodeNoErrors"
 
 	transcodeBindingKeyFormat = "broadcaster.stream_health.transcode.%s.#"
 )
 
-var transcodeConditions = []health.ConditionType{ConditionTranscoding, ConditionRealTime, ConditionNoErrors}
+var transcodeConditions = []health.ConditionType{ConditionTranscoding, ConditionTranscodeRealTime, ConditionTranscodeNoErrors}
 
 type TranscodeReducer struct {
 	GolpExchange  string
@@ -66,10 +66,10 @@ func conditionStatus(evt *data.TranscodeEvent, condType health.ConditionType) *b
 	switch condType {
 	case ConditionTranscoding:
 		return &evt.Success
-	case ConditionRealTime:
+	case ConditionTranscodeRealTime:
 		isRealTime := evt.LatencyMs < int64(evt.Segment.Duration*1000)
 		return &isRealTime
-	case ConditionNoErrors:
+	case ConditionTranscodeNoErrors:
 		noErrors := true
 		for _, attempt := range evt.Attempts {
 			noErrors = noErrors && attempt.Error == nil

@@ -7,24 +7,27 @@ import (
 
 var healthyRequirementDefaults = map[health.ConditionType]bool{
 	ConditionTranscoding:        false,
-	ConditionRealTime:           false,
+	ConditionTranscodeRealTime:  false,
 	ConditionMultistreamHealthy: true,
 }
 
 var HealthReducer = health.ReducerFunc(reduceHealth)
 
 func reduceHealth(current *health.Status, _ interface{}, evt data.Event) (*health.Status, interface{}) {
-	healthyMustsCount := 0
+	isHealthy := true
 	for _, cond := range current.Conditions {
 		status, isRequired := healthyRequirementDefaults[cond.Type]
+		if !isRequired {
+			continue
+		}
 		if cond.Status != nil {
 			status = *cond.Status
 		}
-		if isRequired && status {
-			healthyMustsCount++
+		if !status {
+			isHealthy = false
+			break
 		}
 	}
-	isHealthy := healthyMustsCount == len(healthyRequirementDefaults)
 	healthyCond := health.NewCondition("", evt.Timestamp(), &isHealthy, nil, current.Healthy)
 
 	return health.NewMergedStatus(current, health.Status{Healthy: healthyCond}), nil
