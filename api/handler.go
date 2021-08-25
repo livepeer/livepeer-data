@@ -57,10 +57,7 @@ func (h *apiHandler) getStreamHealth(rw http.ResponseWriter, r *http.Request, pa
 		respondError(rw, http.StatusInternalServerError, err)
 		return
 	}
-	rw.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(rw).Encode(status); err != nil {
-		glog.Errorf("Error writing stream health JSON response. err=%q", err)
-	}
+	respondJson(rw, http.StatusOK, status)
 }
 
 func (h *apiHandler) subscribeEvents(rw http.ResponseWriter, r *http.Request, params httprouter.Params) {
