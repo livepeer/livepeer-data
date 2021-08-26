@@ -27,3 +27,6 @@ jobs:
 
       - name: docker push
         run: make docker_push
+
+      - name: notify livepeer-infra
+        run: curl -X POST https://holy-bread-207a.livepeer.workers.dev
