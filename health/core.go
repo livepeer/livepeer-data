@@ -100,8 +100,8 @@ func (c *Core) HandleMessage(msg event.StreamMessage) {
 }
 
 func (c *Core) handleSingleEvent(evt data.Event) {
-	mid, ts := evt.ManifestID(), evt.Timestamp()
-	record := c.storage.GetOrCreate(mid, c.conditionTypes)
+	streamID, ts := evt.StreamID(), evt.Timestamp()
+	record := c.storage.GetOrCreate(streamID, c.conditionTypes)
 
 	status := record.LastStatus
 	for i, reducer := range c.reducers {
@@ -123,15 +123,15 @@ func (c *Core) handleSingleEvent(evt data.Event) {
 		select {
 		case subs <- evt:
 		default:
-			glog.Warningf("Buffer full for health event subscription, skipping message. manifestId=%q, eventTs=%q", mid, ts)
+			glog.Warningf("Buffer full for health event subscription, skipping message. streamId=%q, eventTs=%q", streamID, ts)
 		}
 	}
 }
 
-func (c *Core) GetStatus(manifestID string) (Status, error) {
+func (c *Core) GetStatus(manifestID string) (*Status, error) {
 	record, ok := c.storage.Get(manifestID)
 	if !ok {
-		return Status{}, ErrStreamNotFound
+		return nil, ErrStreamNotFound
 	}
 	return record.LastStatus, nil
 }

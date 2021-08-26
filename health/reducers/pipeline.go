@@ -14,6 +14,7 @@ var (
 func DefaultPipeline(golpExchange string, shardPrefixes []string) (reducers []health.Reducer, starTimeOffset time.Duration) {
 	return []health.Reducer{
 		TranscodeReducer{golpExchange, shardPrefixes},
+		MultistreamReducer{},
 		HealthReducer,
 		StatsReducer(statsWindows),
 	}, maxStatsWindow

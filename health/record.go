@@ -21,7 +21,7 @@ type Record struct {
 	EventSubs  []chan<- data.Event
 
 	ReducersState map[int]interface{}
-	LastStatus    Status
+	LastStatus    *Status
 }
 
 func NewRecord(id string, conditions []ConditionType) *Record {
@@ -31,9 +31,9 @@ func NewRecord(id string, conditions []ConditionType) *Record {
 		disposed:      make(chan struct{}),
 		EventsByID:    map[uuid.UUID]data.Event{},
 		ReducersState: map[int]interface{}{},
-		LastStatus: Status{
+		LastStatus: &Status{
 			ID:         id,
-			Healthy:    *NewCondition("", time.Time{}, nil, nil, nil),
+			Healthy:    NewCondition("", time.Time{}, nil, nil, nil),
 			Conditions: make([]*Condition, len(conditions)),
 		},
 	}

@@ -57,10 +57,7 @@ func (h *apiHandler) getStreamHealth(rw http.ResponseWriter, r *http.Request, pa
 		respondError(rw, http.StatusInternalServerError, err)
 		return
 	}
-	rw.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(rw).Encode(status); err != nil {
-		glog.Errorf("Error writing stream health JSON response. err=%q", err)
-	}
+	respondJson(rw, http.StatusOK, status)
 }
 
 func (h *apiHandler) subscribeEvents(rw http.ResponseWriter, r *http.Request, params httprouter.Params) {
@@ -144,7 +141,7 @@ func makeSSEEventChan(ctx context.Context, pastEvents []data.Event, subscription
 func sendEvent(ctx context.Context, dest chan<- jsse.Event, evt data.Event) bool {
 	sseEvt, err := toSSEEvent(evt)
 	if err != nil {
-		glog.Errorf("Skipping bad event due to error converting to SSE. evtID=%q, manifestID=%q, err=%q", evt.ID(), evt.ManifestID(), err)
+		glog.Errorf("Skipping bad event due to error converting to SSE. evtID=%q, streamID=%q, err=%q", evt.ID(), evt.StreamID(), err)
 		return true
 	}
 	select {
@@ -177,13 +174,9 @@ func parseInputTimestamp(str string) (*time.Time, error) {
 	}
 	ts, unixErr := strconv.ParseInt(str, 10, 64)
 	if unixErr != nil {
-		return nil, fmt.Errorf("bad time %q. must be in RFC3339 or Unix Timestamp (sec) formats. rfcErr: %s; unixErr: %s", str, rfcErr, unixErr)
+		return nil, fmt.Errorf("bad time %q. must be in RFC3339 or Unix Timestamp (millisecond) formats. rfcErr: %s; unixErr: %s", str, rfcErr, unixErr)
 	}
-	if ts > 1e13 {
-		t = time.Unix(0, ts)
-	} else {
-		t = time.Unix(ts, 0)
-	}
+	t = data.NewUnixMillisTime(ts).Time
 	return &t, nil
 }
 

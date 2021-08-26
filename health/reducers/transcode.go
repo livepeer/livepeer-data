@@ -9,14 +9,14 @@ import (
 )
 
 const (
-	ConditionTranscoding health.ConditionType = "Transcoding"
-	ConditionRealTime    health.ConditionType = "RealTime"
-	ConditionNoErrors    health.ConditionType = "NoErrors"
+	ConditionTranscoding       health.ConditionType = "Transcoding"
+	ConditionTranscodeRealTime health.ConditionType = "TranscodeRealTime"
+	ConditionTranscodeNoErrors health.ConditionType = "TranscodeNoErrors"
 
 	transcodeBindingKeyFormat = "broadcaster.stream_health.transcode.%s.#"
 )
 
-var transcodeConditions = []health.ConditionType{ConditionTranscoding, ConditionRealTime, ConditionNoErrors}
+var transcodeConditions = []health.ConditionType{ConditionTranscoding, ConditionTranscodeRealTime, ConditionTranscodeNoErrors}
 
 type TranscodeReducer struct {
 	GolpExchange  string
@@ -44,7 +44,7 @@ func (t TranscodeReducer) Conditions() []health.ConditionType {
 	return transcodeConditions
 }
 
-func (t TranscodeReducer) Reduce(current health.Status, _ interface{}, evtIface data.Event) (health.Status, interface{}) {
+func (t TranscodeReducer) Reduce(current *health.Status, _ interface{}, evtIface data.Event) (*health.Status, interface{}) {
 	evt, ok := evtIface.(*data.TranscodeEvent)
 	if !ok {
 		return current, nil
@@ -52,30 +52,24 @@ func (t TranscodeReducer) Reduce(current health.Status, _ interface{}, evtIface 
 
 	ts := evt.Timestamp()
 	conditions := make([]*health.Condition, len(current.Conditions))
-	for i, cond := range current.Conditions {
-		status := conditionStatus(evt, cond.Type)
-		if status == nil {
-			conditions[i] = cond
-			continue
+	copy(conditions, current.Conditions)
+	for i, cond := range conditions {
+		if status := conditionStatus(evt, cond.Type); status != nil {
+			conditions[i] = health.NewCondition(cond.Type, ts, status, nil, cond)
 		}
-		conditions[i] = health.NewCondition(cond.Type, ts, status, nil, cond)
 	}
 
-	return health.Status{
-		ID:         current.ID,
-		Healthy:    current.Healthy,
-		Conditions: conditions,
-	}, nil
+	return health.NewMergedStatus(current, health.Status{Conditions: conditions}), nil
 }
 
 func conditionStatus(evt *data.TranscodeEvent, condType health.ConditionType) *bool {
 	switch condType {
 	case ConditionTranscoding:
 		return &evt.Success
-	case ConditionRealTime:
+	case ConditionTranscodeRealTime:
 		isRealTime := evt.LatencyMs < int64(evt.Segment.Duration*1000)
 		return &isRealTime
-	case ConditionNoErrors:
+	case ConditionTranscodeNoErrors:
 		noErrors := true
 		for _, attempt := range evt.Attempts {
 			noErrors = noErrors && attempt.Error == nil
