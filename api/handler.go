@@ -39,7 +39,14 @@ func NewHandler(serverCtx context.Context, apiRoot string, healthcore *health.Co
 	router.GET(streamRoot+"/health", handler.getStreamHealth)
 	router.GET(streamRoot+"/events", handler.subscribeEvents)
 
-	return router
+	return cors(router)
+}
+
+func cors(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		rw.Header().Set("Access-Control-Allow-Origin", "*")
+		next.ServeHTTP(rw, r)
+	})
 }
 
 func (h *apiHandler) healthcheck(rw http.ResponseWriter, r *http.Request) {
