@@ -23,16 +23,16 @@ type AMQPProducer struct {
 	ctx       context.Context
 	amqpURI   string
 	publishQ  chan *publishMessage
-	connectFn connectFunc
+	connectFn AMQPConnectFunc
 }
 
-type amqpChan interface {
+type AMQPChanPublisher interface {
 	Publish(exchange, key string, mandatory, immediate bool, msg amqp.Publishing) error
 }
 
-type connectFunc func(ctx context.Context, uri string, confirms chan amqp.Confirmation, closed chan *amqp.Error) (amqpChan, error)
+type AMQPConnectFunc func(ctx context.Context, uri string, confirms chan amqp.Confirmation, closed chan *amqp.Error) (AMQPChanPublisher, error)
 
-func NewAMQPProducer(ctx context.Context, uri string, connectFn connectFunc) (*AMQPProducer, error) {
+func NewAMQPProducer(ctx context.Context, uri string, connectFn AMQPConnectFunc) (*AMQPProducer, error) {
 	testCtx, cancel := context.WithCancel(ctx)
 	_, err := connectFn(testCtx, uri, nil, nil)
 	cancel()
@@ -187,8 +187,8 @@ func (p *AMQPProducer) retryMsg(msg *publishMessage) {
 	}
 }
 
-func NewAMQPConnectFunc(setup func(c *amqp.Channel) error) connectFunc {
-	return func(ctx context.Context, uri string, confirms chan amqp.Confirmation, closed chan *amqp.Error) (amqpChan, error) {
+func NewAMQPConnectFunc(setup func(c *amqp.Channel) error) AMQPConnectFunc {
+	return func(ctx context.Context, uri string, confirms chan amqp.Confirmation, closed chan *amqp.Error) (AMQPChanPublisher, error) {
 		conn, err := amqp.Dial(uri)
 		if err != nil {
 			return nil, fmt.Errorf("dial: %w", err)
