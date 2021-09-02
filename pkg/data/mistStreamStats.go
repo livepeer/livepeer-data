@@ -1,10 +1,10 @@
 package data
 
-const EventTypeMediaServerStreamStats EventType = "media_server_stream_stats"
+const EventTypeMistStreamStats EventType = "mist_stream_stats"
 
-func NewMediaServerStreamStatsEvent(nodeID, streamID string, viewerCount int, mediaTimeMs int64, multistream []MultistreamTargetStats) (*MediaServerStreamStatsEvent, error) {
-	return &MediaServerStreamStatsEvent{
-		Base:        newEventBase(EventTypeMediaServerStreamStats, streamID),
+func NewMistStreamStatsEvent(nodeID, streamID string, viewerCount int, mediaTimeMs int64, multistream []MultistreamTargetStats) (*MistStreamStatsEvent, error) {
+	return &MistStreamStatsEvent{
+		Base:        newEventBase(EventTypeMistStreamStats, streamID),
 		NodeID:      nodeID,
 		ViewerCount: viewerCount,
 		MediaTimeMs: mediaTimeMs,
@@ -12,7 +12,7 @@ func NewMediaServerStreamStatsEvent(nodeID, streamID string, viewerCount int, me
 	}, nil
 }
 
-type MediaServerStreamStatsEvent struct {
+type MistStreamStatsEvent struct {
 	Base
 	NodeID string `json:"nodeId"`
 
