@@ -25,7 +25,7 @@ type MistStreamStatsEvent struct {
 type MultistreamTargetStats struct {
 	Target MultistreamTargetInfo `json:"target"`
 
-	ActiveSeconds int64 `json:"activeSeconds"`
-	Bytes         int64 `json:"bytes"`
-	MediaTimeMs   int64 `json:"mediaTimeMs"`
+	ActiveSec   int64 `json:"activeSec"`
+	Bytes       int64 `json:"bytes"`
+	MediaTimeMs int64 `json:"mediaTimeMs"`
 }
