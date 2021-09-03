@@ -96,12 +96,6 @@ func (p *AMQPProducer) newPublishMessage(msg AMQPMessage, bodyRaw []byte) *publi
 }
 
 func (p *AMQPProducer) mainLoop() {
-	defer func() {
-		if rec := recover(); rec != nil {
-			glog.Fatalf("Panic in background AMQP publisher: value=%v", rec)
-		}
-	}()
-
 	for {
 		retryAfter := time.After(RetryMinDelay)
 		err := p.connectAndLoopPublish()
@@ -114,6 +108,11 @@ func (p *AMQPProducer) mainLoop() {
 }
 
 func (p *AMQPProducer) connectAndLoopPublish() error {
+	defer func() {
+		if rec := recover(); rec != nil {
+			glog.Errorf("Panic in background AMQP publisher: value=%v", rec)
+		}
+	}()
 	var (
 		ctx, cancel = context.WithCancel(p.ctx)
 		confirms    = make(chan amqp.Confirmation, PublishChannelSize)
