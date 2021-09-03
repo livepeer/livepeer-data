@@ -94,14 +94,13 @@ func main() {
 	}
 	defer consumer.Close()
 
-	reducers, startTimeOffset := reducers.DefaultPipeline(golivepeerExchange, shardPrefixes)
+	reducer := reducers.Default(golivepeerExchange, shardPrefixes)
 	healthcore := health.NewCore(health.CoreOptions{
 		Streaming:        streamingOpts,
-		StartTimeOffset:  startTimeOffset,
+		StartTimeOffset:  reducers.DefaultStarTimeOffset(),
 		MemoryRecordsTtl: memoryRecordsTtl,
-	}, consumer)
-	err = healthcore.Use(reducers...).Start(ctx)
-	if err != nil {
+	}, consumer, reducer)
+	if err := healthcore.Start(ctx); err != nil {
 		glog.Fatalf("Error starting health core. err=%q", err)
 	}
 

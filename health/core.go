@@ -36,16 +36,17 @@ type Core struct {
 	consumer event.StreamConsumer
 	started  bool
 
-	reducers       []Reducer
+	reducer        Reducer
 	conditionTypes []ConditionType
 
 	storage RecordStorage
 }
 
-func NewCore(opts CoreOptions, consumer event.StreamConsumer) *Core {
+func NewCore(opts CoreOptions, consumer event.StreamConsumer, reducer Reducer) *Core {
 	return &Core{
 		opts:     opts,
 		consumer: consumer,
+		reducer:  reducer,
 	}
 }
 
@@ -58,20 +59,12 @@ func (c *Core) IsHealthy() bool {
 	return true
 }
 
-func (c *Core) Use(reducers ...Reducer) *Core {
-	if c.started {
-		panic("must add reducers before starting")
-	}
-	c.reducers = append(c.reducers, reducers...)
-	return c
-}
-
 func (c *Core) Start(ctx context.Context) error {
 	if c.started {
 		return errors.New("health core already started")
 	}
 	c.started = true
-	c.conditionTypes = conditionTypes(c.reducers)
+	c.conditionTypes = c.reducer.Conditions()
 
 	consumeOpts, err := c.consumeOptions()
 	if err != nil {
@@ -103,17 +96,16 @@ func (c *Core) handleSingleEvent(evt data.Event) {
 	streamID, ts := evt.StreamID(), evt.Timestamp()
 	record := c.storage.GetOrCreate(streamID, c.conditionTypes)
 
-	status := record.LastStatus
-	for i, reducer := range c.reducers {
-		state := record.ReducersState[i]
-		status, state = reducer.Reduce(status, state, evt)
-		record.ReducersState[i] = state
-	}
+	record.RLock()
+	status, state := record.LastStatus, record.ReducerState
+	record.RUnlock()
+	// Only 1 go-routine processing events rn, so no need for locking here.
+	status, state = c.reducer.Reduce(status, state, evt)
 
 	record.Lock()
 	defer record.Unlock()
 	var removed []data.Event
-	record.LastStatus = status
+	record.LastStatus, record.ReducerState = status, state
 	record.PastEvents, removed = insertEventSortedCropped(record.PastEvents, evt, c.opts.StartTimeOffset) // TODO: Rename StartTimeOffset to sth that makes sense here as well
 	record.EventsByID[evt.ID()] = evt
 	for _, remEvt := range removed {
@@ -220,11 +212,8 @@ func (c *Core) consumeOptions() (event.ConsumeOptions, error) {
 	if err != nil {
 		return event.ConsumeOptions{}, fmt.Errorf("bad stream options: %w", err)
 	}
-	bindings, err := bindingArgs(c.reducers)
-	if err != nil {
-		return event.ConsumeOptions{}, err
-	}
 
+	bindings := c.reducer.Bindings()
 	startTime := time.Now().Add(-c.opts.StartTimeOffset)
 	return event.ConsumeOptions{
 		Stream: opts.Stream,
@@ -235,37 +224,6 @@ func (c *Core) consumeOptions() (event.ConsumeOptions, error) {
 		ConsumerOptions: event.NewConsumerOptions(opts.ConsumerName, event.TimestampOffset(startTime)),
 		MemorizeOffset:  true,
 	}, nil
-}
-
-func bindingArgs(reducers []Reducer) ([]event.BindingArgs, error) {
-	added := map[string]bool{}
-	bindings := []event.BindingArgs{}
-	for _, reducer := range reducers {
-		for _, newBind := range reducer.Bindings() {
-			key := newBind.Key + " / " + newBind.Exchange
-			if added[key] {
-				return nil, fmt.Errorf("duplicate binding: %s", key)
-			}
-			added[key] = true
-			bindings = append(bindings, newBind)
-		}
-	}
-	return bindings, nil
-}
-
-func conditionTypes(reducers []Reducer) []ConditionType {
-	added := map[ConditionType]bool{}
-	conds := []ConditionType{}
-	for _, reducer := range reducers {
-		for _, newCond := range reducer.Conditions() {
-			if added[newCond] {
-				continue
-			}
-			added[newCond] = true
-			conds = append(conds, newCond)
-		}
-	}
-	return conds
 }
 
 func insertEventSortedCropped(events []data.Event, event data.Event, maxWindow time.Duration) (updated []data.Event, removed []data.Event) {
