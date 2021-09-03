@@ -15,6 +15,7 @@ func Default(golpExchange string, shardPrefixes []string) health.Reducer {
 	return Pipeline{
 		TranscodeReducer{golpExchange, shardPrefixes},
 		MultistreamReducer{},
+		MediaServerMetrics{},
 		HealthReducer,
 		StatsReducer(statsWindows),
 	}
