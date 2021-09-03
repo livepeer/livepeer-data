@@ -2,24 +2,25 @@ package data
 
 const EventTypeMistStreamStats EventType = "mist_stream_stats"
 
-func NewMistStreamStatsEvent(nodeID, streamID string, viewerCount int, mediaTimeMs int64, multistream []*MultistreamTargetStats) *MistStreamStatsEvent {
+func NewMistStreamStatsEvent(nodeID, streamID string, stats *StreamStats, multistream []*MultistreamTargetStats) *MistStreamStatsEvent {
 	return &MistStreamStatsEvent{
 		Base:        newEventBase(EventTypeMistStreamStats, streamID),
 		NodeID:      nodeID,
-		ViewerCount: viewerCount,
-		MediaTimeMs: mediaTimeMs,
+		Stats:       stats,
 		Multistream: multistream,
 	}
 }
 
 type MistStreamStatsEvent struct {
 	Base
-	NodeID string `json:"nodeId"`
-
-	ViewerCount int   `json:"viewerCount"`
-	MediaTimeMs int64 `json:"mediaTimeMs"`
-
+	NodeID      string `json:"nodeId"`
+	Stats       *StreamStats
 	Multistream []*MultistreamTargetStats
+}
+
+type StreamStats struct {
+	ViewerCount int    `json:"viewerCount"`
+	MediaTimeMs *int64 `json:"mediaTimeMs"`
 }
 
 type MultistreamTargetStats struct {
