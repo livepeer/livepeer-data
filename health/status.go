@@ -15,10 +15,11 @@ import (
 // with mutated fields. Notice that you still need to clone the internal slices
 // if you want to do any mutations to them.
 type Status struct {
-	ID          string               `json:"id"`
-	Healthy     *Condition           `json:"healthy"`
-	Conditions  []*Condition         `json:"conditions"`
-	Multistream []*MultistreamStatus `json:"multistream,omitempty"`
+	ID          string                 `json:"id"`
+	Healthy     *Condition             `json:"healthy"`
+	Conditions  []*Condition           `json:"conditions"`
+	Multistream []*MultistreamStatus   `json:"multistream,omitempty"`
+	Metrics     map[string]MetricStats `json:"metrics,omitempty"`
 }
 
 func NewMergedStatus(base *Status, values Status) *Status {
@@ -38,6 +39,9 @@ func NewMergedStatus(base *Status, values Status) *Status {
 	if values.Multistream != nil {
 		new.Multistream = values.Multistream
 	}
+	if values.Metrics != nil {
+		new.Metrics = values.Metrics
+	}
 	return &new
 }
 
@@ -51,6 +55,14 @@ func (s Status) MultistreamCopy() []*MultistreamStatus {
 	multistream := make([]*MultistreamStatus, len(s.Multistream))
 	copy(multistream, s.Multistream)
 	return multistream
+}
+
+func (s Status) MetricsCopy() map[string]MetricStats {
+	metrics := map[string]MetricStats{}
+	for name, metric := range s.Metrics {
+		metrics[name] = metric
+	}
+	return metrics
 }
 
 func (s Status) GetCondition(condType ConditionType) *Condition {
@@ -93,4 +105,16 @@ func NewCondition(condType ConditionType, ts time.Time, status *bool, frequency 
 		cond.Frequency = frequency
 	}
 	return cond
+}
+
+type MetricStats struct {
+	Last []Metric       `json:"last"`
+	Min  stats.ByWindow `json:"min"`
+	Max  stats.ByWindow `json:"max"`
+	Avg  stats.ByWindow `json:"avg"`
+}
+
+type Metric struct {
+	Value     float64             `json:"v"`
+	Timestamp data.UnixMillisTime `json:"t"`
 }
