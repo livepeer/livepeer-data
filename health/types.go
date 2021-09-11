@@ -1,6 +1,8 @@
 package health
 
 import (
+	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/livepeer/livepeer-data/pkg/data"
@@ -15,11 +17,13 @@ import (
 // with mutated fields. Notice that you still need to clone the internal slices
 // if you want to do any mutations to them.
 type Status struct {
-	ID          string                 `json:"id"`
-	Healthy     *Condition             `json:"healthy"`
-	Conditions  []*Condition           `json:"conditions"`
-	Multistream []*MultistreamStatus   `json:"multistream,omitempty"`
-	Metrics     map[string]MetricStats `json:"metrics,omitempty"`
+	ID         string       `json:"id"`
+	Healthy    *Condition   `json:"healthy"`
+	Conditions []*Condition `json:"conditions"`
+	Metrics    []*Metric    `json:"metrics,omitempty"`
+	// TODO: Move this `multistream` field somewhere else to make this struct more
+	// generic. Maybe condition dimensions/extraArgs?
+	Multistream []*MultistreamStatus `json:"multistream,omitempty"`
 }
 
 func NewMergedStatus(base *Status, values Status) *Status {
@@ -57,11 +61,9 @@ func (s Status) MultistreamCopy() []*MultistreamStatus {
 	return multistream
 }
 
-func (s Status) MetricsCopy() map[string]MetricStats {
-	metrics := map[string]MetricStats{}
-	for name, metric := range s.Metrics {
-		metrics[name] = metric
-	}
+func (s Status) MetricsCopy() []*Metric {
+	metrics := make([]*Metric, len(s.Metrics))
+	copy(metrics, s.Metrics)
 	return metrics
 }
 
@@ -82,11 +84,11 @@ type MultistreamStatus struct {
 type ConditionType string
 
 type Condition struct {
-	Type               ConditionType  `json:"type,omitempty"`
-	Status             *bool          `json:"status"`
-	Frequency          stats.ByWindow `json:"frequency,omitempty"`
-	LastProbeTime      *time.Time     `json:"lastProbeTime"`
-	LastTransitionTime *time.Time     `json:"lastTransitionsTime"`
+	Type               ConditionType        `json:"type,omitempty"`
+	Status             *bool                `json:"status"`
+	Frequency          stats.ByWindow       `json:"frequency,omitempty"`
+	LastProbeTime      *data.UnixMillisTime `json:"lastProbeTime"`
+	LastTransitionTime *data.UnixMillisTime `json:"lastTransitionsTime"`
 }
 
 func NewCondition(condType ConditionType, ts time.Time, status *bool, frequency stats.ByWindow, last *Condition) *Condition {
@@ -95,9 +97,9 @@ func NewCondition(condType ConditionType, ts time.Time, status *bool, frequency 
 		*cond = *last
 	}
 	if status != nil {
-		cond.LastProbeTime = &ts
+		cond.LastProbeTime = &data.UnixMillisTime{Time: ts}
 		if cond.Status == nil || *status != *cond.Status {
-			cond.LastTransitionTime = &ts
+			cond.LastTransitionTime = cond.LastProbeTime
 		}
 		cond.Status = status
 	}
@@ -107,14 +109,51 @@ func NewCondition(condType ConditionType, ts time.Time, status *bool, frequency 
 	return cond
 }
 
-type MetricStats struct {
-	Last []Metric       `json:"last"`
-	Min  stats.ByWindow `json:"min"`
-	Max  stats.ByWindow `json:"max"`
-	Avg  stats.ByWindow `json:"avg"`
-}
+type MetricName string
 
 type Metric struct {
-	Value     float64             `json:"v"`
-	Timestamp data.UnixMillisTime `json:"t"`
+	Name       MetricName        `json:"name"`
+	Dimensions map[string]string `json:"dimensions"`
+	Last       Measure           `json:"last"`
+	Stats      *MetricStats      `json:"stats,omitempty"`
+}
+
+func (m *Metric) Matches(name MetricName, odim map[string]string) bool {
+	if name != m.Name || len(odim) != len(m.Dimensions) {
+		return false
+	}
+	for k, v := range m.Dimensions {
+		if odim[k] != v {
+			return false
+		}
+	}
+	return true
+}
+
+type MetricStats struct {
+	Windows []stats.Window `json:"windows,omitempty"`
+	Count   []int64        `json:"count"`
+	Sum     []float64      `json:"sum"`
+	Min     []float64      `json:"min"`
+	Max     []float64      `json:"max"`
+}
+
+type Measure struct {
+	Timestamp data.UnixMillisTime
+	Value     float64
+}
+
+func (m Measure) MarshalJSON() ([]byte, error) {
+	return json.Marshal([]interface{}{m.Timestamp.UnixMillis(), m.Value})
+}
+
+func (m *Measure) UnmarshalJSON(raw []byte) error {
+	var arr []float64
+	if err := json.Unmarshal(raw, &arr); err != nil {
+		return err
+	} else if len(arr) != 2 {
+		return fmt.Errorf("invalid measure slice (%v), must have exactly 2 elements", arr)
+	}
+	m.Timestamp, m.Value = data.NewUnixMillisTime(int64(arr[0])), arr[1]
+	return nil
 }
