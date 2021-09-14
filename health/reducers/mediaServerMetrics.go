@@ -47,7 +47,7 @@ func (t MediaServerMetrics) Reduce(current *health.Status, _ interface{}, evtIfa
 	for _, ms := range evt.Multistream {
 		newMetrics = append(newMetrics, multistreamMetrics(current, ts, evt.NodeID, ms)...)
 	}
-	metrics := current.MetricsCopy().AddMetrics(newMetrics)
+	metrics := current.MetricsCopy().AddMetrics(newMetrics...)
 
 	if vc := totalViewerCount(metrics); vc > 10 {
 		glog.Warning("High viewer count stream! streamId=%q viewerCount=%d", evt.StreamID(), vc)
