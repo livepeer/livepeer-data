@@ -106,24 +106,34 @@ type MetricName string
 
 type MetricsMap map[MetricName][]*Metric
 
-func (m MetricsMap) AddMetrics(dimensions map[string]string, ts time.Time, newValues map[MetricName]float64) MetricsMap {
-	for name, value := range newValues {
-		prev := m[name]
-		metrics := make([]*Metric, len(prev))
-		copy(metrics, prev)
-		m[name] = replaceOrAddMetric(metrics, name, dimensions, ts, value)
+func (m MetricsMap) GetMetric(name MetricName, dimensions map[string]string) *Metric {
+	for _, metric := range m[name] {
+		if metric.Matches(name, dimensions) {
+			return metric
+		}
+	}
+	return nil
+}
+
+func (m MetricsMap) AddMetrics(newMetrics []*Metric) MetricsMap {
+	for _, metric := range newMetrics {
+		prev := m[metric.Name]
+		new := make([]*Metric, len(prev))
+		copy(new, prev)
+		m[metric.Name] = replaceOrAddMetric(new, *metric)
 	}
 	return m
 }
 
-func replaceOrAddMetric(metrics []*Metric, name MetricName, dimensions map[string]string, ts time.Time, value float64) []*Metric {
+func replaceOrAddMetric(metrics []*Metric, new Metric) []*Metric {
 	for i, metric := range metrics {
-		if metric.Matches(name, dimensions) {
-			metrics[i] = NewMetric(name, dimensions, ts, value, metric.Stats)
+		if metric.Matches(new.Name, new.Dimensions) {
+			new.Stats = metric.Stats
+			metrics[i] = &new
 			return metrics
 		}
 	}
-	return append(metrics, NewMetric(name, dimensions, ts, value, nil))
+	return append(metrics, &new)
 }
 
 type Metric struct {
