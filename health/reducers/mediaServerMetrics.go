@@ -37,17 +37,17 @@ func (t MediaServerMetrics) Reduce(current *health.Status, _ interface{}, evtIfa
 		return current, nil
 	}
 
+	metrics := current.MetricsCopy()
 	ts, dims := evt.Timestamp(), map[string]string{"nodeId": evt.NodeID}
-	newMetrics := []*health.Metric{
-		health.NewMetric(MetricViewerCount, dims, ts, float64(evt.Stats.ViewerCount), nil),
-	}
+	metrics.Add(health.NewMetric(MetricViewerCount, dims, ts, float64(evt.Stats.ViewerCount), nil))
 	if evt.Stats.MediaTimeMs != nil {
-		newMetrics = append(newMetrics, health.NewMetric(MetricMediaTimeMillis, dims, ts, float64(*evt.Stats.MediaTimeMs), nil))
+		metrics.Add(health.NewMetric(MetricMediaTimeMillis, dims, ts, float64(*evt.Stats.MediaTimeMs), nil))
 	}
 	for _, ms := range evt.Multistream {
-		newMetrics = append(newMetrics, multistreamMetrics(current, ts, evt.NodeID, ms)...)
+		for _, metric := range multistreamMetrics(current, ts, evt.NodeID, ms) {
+			metrics.Add(metric)
+		}
 	}
-	metrics := current.MetricsCopy().AddMetrics(newMetrics...)
 
 	if vc := totalViewerCount(metrics); vc > 10 {
 		glog.Warning("High viewer count stream! streamId=%q viewerCount=%d", evt.StreamID(), vc)

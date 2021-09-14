@@ -144,13 +144,11 @@ func (m MetricsMap) GetMetric(name MetricName, dimensions map[string]string) *Me
 	return nil
 }
 
-func (m MetricsMap) AddMetrics(newMetrics ...*Metric) MetricsMap {
-	for _, metric := range newMetrics {
-		prev := m[metric.Name]
-		new := make([]*Metric, len(prev))
-		copy(new, prev)
-		m[metric.Name] = replaceOrAddMetric(new, *metric)
-	}
+func (m MetricsMap) Add(metric *Metric) MetricsMap {
+	prev := m[metric.Name]
+	new := make([]*Metric, len(prev))
+	copy(new, prev)
+	m[metric.Name] = replaceOrAddMetric(new, *metric)
 	return m
 }
 

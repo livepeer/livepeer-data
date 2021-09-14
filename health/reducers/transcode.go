@@ -60,7 +60,7 @@ func (t TranscodeReducer) Reduce(current *health.Status, _ interface{}, evtIface
 		}
 	}
 	dimensions := map[string]string{"nodeId": evt.NodeID}
-	metrics := current.MetricsCopy().AddMetrics(health.NewMetric(MetricTranscodeRealtimeRatio, dimensions, ts, realtimeRatio(evt), nil))
+	metrics := current.MetricsCopy().Add(health.NewMetric(MetricTranscodeRealtimeRatio, dimensions, ts, realtimeRatio(evt), nil))
 
 	return health.NewMergedStatus(current, health.Status{
 		Conditions: conditions,
