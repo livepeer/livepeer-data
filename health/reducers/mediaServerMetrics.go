@@ -10,7 +10,8 @@ import (
 )
 
 const (
-	ViewerCountMetric health.MetricName = "ViewerCount"
+	MetricViewerCount     health.MetricName = "ViewerCount"
+	MetricMediaTimeMillis health.MetricName = "MediaTimeMillis"
 
 	mediaServerExchange = "lp_mist_api_connector"
 	metricsBindingKey   = "stream_metrics.#"
@@ -35,7 +36,10 @@ func (t MediaServerMetrics) Reduce(current *health.Status, _ interface{}, evtIfa
 	ts := evt.Timestamp()
 	dimensions := map[string]string{"nodeId": evt.NodeID}
 	newMetrics := map[health.MetricName]float64{
-		ViewerCountMetric: float64(evt.Stats.ViewerCount),
+		MetricViewerCount: float64(evt.Stats.ViewerCount),
+	}
+	if evt.Stats.MediaTimeMs != nil {
+		newMetrics[MetricMediaTimeMillis] = float64(*evt.Stats.MediaTimeMs)
 	}
 	metrics := current.MetricsCopy().AddMetrics(dimensions, ts, newMetrics)
 

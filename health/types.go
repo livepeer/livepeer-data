@@ -130,7 +130,8 @@ type Metric struct {
 	Name       MetricName        `json:"name"`
 	Dimensions map[string]string `json:"dimensions,omitempty"`
 	Last       Measure           `json:"last"`
-	Stats      *MetricStats      `json:"stats,omitempty"`
+	// TODO: Implement actual support for these on stats reducer.
+	Stats *MetricStats `json:"stats,omitempty"`
 }
 
 func NewMetric(name MetricName, dimensions map[string]string, ts time.Time, value float64, stats *MetricStats) *Metric {
