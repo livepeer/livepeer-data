@@ -20,7 +20,7 @@ type Status struct {
 	ID         string       `json:"id"`
 	Healthy    *Condition   `json:"healthy"`
 	Conditions []*Condition `json:"conditions"`
-	Metrics    []*Metric    `json:"metrics,omitempty"`
+	Metrics    MetricsMap   `json:"metrics,omitempty"`
 	// TODO: Move this `multistream` field somewhere else to make this struct more
 	// generic. Maybe condition dimensions/extraArgs?
 	Multistream []*MultistreamStatus `json:"multistream,omitempty"`
@@ -61,19 +61,12 @@ func (s Status) MultistreamCopy() []*MultistreamStatus {
 	return multistream
 }
 
-func (s Status) MetricsCopy() []*Metric {
-	metrics := make([]*Metric, len(s.Metrics))
-	copy(metrics, s.Metrics)
-	return metrics
-}
-
-func (s Status) GetCondition(condType ConditionType) *Condition {
-	for _, cond := range s.Conditions {
-		if cond.Type == condType {
-			return cond
-		}
+func (s Status) MetricsCopy() MetricsMap {
+	metrics := make(MetricsMap, len(s.Metrics))
+	for k, v := range s.Metrics {
+		metrics[k] = v
 	}
-	return nil
+	return metrics
 }
 
 type MultistreamStatus struct {
@@ -111,11 +104,42 @@ func NewCondition(condType ConditionType, ts time.Time, status *bool, frequency 
 
 type MetricName string
 
+type MetricsMap map[MetricName][]*Metric
+
+func (m MetricsMap) AddMetrics(dimensions map[string]string, ts time.Time, newValues map[MetricName]float64) MetricsMap {
+	for name, value := range newValues {
+		prev := m[name]
+		metrics := make([]*Metric, len(prev))
+		copy(metrics, prev)
+		m[name] = replaceOrAddMetric(metrics, name, dimensions, ts, value)
+	}
+	return m
+}
+
+func replaceOrAddMetric(metrics []*Metric, name MetricName, dimensions map[string]string, ts time.Time, value float64) []*Metric {
+	for i, metric := range metrics {
+		if metric.Matches(name, dimensions) {
+			metrics[i] = NewMetric(name, dimensions, ts, value, metric.Stats)
+			return metrics
+		}
+	}
+	return append(metrics, NewMetric(name, dimensions, ts, value, nil))
+}
+
 type Metric struct {
 	Name       MetricName        `json:"name"`
-	Dimensions map[string]string `json:"dimensions"`
+	Dimensions map[string]string `json:"dimensions,omitempty"`
 	Last       Measure           `json:"last"`
 	Stats      *MetricStats      `json:"stats,omitempty"`
+}
+
+func NewMetric(name MetricName, dimensions map[string]string, ts time.Time, value float64, stats *MetricStats) *Metric {
+	return &Metric{
+		Name:       name,
+		Dimensions: dimensions,
+		Last:       Measure{ts, value},
+		Stats:      stats,
+	}
 }
 
 func (m *Metric) Matches(name MetricName, odim map[string]string) bool {
@@ -139,12 +163,12 @@ type MetricStats struct {
 }
 
 type Measure struct {
-	Timestamp data.UnixMillisTime
+	Timestamp time.Time
 	Value     float64
 }
 
 func (m Measure) MarshalJSON() ([]byte, error) {
-	return json.Marshal([]interface{}{m.Timestamp.UnixMillis(), m.Value})
+	return json.Marshal([]interface{}{data.UnixMillisTime{Time: m.Timestamp}, m.Value})
 }
 
 func (m *Measure) UnmarshalJSON(raw []byte) error {
@@ -154,6 +178,7 @@ func (m *Measure) UnmarshalJSON(raw []byte) error {
 	} else if len(arr) != 2 {
 		return fmt.Errorf("invalid measure slice (%v), must have exactly 2 elements", arr)
 	}
-	m.Timestamp, m.Value = data.NewUnixMillisTime(int64(arr[0])), arr[1]
+	millisTs := data.NewUnixMillisTime(int64(arr[0]))
+	m.Timestamp, m.Value = millisTs.Time, arr[1]
 	return nil
 }
