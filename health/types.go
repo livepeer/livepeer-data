@@ -26,6 +26,50 @@ type Status struct {
 	Multistream []*MultistreamStatus `json:"multistream,omitempty"`
 }
 
+type MultistreamStatus struct {
+	Target    data.MultistreamTargetInfo `json:"target"`
+	Connected *Condition                 `json:"connected"`
+}
+
+type ConditionType string
+
+type Condition struct {
+	Type               ConditionType        `json:"type,omitempty"`
+	Status             *bool                `json:"status"`
+	Frequency          stats.ByWindow       `json:"frequency,omitempty"`
+	LastProbeTime      *data.UnixMillisTime `json:"lastProbeTime"`
+	LastTransitionTime *data.UnixMillisTime `json:"lastTransitionsTime"`
+}
+
+type MetricName string
+
+type MetricsMap map[MetricName][]*Metric
+
+type Metric struct {
+	Name       MetricName        `json:"name"`
+	Dimensions map[string]string `json:"dimensions,omitempty"`
+	Last       Measure           `json:"last"`
+	// TODO: Implement actual support for these on stats reducer.
+	Stats *MetricStats `json:"stats,omitempty"`
+}
+
+type MetricStats struct {
+	Windows []stats.Window `json:"windows,omitempty"`
+	Count   []int64        `json:"count"`
+	Sum     []float64      `json:"sum"`
+	Min     []float64      `json:"min"`
+	Max     []float64      `json:"max"`
+}
+
+type Measure struct {
+	Timestamp time.Time
+	Value     float64
+}
+
+// Here be functions
+
+// Status
+
 func NewMergedStatus(base *Status, values Status) *Status {
 	if base == nil {
 		return &values
@@ -69,20 +113,7 @@ func (s Status) MetricsCopy() MetricsMap {
 	return metrics
 }
 
-type MultistreamStatus struct {
-	Target    data.MultistreamTargetInfo `json:"target"`
-	Connected *Condition                 `json:"connected"`
-}
-
-type ConditionType string
-
-type Condition struct {
-	Type               ConditionType        `json:"type,omitempty"`
-	Status             *bool                `json:"status"`
-	Frequency          stats.ByWindow       `json:"frequency,omitempty"`
-	LastProbeTime      *data.UnixMillisTime `json:"lastProbeTime"`
-	LastTransitionTime *data.UnixMillisTime `json:"lastTransitionsTime"`
-}
+// Condition
 
 func NewCondition(condType ConditionType, ts time.Time, status *bool, frequency stats.ByWindow, last *Condition) *Condition {
 	cond := &Condition{Type: condType}
@@ -102,9 +133,7 @@ func NewCondition(condType ConditionType, ts time.Time, status *bool, frequency 
 	return cond
 }
 
-type MetricName string
-
-type MetricsMap map[MetricName][]*Metric
+// MetricsMap
 
 func (m MetricsMap) GetMetric(name MetricName, dimensions map[string]string) *Metric {
 	for _, metric := range m[name] {
@@ -136,13 +165,7 @@ func replaceOrAddMetric(metrics []*Metric, new Metric) []*Metric {
 	return append(metrics, &new)
 }
 
-type Metric struct {
-	Name       MetricName        `json:"name"`
-	Dimensions map[string]string `json:"dimensions,omitempty"`
-	Last       Measure           `json:"last"`
-	// TODO: Implement actual support for these on stats reducer.
-	Stats *MetricStats `json:"stats,omitempty"`
-}
+// Metric
 
 func NewMetric(name MetricName, dimensions map[string]string, ts time.Time, value float64, stats *MetricStats) *Metric {
 	return &Metric{
@@ -165,18 +188,7 @@ func (m *Metric) Matches(name MetricName, odim map[string]string) bool {
 	return true
 }
 
-type MetricStats struct {
-	Windows []stats.Window `json:"windows,omitempty"`
-	Count   []int64        `json:"count"`
-	Sum     []float64      `json:"sum"`
-	Min     []float64      `json:"min"`
-	Max     []float64      `json:"max"`
-}
-
-type Measure struct {
-	Timestamp time.Time
-	Value     float64
-}
+// Measure
 
 func (m Measure) MarshalJSON() ([]byte, error) {
 	return json.Marshal([]interface{}{data.UnixMillisTime{Time: m.Timestamp}, m.Value})
