@@ -49,16 +49,8 @@ type Metric struct {
 	Name       MetricName        `json:"name"`
 	Dimensions map[string]string `json:"dimensions,omitempty"`
 	Last       Measure           `json:"last"`
-	// TODO: Implement actual support for these on stats reducer.
-	Stats *MetricStats `json:"stats,omitempty"`
-}
-
-type MetricStats struct {
-	Windows []stats.Window `json:"windows,omitempty"`
-	Count   []int64        `json:"count"`
-	Sum     []float64      `json:"sum"`
-	Min     []float64      `json:"min"`
-	Max     []float64      `json:"max"`
+	// TODO: Implement some historic `stats` here like for conditions. Or maybe
+	// remove the stats from conditions if we end up never needing them.
 }
 
 type Measure struct {
@@ -155,7 +147,6 @@ func (m MetricsMap) Add(metric *Metric) MetricsMap {
 func replaceOrAddMetric(metrics []*Metric, new Metric) []*Metric {
 	for i, metric := range metrics {
 		if metric.Matches(new.Name, new.Dimensions) {
-			new.Stats = metric.Stats
 			metrics[i] = &new
 			return metrics
 		}
@@ -165,12 +156,11 @@ func replaceOrAddMetric(metrics []*Metric, new Metric) []*Metric {
 
 // Metric
 
-func NewMetric(name MetricName, dimensions map[string]string, ts time.Time, value float64, stats *MetricStats) *Metric {
+func NewMetric(name MetricName, dimensions map[string]string, ts time.Time, value float64) *Metric {
 	return &Metric{
 		Name:       name,
 		Dimensions: dimensions,
 		Last:       Measure{ts, value},
-		Stats:      stats,
 	}
 }
 

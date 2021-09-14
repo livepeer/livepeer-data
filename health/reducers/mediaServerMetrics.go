@@ -39,9 +39,9 @@ func (t MediaServerMetrics) Reduce(current *health.Status, _ interface{}, evtIfa
 
 	metrics := current.MetricsCopy()
 	ts, dims := evt.Timestamp(), map[string]string{"nodeId": evt.NodeID}
-	metrics.Add(health.NewMetric(MetricViewerCount, dims, ts, float64(evt.Stats.ViewerCount), nil))
+	metrics.Add(health.NewMetric(MetricViewerCount, dims, ts, float64(evt.Stats.ViewerCount)))
 	if evt.Stats.MediaTimeMs != nil {
-		metrics.Add(health.NewMetric(MetricMediaTimeMillis, dims, ts, float64(*evt.Stats.MediaTimeMs), nil))
+		metrics.Add(health.NewMetric(MetricMediaTimeMillis, dims, ts, float64(*evt.Stats.MediaTimeMs)))
 	}
 	for _, ms := range evt.Multistream {
 		for _, metric := range multistreamMetrics(current, ts, evt.NodeID, ms) {
@@ -63,14 +63,14 @@ func multistreamMetrics(current *health.Status, ts time.Time, nodeID string, ms 
 		"targetProfile": ms.Target.Profile,
 	}
 	metrics := []*health.Metric{
-		health.NewMetric(MetricMultistreamMediaTimeMillis, msDims, ts, float64(ms.Metrics.MediaTimeMs), nil),
-		health.NewMetric(MetricMultistreamActiveSec, msDims, ts, float64(ms.Metrics.ActiveSec), nil),
-		health.NewMetric(MetricMultistreamBytes, msDims, ts, float64(ms.Metrics.Bytes), nil),
+		health.NewMetric(MetricMultistreamMediaTimeMillis, msDims, ts, float64(ms.Metrics.MediaTimeMs)),
+		health.NewMetric(MetricMultistreamActiveSec, msDims, ts, float64(ms.Metrics.ActiveSec)),
+		health.NewMetric(MetricMultistreamBytes, msDims, ts, float64(ms.Metrics.Bytes)),
 	}
 	if prevBytes := current.Metrics.GetMetric(MetricMultistreamBytes, msDims); prevBytes != nil {
 		prevTs, prevVal := prevBytes.Last.Timestamp, int64(prevBytes.Last.Value)
 		bitrate := float64(ms.Metrics.Bytes-prevVal) / float64(ts.Sub(prevTs)/time.Second)
-		metrics = append(metrics, health.NewMetric(MetricMultistreamBitrateSec, msDims, ts, bitrate, nil))
+		metrics = append(metrics, health.NewMetric(MetricMultistreamBitrateSec, msDims, ts, bitrate))
 	}
 	return metrics
 }
