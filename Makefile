@@ -24,8 +24,6 @@ run: check_local_rabbit deps_start
 	$(MAKE) -C ./cmd/$(cmd) run
 
 docker:
-	echo $${GITHUB_HEAD_REF}
-	echo $${GITHUB_REF}
 	docker build $(foreach tag,$(dockertags),-t $(dockerimg):$(tag)) --build-arg version=$(version) .
 
 docker_run: deps_start docker
