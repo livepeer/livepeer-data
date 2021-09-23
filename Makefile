@@ -1,4 +1,4 @@
-branch := $(shell git rev-parse --abbrev-ref HEAD | sed 's/\//-/g' | tr -cd '[:alnum:]_-')
+branch := $(shell git branch --show-current | sed 's/\//-/g' | tr -cd '[:alnum:]_-')
 version ?= $(shell git describe --tag --dirty)
 cmd ?= analyzer
 
