@@ -1,4 +1,5 @@
-branch := $(shell git branch --show-current | sed 's/\//-/g' | tr -cd '[:alnum:]_-')
+GITHUB_REF ?= $(shell git branch --show-current)
+branch := $(shell echo '$(GITHUB_REF:refs/heads/%=%)' | sed 's/\//-/g' | tr -cd '[:alnum:]_-')
 version ?= $(shell git describe --tag --dirty)
 cmd ?= analyzer
 
