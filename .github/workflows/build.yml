@@ -1,4 +1,4 @@
-name: Push CI
+name: Build
 on: push
 
 jobs:
@@ -19,12 +19,3 @@ jobs:
 
       - name: Build
         run: make
-
-  docker:
-    runs-on: ubuntu-20.04
-    steps:
-      - name: Check out code
-        uses: actions/checkout@v1
-
-      - name: Build docker
-        run: make docker

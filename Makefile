@@ -1,8 +1,17 @@
+GH_REF := $(shell echo $${GITHUB_HEAD_REF:-$$GITHUB_REF})
+ifeq ($(GH_REF),$(GH_REF:refs/heads/%=%)) # Ignore ref without refs/heads prefix
+	GH_REF := $(git branch --show-current)
+else
+	GH_REF := $(GH_REF:refs/heads/%=%)
+endif
+
+branch := $(shell echo '$(GH_REF)' | sed 's/\//-/g' | tr -cd '[:alnum:]_-')
 version ?= $(shell git describe --tag --dirty)
 cmd ?= analyzer
 
 allCmds := $(shell ls ./cmd/)
 dockerimg := livepeer/data
+dockertags := latest $(branch) $(version)
 
 .PHONY: all $(allCmds) docker docker_run docker_push deps_start deps_stop check_local_rabbit
 
@@ -15,7 +24,7 @@ run: check_local_rabbit deps_start
 	$(MAKE) -C ./cmd/$(cmd) run
 
 docker:
-	docker build -t $(dockerimg) -t $(dockerimg):$(version) --build-arg version=$(version) .
+	docker build $(foreach tag,$(dockertags),-t $(dockerimg):$(tag)) --build-arg version=$(version) .
 
 docker_run: deps_start docker
 	docker run -it --rm --name=$(cmd) --entrypoint=./$(cmd) \
@@ -24,8 +33,10 @@ docker_run: deps_start docker
 		$(dockerimg) $(args)
 
 docker_push:
-	docker push $(dockerimg):$(version)
-	docker push $(dockerimg):latest
+	for TAG in $(dockertags) ; \
+	do \
+		docker push $(dockerimg):$$TAG ; \
+	done;
 
 deps_start:
 	docker-compose up -d
