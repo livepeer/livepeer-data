@@ -1,4 +1,11 @@
-branch := $(shell git branch --show-current)
+GH_REF := $(shell echo $${GITHUB_HEAD_REF:-$$GITHUB_REF})
+ifeq ($(GH_REF),$(GH_REF:refs/heads/%=%)) # Ignore ref without refs/heads prefix
+	GH_REF := $(git branch --show-current)
+else
+	GH_REF := $(GH_REF:refs/heads/%=%)
+endif
+
+branch := $(shell echo '$(GH_REF)' | sed 's/\//-/g' | tr -cd '[:alnum:]_-')
 version ?= $(shell git describe --tag --dirty)
 cmd ?= analyzer
 
