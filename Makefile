@@ -1,17 +1,17 @@
 GH_REF := $(shell echo $${GITHUB_HEAD_REF:-$$GITHUB_REF})
 ifeq ($(GH_REF),$(GH_REF:refs/heads/%=%)) # Ignore ref without refs/heads prefix
-	GH_REF := $(git branch --show-current)
+	GH_REF := $(shell git branch --points-at HEAD | sed -e "s/^[\* ]*//" -e '/HEAD detached/d')
 else
 	GH_REF := $(GH_REF:refs/heads/%=%)
 endif
+branches := $(foreach branch,$(GH_REF),$(shell echo '$(branch)' | sed 's/\//-/g' | tr -cd '[:alnum:]_-'))
 
-branch := $(shell echo '$(GH_REF)' | sed 's/\//-/g' | tr -cd '[:alnum:]_-')
 version ?= $(shell git describe --tag --dirty)
 cmd ?= analyzer
 
 allCmds := $(shell ls ./cmd/)
 dockerimg := livepeer/data
-dockertags := latest $(branch) $(version)
+dockertags := latest $(branches) $(version)
 
 .PHONY: all $(allCmds) docker docker_run docker_push deps_start deps_stop check_local_rabbit
 
