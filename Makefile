@@ -13,7 +13,10 @@ cmd ?= analyzer
 
 allCmds := $(shell ls ./cmd/)
 dockerimg := livepeer/data
-dockertags := latest $(branches) $(version)
+dockertags := $(branches) $(version)
+ifneq (,$(shell echo '$(version)' | grep -E '^v?[0-9]+\.[0-9]+\.[0-9]+$$')) # Tag non pre-release versions with 'latest'
+    dockertags := latest $(dockertags)
+endif
 
 .PHONY: all $(allCmds) docker docker_run docker_push deps_start deps_stop check_local_rabbit
 
