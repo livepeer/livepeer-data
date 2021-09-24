@@ -24,7 +24,7 @@ run: check_local_rabbit deps_start
 	$(MAKE) -C ./cmd/$(cmd) run
 
 docker:
-	git branch --points-at HEAD
+	git branch -a --points-at HEAD
 	docker build $(foreach tag,$(dockertags),-t $(dockerimg):$(tag)) --build-arg version=$(version) .
 
 docker_run: deps_start docker
@@ -34,7 +34,8 @@ docker_run: deps_start docker
 		$(dockerimg) $(args)
 
 docker_push:
-	git branch --points-at HEAD
+	git branch -a --points-at HEAD
+	git branch -a
 	for TAG in $(dockertags) ; \
 	do \
 		docker push $(dockerimg):$$TAG ; \
