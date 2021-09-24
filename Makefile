@@ -1,6 +1,8 @@
 GH_REF := $(shell echo $${GITHUB_HEAD_REF:-$$GITHUB_REF})
 ifeq ($(GH_REF),$(GH_REF:refs/heads/%=%)) # Ignore ref without refs/heads prefix
-	GH_REF := $(shell git branch --points-at HEAD | sed -e "s/^[\* ]*//" -e '/HEAD detached/d')
+	GH_REF := $(shell git branch -a --points-at HEAD \
+			| sed -e 's/^[\* ]*//' -e 's/^remotes\/origin\///' -e '/HEAD detached/d' \
+			| sort | uniq)
 else
 	GH_REF := $(GH_REF:refs/heads/%=%)
 endif
@@ -24,7 +26,6 @@ run: check_local_rabbit deps_start
 	$(MAKE) -C ./cmd/$(cmd) run
 
 docker:
-	git branch -a --points-at HEAD
 	docker build $(foreach tag,$(dockertags),-t $(dockerimg):$(tag)) --build-arg version=$(version) .
 
 docker_run: deps_start docker
@@ -34,8 +35,6 @@ docker_run: deps_start docker
 		$(dockerimg) $(args)
 
 docker_push:
-	git branch -a --points-at HEAD
-	git branch -a
 	for TAG in $(dockertags) ; \
 	do \
 		docker push $(dockerimg):$$TAG ; \
