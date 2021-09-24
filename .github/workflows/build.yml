@@ -11,6 +11,12 @@ jobs:
         with:
           go-version: 1.16
 
+      - name: Tags
+        id: tags
+        uses: livepeer/action-gh-release-tags@main
+        with:
+          who-to-greet: GitHub Actions
+
       - name: Check out code
         uses: actions/checkout@v1
 
