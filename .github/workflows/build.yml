@@ -14,12 +14,6 @@ jobs:
       - name: Check out code
         uses: actions/checkout@v1
 
-      - name: Tags
-        id: tags
-        uses: livepeer/action-gh-release-tags@main
-        with:
-          who-to-greet: GitHub Actions
-
       - name: Download dependencies
         run: go mod download
 
