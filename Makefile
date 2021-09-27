@@ -1,22 +1,9 @@
-GH_REF := $(shell echo $${GITHUB_HEAD_REF:-$$GITHUB_REF})
-ifeq ($(GH_REF),$(GH_REF:refs/heads/%=%)) # Ignore ref without refs/heads prefix
-	GH_REF := $(shell git branch -a --points-at HEAD \
-			| sed -e 's/^[\* ]*//' -e 's/^remotes\/origin\///' -e '/HEAD detached/d' \
-			| sort | uniq)
-else
-	GH_REF := $(GH_REF:refs/heads/%=%)
-endif
-branches := $(foreach branch,$(GH_REF),$(shell echo '$(branch)' | sed 's/\//-/g' | tr -cd '[:alnum:]_-'))
-
-version ?= $(shell git describe --tag --dirty)
 cmd ?= analyzer
+version ?= $(shell git describe --tag --dirty)
+tags ?= latest $(version)
 
 allCmds := $(shell ls ./cmd/)
 dockerimg := livepeer/data
-dockertags := $(branches) $(version)
-ifneq (,$(shell echo '$(version)' | grep -E '^v?[0-9]+\.[0-9]+\.[0-9]+$$')) # Tag non pre-release versions with 'latest'
-    dockertags := latest $(dockertags)
-endif
 
 .PHONY: all $(allCmds) docker docker_run docker_push deps_start deps_stop check_local_rabbit
 
@@ -29,7 +16,7 @@ run: check_local_rabbit deps_start
 	$(MAKE) -C ./cmd/$(cmd) run
 
 docker:
-	docker build $(foreach tag,$(dockertags),-t $(dockerimg):$(tag)) --build-arg version=$(version) .
+	docker build $(foreach tag,$(tags),-t $(dockerimg):$(tag)) --build-arg version=$(version) .
 
 docker_run: deps_start docker
 	docker run -it --rm --name=$(cmd) --entrypoint=./$(cmd) \
@@ -38,7 +25,7 @@ docker_run: deps_start docker
 		$(dockerimg) $(args)
 
 docker_push:
-	for TAG in $(dockertags) ; \
+	for TAG in $(tags) ; \
 	do \
 		docker push $(dockerimg):$$TAG ; \
 	done;

@@ -5,9 +5,6 @@ jobs:
   docker:
     runs-on: ubuntu-20.04
     steps:
-      - name: Check out code
-        uses: actions/checkout@v1
-
       - name: docker login
         env:
           DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
@@ -17,11 +14,18 @@ jobs:
           docker version
           docker login -u $DOCKER_USERNAME -p $DOCKER_PASSWORD
 
+      - name: Check out code
+        uses: actions/checkout@v1
+
+      - name: Tags
+        id: tags
+        uses: livepeer/action-gh-release-tags@v0
+
       - name: docker build
-        run: make docker
+        run: make docker "tags=${{ steps.tags.outputs.tags }}"
 
       - name: docker push
-        run: make docker_push
+        run: make docker_push "tags=${{ steps.tags.outputs.tags }}"
 
       - name: notify livepeer-infra
         run: curl -X POST https://holy-bread-207a.livepeer.workers.dev
