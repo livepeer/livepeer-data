@@ -18,7 +18,7 @@ const (
 	MetricMultistreamBitrateSec      health.MetricName = "MultistreamBitrateSec"
 
 	mediaServerExchange = "lp_mist_api_connector"
-	metricsBindingKey   = "stream_metrics.#"
+	metricsBindingKey   = "stream.metrics.#"
 )
 
 type MediaServerMetrics struct{}
