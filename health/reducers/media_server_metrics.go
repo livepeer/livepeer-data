@@ -39,7 +39,6 @@ func (t MediaServerMetrics) Reduce(current *health.Status, _ interface{}, evtIfa
 
 	metrics := current.MetricsCopy()
 	ts, dims := evt.Timestamp(), map[string]string{"nodeId": evt.NodeID}
-	metrics.Add(health.NewMetric(MetricViewerCount, dims, ts, float64(evt.Stats.ViewerCount)))
 	if evt.Stats.MediaTimeMs != nil {
 		metrics.Add(health.NewMetric(MetricMediaTimeMillis, dims, ts, float64(*evt.Stats.MediaTimeMs)))
 	}

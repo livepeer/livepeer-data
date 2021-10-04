@@ -19,7 +19,6 @@ type MediaServerMetricsEvent struct {
 }
 
 type StreamMetrics struct {
-	ViewerCount int    `json:"viewerCount"`
 	MediaTimeMs *int64 `json:"mediaTimeMs"`
 }
 
