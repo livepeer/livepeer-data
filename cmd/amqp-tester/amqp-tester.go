@@ -3,10 +3,11 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
+	"net"
+	"net/url"
 	"time"
 
-	// "net"
-	// "net/url"
 	"os"
 	"os/signal"
 	"strconv"
@@ -54,16 +55,27 @@ func main() {
 	defer cancel()
 	ctx = contextUntilSignal(ctx, syscall.SIGINT, syscall.SIGTERM)
 
-	// uri, err := url.Parse(amqpUri)
-	// checkErr(err, "Bad amqp url: %+v")
-	// _, err = net.Dial("tcp", uri.Host)
-	// checkErr(err, "failed dial: %+v")
+	uri, err := url.Parse(amqpUri)
+	checkErr(err, "Bad amqp url: %+v")
+	port := uri.Port()
+	if port == "" {
+		port = "5672"
+		if uri.Scheme == "amqps" {
+			port = "5671"
+		}
+	}
+	addr := fmt.Sprintf("%s:%s", uri.Hostname(), port)
+	lis, err := net.DialTimeout("tcp", addr, 10*time.Second)
+	checkErr(err, "failed dial: %+v")
+	lis.Close()
+	glog.Info("success dial")
 
 	producer, err := event.NewAMQPQueueProducer(ctx, amqpUri, queueName)
 	checkErr(err, "Cannot connect to broker: %+v")
 
-	err = producer.Publish(ctx, "hello-world", struct{ A string }{A: "whats up"}, false)
+	err = producer.Publish(ctx, "", struct{ A string }{A: "whats up"}, false)
 	checkErr(err, "Cannot publish message: %+v")
+	glog.Info("success event publish")
 }
 
 func contextUntilSignal(parent context.Context, sigs ...os.Signal) context.Context {
