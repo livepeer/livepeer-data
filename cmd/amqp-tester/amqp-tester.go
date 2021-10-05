@@ -3,8 +3,8 @@ package main
 import (
 	"context"
 	"flag"
-	"net"
-	"net/url"
+	// "net"
+	// "net/url"
 	"os"
 	"os/signal"
 	"strconv"
@@ -52,10 +52,10 @@ func main() {
 	defer cancel()
 	ctx = contextUntilSignal(ctx, syscall.SIGINT, syscall.SIGTERM)
 
-	uri, err := url.Parse(amqpUri)
-	checkErr(err, "Bad amqp url: %+v")
-	_, err = net.Dial("tcp", uri.Host)
-	checkErr(err, "failed dial: %+v")
+	// uri, err := url.Parse(amqpUri)
+	// checkErr(err, "Bad amqp url: %+v")
+	// _, err = net.Dial("tcp", uri.Host)
+	// checkErr(err, "failed dial: %+v")
 
 	producer, err := event.NewAMQPQueueProducer(ctx, amqpUri, queueName)
 	checkErr(err, "Cannot connect to broker: %+v")
