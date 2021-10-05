@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"flag"
+	"time"
+
 	// "net"
 	// "net/url"
 	"os"
@@ -48,7 +50,7 @@ func init() {
 }
 
 func main() {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	ctx = contextUntilSignal(ctx, syscall.SIGINT, syscall.SIGTERM)
 
