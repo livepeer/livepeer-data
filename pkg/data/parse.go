@@ -17,6 +17,12 @@ func ParseEvent(data []byte) (Event, error) {
 			return nil, fmt.Errorf("error unmarshalling transcode event: %w", err)
 		}
 		return trans, nil
+	case EventTypeStreamState:
+		var strst *StreamStateEvent
+		if err := json.Unmarshal(data, &strst); err != nil {
+			return nil, fmt.Errorf("error unmarshalling stream state event: %w", err)
+		}
+		return strst, nil
 	case EventTypeWebhook:
 		var hook *WebhookEvent
 		if err := json.Unmarshal(data, &hook); err != nil {
