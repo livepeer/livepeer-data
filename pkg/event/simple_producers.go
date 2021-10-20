@@ -16,10 +16,14 @@ func NewAMQPExchangeProducer(ctx context.Context, uri, exchange, keyNs string) (
 		}
 		return nil
 	})
-	producer, err := NewAMQPProducer(ctx, uri, connectFunc)
+	producer, err := NewAMQPProducer(uri, connectFunc)
 	if err != nil {
 		return nil, err
 	}
+	go func() {
+		<-ctx.Done()
+		producer.Shutdown(context.Background())
+	}()
 	return producerFunc(func(ctx context.Context, key string, body interface{}, persistent bool) error {
 		if keyNs != "" {
 			key = keyNs + "." + key
@@ -36,10 +40,14 @@ func NewAMQPQueueProducer(ctx context.Context, uri, queue string) (Producer, err
 		}
 		return nil
 	})
-	producer, err := NewAMQPProducer(ctx, uri, connectFunc)
+	producer, err := NewAMQPProducer(uri, connectFunc)
 	if err != nil {
 		return nil, err
 	}
+	go func() {
+		<-ctx.Done()
+		producer.Shutdown(context.Background())
+	}()
 	return producerFunc(func(ctx context.Context, key string, body interface{}, persistent bool) error {
 		if key != "" {
 			return errors.New("when sending directly to a queue, key must always be empty")
