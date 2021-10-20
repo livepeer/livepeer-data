@@ -29,7 +29,9 @@ type AMQPProducer struct {
 	publishQ  chan *publishMessage
 	connectFn AMQPConnectFunc
 
-	shutdownStart, shutdownDone chan struct{}
+	shutdownStart chan struct{}
+	shutdownCtx   context.Context
+	shutdownDone  context.CancelFunc
 }
 
 type AMQPChanPublisher interface {
@@ -45,27 +47,35 @@ func NewAMQPProducer(uri string, connectFn AMQPConnectFunc) (*AMQPProducer, erro
 	if err != nil {
 		return nil, err
 	}
+	shutCtx, shutDone := context.WithCancel(context.Background())
 	amqp := &AMQPProducer{
 		amqpURI:       uri,
 		publishQ:      make(chan *publishMessage, PublishChannelSize),
 		connectFn:     connectFn,
 		shutdownStart: make(chan struct{}),
-		shutdownDone:  make(chan struct{}),
+		shutdownCtx:   shutCtx,
+		shutdownDone:  shutDone,
 	}
 	go amqp.mainLoop()
 	return amqp, nil
 }
 
+// Shutdown will try to gracefully stop the background event publishing process,
+// by waiting until all the publish buffer is flushed to the remote broker and
+// all message confirmations have been received. This function must be called
+// only once in a producer or it will panic.
+//
+// The Publish function must not be called concurrently with Shutdown or the
+// events sent concurrently may be lost (concurrent Publish and Shutdown
+// functions may succeed but the event never really gets sent).
 func (p *AMQPProducer) Shutdown(ctx context.Context) error {
-	if p.isShuttingDown() {
-		return ErrProducerShuttingDown
-	}
 	close(p.shutdownStart)
 
 	select {
-	case <-p.shutdownDone:
+	case <-p.shutdownCtx.Done():
 		return nil
 	case <-ctx.Done():
+		p.shutdownDone() // force background main loop to end
 		return ctx.Err()
 	}
 }
@@ -77,6 +87,11 @@ type AMQPMessage struct {
 }
 
 func (p *AMQPProducer) Publish(ctx context.Context, msg AMQPMessage) error {
+	if p.isShutdownDone() {
+		return ErrProducerClosed
+	} else if p.isShuttingDown() {
+		return ErrProducerShuttingDown
+	}
 	bodyRaw, err := json.Marshal(msg.Body)
 	if err != nil {
 		return fmt.Errorf("failed to marshal body to json: %w", err)
@@ -87,9 +102,6 @@ func (p *AMQPProducer) Publish(ctx context.Context, msg AMQPMessage) error {
 	case <-ctx.Done():
 		return ctx.Err()
 	case <-p.shutdownStart:
-		if p.isShutdownDone() {
-			return ErrProducerClosed
-		}
 		return ErrProducerShuttingDown
 	}
 }
@@ -124,7 +136,7 @@ func (p *AMQPProducer) mainLoop() {
 		retryAfter := time.After(RetryMinDelay)
 		err := p.connectAndLoopPublish()
 		if err == nil {
-			close(p.shutdownDone)
+			p.shutdownDone()
 			return
 		}
 		<-retryAfter
@@ -158,6 +170,9 @@ func (p *AMQPProducer) connectAndLoopPublish() error {
 		}
 	}()
 
+	shutdown, isShuttingDown := p.shutdownStart, false
+	isFlushed := func() bool { return len(outstandingMsgs) == 0 && len(p.publishQ) == 0 }
+
 	for {
 		select {
 		case err := <-closed:
@@ -166,8 +181,12 @@ func (p *AMQPProducer) connectAndLoopPublish() error {
 			mandatory, immediate := false, false
 			err := channel.Publish(msg.Exchange, msg.Key, mandatory, immediate, msg.Publishing)
 			if err != nil {
-				p.retryMsg(msg)
 				glog.Errorf("Error publishing message: exchange=%q, key=%q, error=%q, body=%q", msg.Exchange, msg.Key, err, msg.Publishing.Body)
+				p.retryMsg(msg)
+				if isShuttingDown && isFlushed() {
+					glog.Warningf("Shutting down after dropping last pending message: exchange=%q, key=%q", msg.Exchange, msg.Key)
+					return nil
+				}
 				return err
 			}
 
@@ -191,8 +210,19 @@ func (p *AMQPProducer) connectAndLoopPublish() error {
 			if !success {
 				p.retryMsg(msg)
 			}
-		case <-p.shutdownStart:
-			// TODO: flush buffer and wait for confirmations
+			if isShuttingDown && isFlushed() {
+				glog.Infof("Shutting down after last confirmation received: tag=%d, exchange=%q, key=%q", tag, msg.Exchange, msg.Key)
+				return nil
+			}
+		case <-shutdown:
+			if isFlushed() {
+				glog.Infof("Shutting down immediately with no pending events")
+				return nil
+			}
+			glog.Infof("Waiting for %d publishes and %d confirmations before shutdown", len(p.publishQ), len(outstandingMsgs))
+			shutdown, isShuttingDown = nil, true
+		case <-p.shutdownCtx.Done():
+			glog.Warningf("Forcing shutdown with %d pending publishes and %d pending confirmations", len(p.publishQ), len(outstandingMsgs))
 			return nil
 		}
 	}
@@ -222,12 +252,7 @@ func (p *AMQPProducer) isShuttingDown() bool {
 }
 
 func (p *AMQPProducer) isShutdownDone() bool {
-	select {
-	case <-p.shutdownDone:
-		return true
-	default:
-		return false
-	}
+	return p.shutdownCtx.Err() != nil
 }
 
 func NewAMQPConnectFunc(setup func(c *amqp.Channel) error) AMQPConnectFunc {
