@@ -19,11 +19,17 @@ const (
 	MaxRetries           = 3
 )
 
+var (
+	ErrProducerShuttingDown = errors.New("amqp: producer shutting down")
+	ErrProducerClosed       = errors.New("amqp: producer closed")
+)
+
 type AMQPProducer struct {
-	ctx       context.Context
 	amqpURI   string
 	publishQ  chan *publishMessage
 	connectFn AMQPConnectFunc
+
+	shutdownStart, shutdownDone chan struct{}
 }
 
 type AMQPChanPublisher interface {
@@ -32,21 +38,36 @@ type AMQPChanPublisher interface {
 
 type AMQPConnectFunc func(ctx context.Context, uri string, confirms chan amqp.Confirmation, closed chan *amqp.Error) (AMQPChanPublisher, error)
 
-func NewAMQPProducer(ctx context.Context, uri string, connectFn AMQPConnectFunc) (*AMQPProducer, error) {
-	testCtx, cancel := context.WithCancel(ctx)
+func NewAMQPProducer(uri string, connectFn AMQPConnectFunc) (*AMQPProducer, error) {
+	testCtx, cancel := context.WithCancel(context.Background())
 	_, err := connectFn(testCtx, uri, nil, nil)
 	cancel()
 	if err != nil {
 		return nil, err
 	}
 	amqp := &AMQPProducer{
-		ctx:       ctx,
-		amqpURI:   uri,
-		publishQ:  make(chan *publishMessage, PublishChannelSize),
-		connectFn: connectFn,
+		amqpURI:       uri,
+		publishQ:      make(chan *publishMessage, PublishChannelSize),
+		connectFn:     connectFn,
+		shutdownStart: make(chan struct{}),
+		shutdownDone:  make(chan struct{}),
 	}
 	go amqp.mainLoop()
 	return amqp, nil
+}
+
+func (p *AMQPProducer) Shutdown(ctx context.Context) error {
+	if p.isShuttingDown() {
+		return ErrProducerShuttingDown
+	}
+	close(p.shutdownStart)
+
+	select {
+	case <-p.shutdownDone:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 type AMQPMessage struct {
@@ -65,8 +86,11 @@ func (p *AMQPProducer) Publish(ctx context.Context, msg AMQPMessage) error {
 		return nil
 	case <-ctx.Done():
 		return ctx.Err()
-	case <-p.ctx.Done():
-		return fmt.Errorf("producer context done: %w", p.ctx.Err())
+	case <-p.shutdownStart:
+		if p.isShutdownDone() {
+			return ErrProducerClosed
+		}
+		return ErrProducerShuttingDown
 	}
 }
 
@@ -99,7 +123,8 @@ func (p *AMQPProducer) mainLoop() {
 	for {
 		retryAfter := time.After(RetryMinDelay)
 		err := p.connectAndLoopPublish()
-		if p.ctx.Err() != nil {
+		if err == nil {
+			close(p.shutdownDone)
 			return
 		}
 		<-retryAfter
@@ -114,7 +139,7 @@ func (p *AMQPProducer) connectAndLoopPublish() error {
 		}
 	}()
 	var (
-		ctx, cancel = context.WithCancel(p.ctx)
+		ctx, cancel = context.WithCancel(context.Background())
 		confirms    = make(chan amqp.Confirmation, PublishChannelSize)
 		closed      = make(chan *amqp.Error, 1)
 	)
@@ -135,8 +160,6 @@ func (p *AMQPProducer) connectAndLoopPublish() error {
 
 	for {
 		select {
-		case <-p.ctx.Done():
-			return p.ctx.Err()
 		case err := <-closed:
 			return fmt.Errorf("channel or connection closed: %w", err)
 		case msg := <-p.publishQ:
@@ -168,6 +191,9 @@ func (p *AMQPProducer) connectAndLoopPublish() error {
 			if !success {
 				p.retryMsg(msg)
 			}
+		case <-p.shutdownStart:
+			// TODO: flush buffer and wait for confirmations
+			return nil
 		}
 	}
 }
@@ -183,6 +209,24 @@ func (p *AMQPProducer) retryMsg(msg *publishMessage) {
 	case p.publishQ <- msg:
 	default:
 		glog.Errorf("Failed to re-enqueue message: exchange=%q, key=%q, body=%q", msg.Exchange, msg.Key, msg.Publishing.Body)
+	}
+}
+
+func (p *AMQPProducer) isShuttingDown() bool {
+	select {
+	case <-p.shutdownStart:
+		return true
+	default:
+		return false
+	}
+}
+
+func (p *AMQPProducer) isShutdownDone() bool {
+	select {
+	case <-p.shutdownDone:
+		return true
+	default:
+		return false
 	}
 }
 
