@@ -2,20 +2,20 @@ package data
 
 const EventTypeStreamState EventType = "stream_state"
 
-func NewStreamStateEvent(streamID, userID, sessionID string, state StreamState) *StreamStateEvent {
+func NewStreamStateEvent(streamID, userID, region string, state StreamState) *StreamStateEvent {
 	return &StreamStateEvent{
-		Base:      newEventBase(EventTypeStreamState, streamID),
-		UserID:    userID,
-		SessionID: sessionID,
-		State:     state,
+		Base:   newEventBase(EventTypeStreamState, streamID),
+		UserID: userID,
+		Region: region,
+		State:  state,
 	}
 }
 
 type StreamStateEvent struct {
 	Base
-	UserID    string      `json:"userId"`
-	SessionID string      `json:"sessionId,omitempty"`
-	State     StreamState `json:"state"`
+	UserID string      `json:"userId"`
+	Region string      `json:"region,omitempty"`
+	State  StreamState `json:"state"`
 }
 
 type StreamState struct {
