@@ -17,10 +17,11 @@ import (
 // with mutated fields. Notice that you still need to clone the internal slices
 // if you want to do any mutations to them.
 type Status struct {
-	ID         string       `json:"id"`
-	Healthy    *Condition   `json:"healthy"`
-	Conditions []*Condition `json:"conditions"`
-	Metrics    MetricsMap   `json:"metrics,omitempty"`
+	ID               string       `json:"id"`
+	Healthy          *Condition   `json:"healthy"`
+	LastActiveRegion string       `json:"lastActiveRegion"`
+	Conditions       []*Condition `json:"conditions"`
+	Metrics          MetricsMap   `json:"metrics,omitempty"`
 	// TODO: Move this `multistream` field somewhere else to make this struct more
 	// generic. Maybe condition dimensions/extraArgs?
 	Multistream []*MultistreamStatus `json:"multistream,omitempty"`
@@ -72,6 +73,9 @@ func NewMergedStatus(base *Status, values Status) *Status {
 	}
 	if values.Healthy != nil {
 		new.Healthy = values.Healthy
+	}
+	if values.LastActiveRegion != "" {
+		new.LastActiveRegion = values.LastActiveRegion
 	}
 	if values.Conditions != nil {
 		new.Conditions = values.Conditions
