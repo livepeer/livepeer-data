@@ -8,6 +8,7 @@ import (
 )
 
 const (
+	globalExchange        = "lp_global_replication"
 	streamStateBindingKey = "stream.state.#"
 
 	ConditionActive health.ConditionType = "Active"
@@ -16,7 +17,7 @@ const (
 type StreamStateMetrics struct{}
 
 func (t StreamStateMetrics) Bindings() []event.BindingArgs {
-	return []event.BindingArgs{{Exchange: mediaServerExchange, Key: streamStateBindingKey}}
+	return []event.BindingArgs{{Exchange: globalExchange, Key: streamStateBindingKey}}
 }
 
 func (t StreamStateMetrics) Conditions() []health.ConditionType {
