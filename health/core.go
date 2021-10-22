@@ -70,6 +70,7 @@ func (c *Core) Start(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("invalid rabbitmq options: %w", err)
 	}
+	glog.Infof("Starting health core. conditions=%+v, consumeOptions=%+v", c.conditionTypes, consumeOpts)
 
 	err = c.consumer.Consume(ctx, consumeOpts, c)
 	if err != nil {

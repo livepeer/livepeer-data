@@ -13,6 +13,7 @@ var (
 
 func Default(golpExchange string, shardPrefixes []string) health.Reducer {
 	return Pipeline{
+		StreamStateReducer{},
 		TranscodeReducer{golpExchange, shardPrefixes},
 		MultistreamReducer{},
 		MediaServerMetrics{},
