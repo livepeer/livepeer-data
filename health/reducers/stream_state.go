@@ -14,17 +14,17 @@ const (
 	ConditionActive health.ConditionType = "Active"
 )
 
-type StreamStateMetrics struct{}
+type StreamStateReducer struct{}
 
-func (t StreamStateMetrics) Bindings() []event.BindingArgs {
+func (t StreamStateReducer) Bindings() []event.BindingArgs {
 	return []event.BindingArgs{{Exchange: globalExchange, Key: streamStateBindingKey}}
 }
 
-func (t StreamStateMetrics) Conditions() []health.ConditionType {
+func (t StreamStateReducer) Conditions() []health.ConditionType {
 	return []health.ConditionType{ConditionActive}
 }
 
-func (t StreamStateMetrics) Reduce(current *health.Status, _ interface{}, evtIface data.Event) (*health.Status, interface{}) {
+func (t StreamStateReducer) Reduce(current *health.Status, _ interface{}, evtIface data.Event) (*health.Status, interface{}) {
 	evt, ok := evtIface.(*data.StreamStateEvent)
 	if !ok {
 		return current, nil
