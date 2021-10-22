@@ -24,6 +24,12 @@ const (
 	sseBufferSize   = 128
 )
 
+type contextKey int
+
+const (
+	streamStatusKey contextKey = iota
+)
+
 type apiHandler struct {
 	serverCtx context.Context
 	core      *health.Core
@@ -49,6 +55,24 @@ func cors(next http.Handler) http.Handler {
 	})
 }
 
+func (h *apiHandler) regionProxy(next httprouter.Handle) httprouter.Handle {
+	return func(rw http.ResponseWriter, r *http.Request, params httprouter.Params) {
+		manifestID := params.ByName("manifestId")
+		status, err := h.core.GetStatus(manifestID)
+		if err != nil {
+			respondError(rw, http.StatusInternalServerError, err)
+			return
+		}
+		// TODO: Proxy to other region here in case stream is in another region
+		r = r.WithContext(context.WithValue(r.Context(), streamStatusKey, status))
+		next(rw, r, params)
+	}
+}
+
+func getStreamStatus(r *http.Request) *health.Status {
+	return r.Context().Value(streamStatusKey).(*health.Status)
+}
+
 func (h *apiHandler) healthcheck(rw http.ResponseWriter, r *http.Request) {
 	status := http.StatusOK
 	if !h.core.IsHealthy() {
@@ -58,13 +82,7 @@ func (h *apiHandler) healthcheck(rw http.ResponseWriter, r *http.Request) {
 }
 
 func (h *apiHandler) getStreamHealth(rw http.ResponseWriter, r *http.Request, params httprouter.Params) {
-	manifestID := params.ByName("manifestId")
-	status, err := h.core.GetStatus(manifestID)
-	if err != nil {
-		respondError(rw, http.StatusInternalServerError, err)
-		return
-	}
-	respondJson(rw, http.StatusOK, status)
+	respondJson(rw, http.StatusOK, getStreamStatus(r))
 }
 
 func (h *apiHandler) subscribeEvents(rw http.ResponseWriter, r *http.Request, params httprouter.Params) {
