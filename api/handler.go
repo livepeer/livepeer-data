@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/http/httputil"
 	"path"
 	"strconv"
 	"time"
@@ -42,20 +43,24 @@ func NewHandler(serverCtx context.Context, apiRoot string, healthcore *health.Co
 	router.HandlerFunc("GET", "/_healthz", handler.healthcheck)
 
 	streamRoot := path.Join(apiRoot, "/stream/:manifestId")
-	router.GET(streamRoot+"/health", handler.getStreamHealth)
-	router.GET(streamRoot+"/events", handler.subscribeEvents)
+	router.GET(streamRoot+"/health", handler.withRegionProxy(handler.getStreamHealth))
+	router.GET(streamRoot+"/events", handler.withRegionProxy(handler.subscribeEvents))
 
-	return cors(router)
+	return withCors(router)
 }
 
-func cors(next http.Handler) http.Handler {
+func withCors(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		rw.Header().Set("Access-Control-Allow-Origin", "*")
 		next.ServeHTTP(rw, r)
 	})
 }
 
-func (h *apiHandler) regionProxy(next httprouter.Handle) httprouter.Handle {
+func (h *apiHandler) withRegionProxy(next httprouter.Handle) httprouter.Handle {
+	regionProxy := &httputil.ReverseProxy{
+		Director:      regionProxyDirector,
+		FlushInterval: 100 * time.Millisecond,
+	}
 	return func(rw http.ResponseWriter, r *http.Request, params httprouter.Params) {
 		manifestID := params.ByName("manifestId")
 		status, err := h.core.GetStatus(manifestID)
@@ -63,9 +68,25 @@ func (h *apiHandler) regionProxy(next httprouter.Handle) httprouter.Handle {
 			respondError(rw, http.StatusInternalServerError, err)
 			return
 		}
-		// TODO: Proxy to other region here in case stream is in another region
 		r = r.WithContext(context.WithValue(r.Context(), streamStatusKey, status))
-		next(rw, r, params)
+		// TODO: Receive own region as CLI arg
+		if streamRegion := status.LastActiveRegion; streamRegion != "" && streamRegion != "TODO" { // h.core.Region {
+			regionProxy.ServeHTTP(rw, r)
+		} else {
+			next(rw, r, params)
+		}
+	}
+}
+
+func regionProxyDirector(req *http.Request) {
+	status := getStreamStatus(req)
+	// TODO: Make TLD configurable
+	req.URL.Host = fmt.Sprintf("%s.livepeer.monster", status.LastActiveRegion)
+	req.Host = req.URL.Host
+
+	if _, ok := req.Header["User-Agent"]; !ok {
+		// explicitly disable User-Agent so it's not set to default value
+		req.Header.Set("User-Agent", "")
 	}
 }
 
