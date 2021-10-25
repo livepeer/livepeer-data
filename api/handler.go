@@ -23,6 +23,7 @@ const (
 	sseRetryBackoff = 10 * time.Second
 	ssePingDelay    = 20 * time.Second
 	sseBufferSize   = 128
+	proxyLoopHeader = "X-Livepeer-Proxy"
 )
 
 type contextKey int
@@ -76,13 +77,17 @@ func (h *apiHandler) withRegionProxy(next httprouter.Handle) httprouter.Handle {
 			return
 		}
 		r = r.WithContext(context.WithValue(r.Context(), streamStatusKey, status))
+
 		streamRegion := status.LastActiveRegion
-		if h.opts.OwnRegion != "" && streamRegion != "" && streamRegion != h.opts.OwnRegion {
-			// TODO: Disallow infinite proxy loop here
-			h.regionProxy.ServeHTTP(rw, r)
-		} else {
+		if h.opts.OwnRegion == "" || streamRegion == "" || streamRegion == h.opts.OwnRegion {
 			next(rw, r, params)
+			return
 		}
+		if _, ok := r.Header[proxyLoopHeader]; ok {
+			respondError(rw, http.StatusLoopDetected, errors.New("proxy loop detected"))
+			return
+		}
+		h.regionProxy.ServeHTTP(rw, r)
 	}
 }
 
@@ -92,6 +97,7 @@ func regionProxyDirector(hostFormat string) func(req *http.Request) {
 		req.URL.Host = fmt.Sprintf(hostFormat, status.LastActiveRegion)
 		req.Host = req.URL.Host
 
+		req.Header.Set(proxyLoopHeader, "analyzer")
 		if _, ok := req.Header["User-Agent"]; !ok {
 			// explicitly disable User-Agent so it's not set to default value
 			req.Header.Set("User-Agent", "")
