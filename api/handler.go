@@ -31,18 +31,29 @@ const (
 	streamStatusKey contextKey = iota
 )
 
-type apiHandler struct {
-	serverCtx context.Context
-	core      *health.Core
+type APIHandlerOptions struct {
+	APIRoot                       string
+	RegionalHostFormat, OwnRegion string
 }
 
-func NewHandler(serverCtx context.Context, apiRoot string, healthcore *health.Core) http.Handler {
-	handler := &apiHandler{serverCtx, healthcore}
+type apiHandler struct {
+	opts        APIHandlerOptions
+	serverCtx   context.Context
+	core        *health.Core
+	regionProxy *httputil.ReverseProxy
+}
+
+func NewHandler(serverCtx context.Context, opts APIHandlerOptions, healthcore *health.Core) http.Handler {
+	regionProxy := &httputil.ReverseProxy{
+		Director:      regionProxyDirector(opts.RegionalHostFormat),
+		FlushInterval: 100 * time.Millisecond,
+	}
+	handler := &apiHandler{opts, serverCtx, healthcore, regionProxy}
 
 	router := httprouter.New()
 	router.HandlerFunc("GET", "/_healthz", handler.healthcheck)
 
-	streamRoot := path.Join(apiRoot, "/stream/:manifestId")
+	streamRoot := path.Join(opts.APIRoot, "/stream/:manifestId")
 	router.GET(streamRoot+"/health", handler.withRegionProxy(handler.getStreamHealth))
 	router.GET(streamRoot+"/events", handler.withRegionProxy(handler.subscribeEvents))
 
@@ -57,10 +68,6 @@ func withCors(next http.Handler) http.Handler {
 }
 
 func (h *apiHandler) withRegionProxy(next httprouter.Handle) httprouter.Handle {
-	regionProxy := &httputil.ReverseProxy{
-		Director:      regionProxyDirector,
-		FlushInterval: 100 * time.Millisecond,
-	}
 	return func(rw http.ResponseWriter, r *http.Request, params httprouter.Params) {
 		manifestID := params.ByName("manifestId")
 		status, err := h.core.GetStatus(manifestID)
@@ -69,24 +76,26 @@ func (h *apiHandler) withRegionProxy(next httprouter.Handle) httprouter.Handle {
 			return
 		}
 		r = r.WithContext(context.WithValue(r.Context(), streamStatusKey, status))
-		// TODO: Receive own region as CLI arg
-		if streamRegion := status.LastActiveRegion; streamRegion != "" && streamRegion != "TODO" { // h.core.Region {
-			regionProxy.ServeHTTP(rw, r)
+		streamRegion := status.LastActiveRegion
+		if h.opts.OwnRegion != "" && streamRegion != "" && streamRegion != h.opts.OwnRegion {
+			// TODO: Disallow infinite proxy loop here
+			h.regionProxy.ServeHTTP(rw, r)
 		} else {
 			next(rw, r, params)
 		}
 	}
 }
 
-func regionProxyDirector(req *http.Request) {
-	status := getStreamStatus(req)
-	// TODO: Make TLD configurable
-	req.URL.Host = fmt.Sprintf("%s.livepeer.monster", status.LastActiveRegion)
-	req.Host = req.URL.Host
+func regionProxyDirector(hostFormat string) func(req *http.Request) {
+	return func(req *http.Request) {
+		status := getStreamStatus(req)
+		req.URL.Host = fmt.Sprintf(hostFormat, status.LastActiveRegion)
+		req.Host = req.URL.Host
 
-	if _, ok := req.Header["User-Agent"]; !ok {
-		// explicitly disable User-Agent so it's not set to default value
-		req.Header.Set("User-Agent", "")
+		if _, ok := req.Header["User-Agent"]; !ok {
+			// explicitly disable User-Agent so it's not set to default value
+			req.Header.Set("User-Agent", "")
+		}
 	}
 }
 
