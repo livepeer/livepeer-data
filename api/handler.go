@@ -93,6 +93,8 @@ func (h *apiHandler) withRegionProxy(next httprouter.Handle) httprouter.Handle {
 
 func regionProxyDirector(hostFormat string) func(req *http.Request) {
 	return func(req *http.Request) {
+		glog.Infof("Proxying request url=%s headers=%+v", req.URL, req.Header)
+		req.URL.Scheme = "https"
 		status := getStreamStatus(req)
 		req.URL.Host = fmt.Sprintf(hostFormat, status.LastActiveRegion)
 		req.Host = req.URL.Host
