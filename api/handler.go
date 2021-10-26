@@ -13,11 +13,11 @@ import (
 
 	"github.com/golang/glog"
 	"github.com/google/uuid"
-	"github.com/julienschmidt/httprouter"
 	"github.com/livepeer/livepeer-data/health"
 	"github.com/livepeer/livepeer-data/health/reducers"
 	"github.com/livepeer/livepeer-data/pkg/data"
 	"github.com/livepeer/livepeer-data/pkg/jsse"
+	"github.com/nbio/hitch"
 )
 
 const (
@@ -52,25 +52,27 @@ func NewHandler(serverCtx context.Context, opts APIHandlerOptions, healthcore *h
 	}
 	handler := &apiHandler{opts, serverCtx, healthcore, regionProxy}
 
-	router := httprouter.New()
-	router.HandlerFunc("GET", "/_healthz", handler.healthcheck)
+	router := hitch.New()
+	router.Use(cors)
+	router.HandleFunc("GET", "/_healthz", handler.healthcheck)
 
 	streamRoot := path.Join(opts.APIRoot, "/stream/:manifestId")
-	router.GET(streamRoot+"/health", handler.withRegionProxy(handler.getStreamHealth))
-	router.GET(streamRoot+"/events", handler.withRegionProxy(handler.subscribeEvents))
+	router.Get(streamRoot+"/health", http.HandlerFunc(handler.getStreamHealth), handler.withRegionProxy)
+	router.Get(streamRoot+"/events", http.HandlerFunc(handler.subscribeEvents), handler.withRegionProxy)
 
-	return withCors(router)
+	return router.Handler()
 }
 
-func withCors(next http.Handler) http.Handler {
+func cors(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		rw.Header().Set("Access-Control-Allow-Origin", "*")
 		next.ServeHTTP(rw, r)
 	})
 }
 
-func (h *apiHandler) withRegionProxy(next httprouter.Handle) httprouter.Handle {
-	return func(rw http.ResponseWriter, r *http.Request, params httprouter.Params) {
+func (h *apiHandler) withRegionProxy(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		params := hitch.Params(r)
 		manifestID := params.ByName("manifestId")
 		status, err := h.core.GetStatus(manifestID)
 		if err != nil {
@@ -81,7 +83,7 @@ func (h *apiHandler) withRegionProxy(next httprouter.Handle) httprouter.Handle {
 
 		streamRegion := reducers.GetLastActiveData(status).Region
 		if h.opts.OwnRegion == "" || streamRegion == "" || streamRegion == h.opts.OwnRegion {
-			next(rw, r, params)
+			next.ServeHTTP(rw, r)
 			return
 		}
 		if _, ok := r.Header[proxyLoopHeader]; ok {
@@ -89,7 +91,7 @@ func (h *apiHandler) withRegionProxy(next httprouter.Handle) httprouter.Handle {
 			return
 		}
 		h.regionProxy.ServeHTTP(rw, r)
-	}
+	})
 }
 
 func regionProxyDirector(hostFormat string) func(req *http.Request) {
@@ -125,12 +127,13 @@ func (h *apiHandler) healthcheck(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(status)
 }
 
-func (h *apiHandler) getStreamHealth(rw http.ResponseWriter, r *http.Request, params httprouter.Params) {
+func (h *apiHandler) getStreamHealth(rw http.ResponseWriter, r *http.Request) {
 	respondJson(rw, http.StatusOK, getStreamStatus(r))
 }
 
-func (h *apiHandler) subscribeEvents(rw http.ResponseWriter, r *http.Request, params httprouter.Params) {
+func (h *apiHandler) subscribeEvents(rw http.ResponseWriter, r *http.Request) {
 	var (
+		params     = hitch.Params(r)
 		manifestID = params.ByName("manifestId")
 		sseOpts    = jsse.InitOptions(r).
 				WithClientRetryBackoff(sseRetryBackoff).
