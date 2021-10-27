@@ -9,7 +9,7 @@ import (
 	"github.com/nbio/hitch"
 )
 
-var authorizationHeaders = []string{"Authorization", "Proxy-Authorization", "Cookie"}
+var authorizationHeaders = []string{"Authorization", "Cookie"}
 
 func authorization(authUrl string) hitch.Middleware {
 	return inlineMiddleware(func(rw http.ResponseWriter, r *http.Request, next http.Handler) {
