@@ -12,6 +12,8 @@ import (
 	"github.com/nbio/hitch"
 )
 
+const proxyLoopHeader = "X-Livepeer-Proxy"
+
 func regionProxy(hostFormat, ownRegion string) hitch.Middleware {
 	proxy := &httputil.ReverseProxy{
 		Director:      regionProxyDirector(hostFormat),
