@@ -1,7 +1,6 @@
 package api
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -10,30 +9,19 @@ import (
 	"github.com/nbio/hitch"
 )
 
+var authorizationHeaders = []string{"Authorization", "Proxy-Authorization", "Cookie"}
 
 func authorization(authUrl string) hitch.Middleware {
 	return inlineMiddleware(func(rw http.ResponseWriter, r *http.Request, next http.Handler) {
-		// TODO: Move all this to a proper client
 		status := getStreamStatus(r)
-		authReq := map[string]interface{}{
-			"resource": map[string]string{
-				"method":   r.Method,
-				"url":      r.URL.String(),
-				"streamID": status.ID,
-			},
-		}
-		payload, err := json.Marshal(authReq)
-		if err != nil {
-			respondError(rw, http.StatusInternalServerError, fmt.Errorf("error creating authorization payload: %w", err))
-			return
-		}
-		req, err := http.NewRequestWithContext(r.Context(), "POST", authUrl, bytes.NewReader(payload))
-		req.Header.Set("Content-Type", "application/json")
+		req, err := http.NewRequestWithContext(r.Context(), r.Method, authUrl, nil)
 		if err != nil {
 			respondError(rw, http.StatusInternalServerError, err)
 			return
 		}
-		for _, header := range []string{"Authorization", "Proxy-Authorization", "Cookie"} {
+		req.Header.Set("X-Original-Uri", req.URL.String())
+		req.Header.Set("X-Livepeer-Stream-Id", status.ID)
+		for _, header := range authorizationHeaders {
 			req.Header[header] = r.Header[header]
 		}
 		res, err := http.DefaultClient.Do(req)
