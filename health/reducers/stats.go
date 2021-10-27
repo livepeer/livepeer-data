@@ -45,7 +45,7 @@ func StatsReducer(statsWindows []time.Duration) health.ReducerFunc {
 }
 
 func reduceCondStats(cond *health.Condition, ts time.Time, statsAggr stats.WindowAggregators, statsWindows []time.Duration) *health.Condition {
-	if cond.LastProbeTime == nil || *cond.LastProbeTime != ts {
+	if cond.LastProbeTime == nil || cond.LastProbeTime.Time != ts {
 		return cond
 	}
 	frequency := statsAggr.Averages(statsWindows, ts, ptrBoolToFloat(cond.Status))

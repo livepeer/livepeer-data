@@ -13,6 +13,8 @@ const (
 	ConditionTranscodeRealTime health.ConditionType = "TranscodeRealTime"
 	ConditionTranscodeNoErrors health.ConditionType = "TranscodeNoErrors"
 
+	MetricTranscodeRealtimeRatio health.MetricName = "TranscodeRealtimeRatio"
+
 	transcodeBindingKeyFormat = "broadcaster.stream_health.transcode.%s.#"
 )
 
@@ -51,15 +53,19 @@ func (t TranscodeReducer) Reduce(current *health.Status, _ interface{}, evtIface
 	}
 
 	ts := evt.Timestamp()
-	conditions := make([]*health.Condition, len(current.Conditions))
-	copy(conditions, current.Conditions)
+	conditions := current.ConditionsCopy()
 	for i, cond := range conditions {
 		if status := conditionStatus(evt, cond.Type); status != nil {
 			conditions[i] = health.NewCondition(cond.Type, ts, status, nil, cond)
 		}
 	}
+	dimensions := map[string]string{"nodeId": evt.NodeID}
+	metrics := current.MetricsCopy().Add(health.NewMetric(MetricTranscodeRealtimeRatio, dimensions, ts, realtimeRatio(evt)))
 
-	return health.NewMergedStatus(current, health.Status{Conditions: conditions}), nil
+	return health.NewMergedStatus(current, health.Status{
+		Conditions: conditions,
+		Metrics:    metrics,
+	}), nil
 }
 
 func conditionStatus(evt *data.TranscodeEvent, condType health.ConditionType) *bool {
@@ -67,7 +73,7 @@ func conditionStatus(evt *data.TranscodeEvent, condType health.ConditionType) *b
 	case ConditionTranscoding:
 		return &evt.Success
 	case ConditionTranscodeRealTime:
-		isRealTime := evt.LatencyMs < int64(evt.Segment.Duration*1000)
+		isRealTime := realtimeRatio(evt) >= 1
 		return &isRealTime
 	case ConditionTranscodeNoErrors:
 		noErrors := true
@@ -78,4 +84,8 @@ func conditionStatus(evt *data.TranscodeEvent, condType health.ConditionType) *b
 	default:
 		return nil
 	}
+}
+
+func realtimeRatio(evt *data.TranscodeEvent) float64 {
+	return float64(evt.Segment.Duration*1000) / float64(evt.LatencyMs)
 }

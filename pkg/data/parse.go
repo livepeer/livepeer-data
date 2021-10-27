@@ -23,6 +23,12 @@ func ParseEvent(data []byte) (Event, error) {
 			return nil, fmt.Errorf("error unmarshalling webhook event: %w", err)
 		}
 		return hook, nil
+	case EventTypeMediaServerMetrics:
+		var mesemev *MediaServerMetricsEvent
+		if err := json.Unmarshal(data, &mesemev); err != nil {
+			return nil, fmt.Errorf("error unmarshalling media server metrics event: %w", err)
+		}
+		return mesemev, nil
 	default:
 		return nil, fmt.Errorf("unknown event type=%q, streamId=%q, ts=%d", base.Type, base.StreamID_, base.Timestamp_)
 	}

@@ -20,17 +20,16 @@ type Record struct {
 	EventsByID map[uuid.UUID]data.Event
 	EventSubs  []chan<- data.Event
 
-	ReducersState map[int]interface{}
-	LastStatus    *Status
+	ReducerState interface{}
+	LastStatus   *Status
 }
 
 func NewRecord(id string, conditions []ConditionType) *Record {
 	rec := &Record{
-		ID:            id,
-		Conditions:    conditions,
-		disposed:      make(chan struct{}),
-		EventsByID:    map[uuid.UUID]data.Event{},
-		ReducersState: map[int]interface{}{},
+		ID:         id,
+		Conditions: conditions,
+		disposed:   make(chan struct{}),
+		EventsByID: map[uuid.UUID]data.Event{},
 		LastStatus: &Status{
 			ID:         id,
 			Healthy:    NewCondition("", time.Time{}, nil, nil, nil),
