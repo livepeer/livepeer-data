@@ -2,10 +2,11 @@ package data
 
 const EventTypeMediaServerMetrics EventType = "media_server_metrics"
 
-func NewMediaServerMetricsEvent(nodeID, streamID string, stats *StreamMetrics, multistream []*MultistreamTargetMetrics) *MediaServerMetricsEvent {
+func NewMediaServerMetricsEvent(nodeID, region, streamID string, stats *StreamMetrics, multistream []*MultistreamTargetMetrics) *MediaServerMetricsEvent {
 	return &MediaServerMetricsEvent{
 		Base:        newEventBase(EventTypeMediaServerMetrics, streamID),
 		NodeID:      nodeID,
+		Region:      region,
 		Stats:       stats,
 		Multistream: multistream,
 	}
@@ -13,9 +14,10 @@ func NewMediaServerMetricsEvent(nodeID, streamID string, stats *StreamMetrics, m
 
 type MediaServerMetricsEvent struct {
 	Base
-	NodeID      string `json:"nodeId"`
-	Stats       *StreamMetrics
-	Multistream []*MultistreamTargetMetrics
+	NodeID      string                      `json:"nodeId"`
+	Region      string                      `json:"region,omitempty"`
+	Stats       *StreamMetrics              `json:"stats"`
+	Multistream []*MultistreamTargetMetrics `json:"multistream"`
 }
 
 type StreamMetrics struct {

@@ -15,14 +15,14 @@ import (
 type ServerOptions struct {
 	Host                string
 	Port                uint
-	APIRoot             string
 	ShutdownGracePeriod time.Duration
+	APIHandlerOptions
 }
 
 func ListenAndServe(ctx context.Context, opts ServerOptions, healthcore *health.Core) error {
 	srv := &http.Server{
 		Addr:    fmt.Sprintf("%s:%d", opts.Host, opts.Port),
-		Handler: NewHandler(ctx, opts.APIRoot, healthcore),
+		Handler: NewHandler(ctx, opts.APIHandlerOptions, healthcore),
 	}
 	eg, ctx := errgroup.WithContext(ctx)
 	eg.Go(func() error {

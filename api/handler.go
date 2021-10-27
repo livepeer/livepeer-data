@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/http/httputil"
 	"path"
 	"strconv"
 	"time"
@@ -14,6 +15,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/julienschmidt/httprouter"
 	"github.com/livepeer/livepeer-data/health"
+	"github.com/livepeer/livepeer-data/health/reducers"
 	"github.com/livepeer/livepeer-data/pkg/data"
 	"github.com/livepeer/livepeer-data/pkg/jsse"
 )
@@ -22,31 +24,97 @@ const (
 	sseRetryBackoff = 10 * time.Second
 	ssePingDelay    = 20 * time.Second
 	sseBufferSize   = 128
+	proxyLoopHeader = "X-Livepeer-Proxy"
 )
 
-type apiHandler struct {
-	serverCtx context.Context
-	core      *health.Core
+type contextKey int
+
+const (
+	streamStatusKey contextKey = iota
+)
+
+type APIHandlerOptions struct {
+	APIRoot                       string
+	RegionalHostFormat, OwnRegion string
 }
 
-func NewHandler(serverCtx context.Context, apiRoot string, healthcore *health.Core) http.Handler {
-	handler := &apiHandler{serverCtx, healthcore}
+type apiHandler struct {
+	opts        APIHandlerOptions
+	serverCtx   context.Context
+	core        *health.Core
+	regionProxy *httputil.ReverseProxy
+}
+
+func NewHandler(serverCtx context.Context, opts APIHandlerOptions, healthcore *health.Core) http.Handler {
+	regionProxy := &httputil.ReverseProxy{
+		Director:      regionProxyDirector(opts.RegionalHostFormat),
+		FlushInterval: 100 * time.Millisecond,
+	}
+	handler := &apiHandler{opts, serverCtx, healthcore, regionProxy}
 
 	router := httprouter.New()
 	router.HandlerFunc("GET", "/_healthz", handler.healthcheck)
 
-	streamRoot := path.Join(apiRoot, "/stream/:manifestId")
-	router.GET(streamRoot+"/health", handler.getStreamHealth)
-	router.GET(streamRoot+"/events", handler.subscribeEvents)
+	streamRoot := path.Join(opts.APIRoot, "/stream/:manifestId")
+	router.GET(streamRoot+"/health", handler.withRegionProxy(handler.getStreamHealth))
+	router.GET(streamRoot+"/events", handler.withRegionProxy(handler.subscribeEvents))
 
-	return cors(router)
+	return withCors(router)
 }
 
-func cors(next http.Handler) http.Handler {
+func withCors(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		rw.Header().Set("Access-Control-Allow-Origin", "*")
 		next.ServeHTTP(rw, r)
 	})
+}
+
+func (h *apiHandler) withRegionProxy(next httprouter.Handle) httprouter.Handle {
+	return func(rw http.ResponseWriter, r *http.Request, params httprouter.Params) {
+		manifestID := params.ByName("manifestId")
+		status, err := h.core.GetStatus(manifestID)
+		if err != nil {
+			respondError(rw, http.StatusInternalServerError, err)
+			return
+		}
+		r = r.WithContext(context.WithValue(r.Context(), streamStatusKey, status))
+
+		streamRegion := reducers.GetLastActiveData(status).Region
+		if h.opts.OwnRegion == "" || streamRegion == "" || streamRegion == h.opts.OwnRegion {
+			next(rw, r, params)
+			return
+		}
+		if _, ok := r.Header[proxyLoopHeader]; ok {
+			respondError(rw, http.StatusLoopDetected, errors.New("proxy loop detected"))
+			return
+		}
+		h.regionProxy.ServeHTTP(rw, r)
+	}
+}
+
+func regionProxyDirector(hostFormat string) func(req *http.Request) {
+	return func(req *http.Request) {
+		glog.V(8).Infof("Proxying request url=%s headers=%+v", req.URL, req.Header)
+		status := getStreamStatus(req)
+		streamRegion := reducers.GetLastActiveData(status).Region
+
+		req.URL.Scheme = "http"
+		if fwdProto := req.Header.Get("X-Forwarded-Proto"); fwdProto != "" {
+			req.URL.Scheme = fwdProto
+		}
+		req.URL.Host = fmt.Sprintf(hostFormat, streamRegion)
+		req.Host = req.URL.Host
+
+		req.Header.Set(proxyLoopHeader, "analyzer")
+		if _, ok := req.Header["User-Agent"]; !ok {
+			// explicitly disable User-Agent so it's not set to default value
+			req.Header.Set("User-Agent", "")
+		}
+	}
+}
+
+func getStreamStatus(r *http.Request) *health.Status {
+	return r.Context().Value(streamStatusKey).(*health.Status)
 }
 
 func (h *apiHandler) healthcheck(rw http.ResponseWriter, r *http.Request) {
@@ -58,13 +126,7 @@ func (h *apiHandler) healthcheck(rw http.ResponseWriter, r *http.Request) {
 }
 
 func (h *apiHandler) getStreamHealth(rw http.ResponseWriter, r *http.Request, params httprouter.Params) {
-	manifestID := params.ByName("manifestId")
-	status, err := h.core.GetStatus(manifestID)
-	if err != nil {
-		respondError(rw, http.StatusInternalServerError, err)
-		return
-	}
-	respondJson(rw, http.StatusOK, status)
+	respondJson(rw, http.StatusOK, getStreamStatus(r))
 }
 
 func (h *apiHandler) subscribeEvents(rw http.ResponseWriter, r *http.Request, params httprouter.Params) {

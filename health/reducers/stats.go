@@ -48,8 +48,9 @@ func reduceCondStats(cond *health.Condition, ts time.Time, statsAggr stats.Windo
 	if cond.LastProbeTime == nil || cond.LastProbeTime.Time != ts {
 		return cond
 	}
-	frequency := statsAggr.Averages(statsWindows, ts, ptrBoolToFloat(cond.Status))
-	return health.NewCondition(cond.Type, ts, cond.Status, frequency, cond)
+	newCond := health.NewCondition(cond.Type, ts, cond.Status, cond)
+	newCond.Frequency = statsAggr.Averages(statsWindows, ts, ptrBoolToFloat(cond.Status))
+	return newCond
 }
 
 func ptrBoolToFloat(b *bool) *float64 {

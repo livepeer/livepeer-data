@@ -32,12 +32,12 @@ func NewRecord(id string, conditions []ConditionType) *Record {
 		EventsByID: map[uuid.UUID]data.Event{},
 		LastStatus: &Status{
 			ID:         id,
-			Healthy:    NewCondition("", time.Time{}, nil, nil, nil),
+			Healthy:    NewCondition("", time.Time{}, nil, nil),
 			Conditions: make([]*Condition, len(conditions)),
 		},
 	}
 	for i, cond := range conditions {
-		rec.LastStatus.Conditions[i] = NewCondition(cond, time.Time{}, nil, nil, nil)
+		rec.LastStatus.Conditions[i] = NewCondition(cond, time.Time{}, nil, nil)
 	}
 	return rec
 }

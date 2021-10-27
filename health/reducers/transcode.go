@@ -56,7 +56,7 @@ func (t TranscodeReducer) Reduce(current *health.Status, _ interface{}, evtIface
 	conditions := current.ConditionsCopy()
 	for i, cond := range conditions {
 		if status := conditionStatus(evt, cond.Type); status != nil {
-			conditions[i] = health.NewCondition(cond.Type, ts, status, nil, cond)
+			conditions[i] = health.NewCondition(cond.Type, ts, status, cond)
 		}
 	}
 	dimensions := map[string]string{"nodeId": evt.NodeID}
