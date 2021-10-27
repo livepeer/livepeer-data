@@ -43,7 +43,7 @@ func (t StreamStateReducer) Reduce(current *health.Status, _ interface{}, evtIfa
 	for i, cond := range conditions {
 		if cond.Type == ConditionActive {
 			status := evt.State.Active
-			conditions[i] = health.NewCondition(cond.Type, evt.Timestamp(), &status, nil, cond)
+			conditions[i] = health.NewCondition(cond.Type, evt.Timestamp(), &status, cond)
 		}
 	}
 	return health.NewMergedStatus(current, health.Status{

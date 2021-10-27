@@ -28,7 +28,7 @@ func reduceHealth(current *health.Status, _ interface{}, evt data.Event) (*healt
 			break
 		}
 	}
-	healthyCond := health.NewCondition("", evt.Timestamp(), &isHealthy, nil, current.Healthy)
+	healthyCond := health.NewCondition("", evt.Timestamp(), &isHealthy, current.Healthy)
 
 	return health.NewMergedStatus(current, health.Status{Healthy: healthyCond}), nil
 }

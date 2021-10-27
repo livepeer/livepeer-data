@@ -111,7 +111,7 @@ func (s Status) MetricsCopy() MetricsMap {
 
 // Condition
 
-func NewCondition(condType ConditionType, ts time.Time, status *bool, frequency stats.ByWindow, last *Condition) *Condition {
+func NewCondition(condType ConditionType, ts time.Time, status *bool, last *Condition) *Condition {
 	cond := &Condition{Type: condType}
 	if last != nil && last.Type == condType {
 		*cond = *last
@@ -122,9 +122,6 @@ func NewCondition(condType ConditionType, ts time.Time, status *bool, frequency 
 			cond.LastTransitionTime = cond.LastProbeTime
 		}
 		cond.Status = status
-	}
-	if frequency != nil {
-		cond.Frequency = frequency
 	}
 	return cond
 }

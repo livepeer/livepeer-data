@@ -51,7 +51,7 @@ func (t MultistreamReducer) Reduce(current *health.Status, _ interface{}, evtIfa
 		currConnected := multistream[idx].Connected
 		multistream[idx] = &health.MultistreamStatus{
 			Target:    target,
-			Connected: health.NewCondition("", ts, status, nil, currConnected),
+			Connected: health.NewCondition("", ts, status, currConnected),
 		}
 	}
 
@@ -59,7 +59,7 @@ func (t MultistreamReducer) Reduce(current *health.Status, _ interface{}, evtIfa
 	for i, cond := range conditions {
 		if cond.Type == ConditionMultistreaming {
 			status := allTargetsConnected(multistream)
-			conditions[i] = health.NewCondition(cond.Type, ts, &status, nil, cond)
+			conditions[i] = health.NewCondition(cond.Type, ts, &status, cond)
 		}
 	}
 
@@ -101,7 +101,7 @@ func findOrCreateMultistreamStatus(multistream []*health.MultistreamStatus, targ
 
 	multistream = append(multistream, &health.MultistreamStatus{
 		Target:    target,
-		Connected: health.NewCondition("", time.Time{}, nil, nil, nil),
+		Connected: health.NewCondition("", time.Time{}, nil, nil),
 	})
 	return multistream, len(multistream) - 1
 }
