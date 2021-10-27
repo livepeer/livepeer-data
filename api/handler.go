@@ -15,6 +15,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/julienschmidt/httprouter"
 	"github.com/livepeer/livepeer-data/health"
+	"github.com/livepeer/livepeer-data/health/reducers"
 	"github.com/livepeer/livepeer-data/pkg/data"
 	"github.com/livepeer/livepeer-data/pkg/jsse"
 )
@@ -78,7 +79,7 @@ func (h *apiHandler) withRegionProxy(next httprouter.Handle) httprouter.Handle {
 		}
 		r = r.WithContext(context.WithValue(r.Context(), streamStatusKey, status))
 
-		streamRegion := status.LastActiveRegion
+		streamRegion := reducers.GetLastActiveData(status).Region
 		if h.opts.OwnRegion == "" || streamRegion == "" || streamRegion == h.opts.OwnRegion {
 			next(rw, r, params)
 			return
@@ -94,12 +95,14 @@ func (h *apiHandler) withRegionProxy(next httprouter.Handle) httprouter.Handle {
 func regionProxyDirector(hostFormat string) func(req *http.Request) {
 	return func(req *http.Request) {
 		glog.V(8).Infof("Proxying request url=%s headers=%+v", req.URL, req.Header)
+		status := getStreamStatus(req)
+		streamRegion := reducers.GetLastActiveData(status).Region
+
 		req.URL.Scheme = "http"
 		if fwdProto := req.Header.Get("X-Forwarded-Proto"); fwdProto != "" {
 			req.URL.Scheme = fwdProto
 		}
-		status := getStreamStatus(req)
-		req.URL.Host = fmt.Sprintf(hostFormat, status.LastActiveRegion)
+		req.URL.Host = fmt.Sprintf(hostFormat, streamRegion)
 		req.Host = req.URL.Host
 
 		req.Header.Set(proxyLoopHeader, "analyzer")

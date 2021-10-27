@@ -17,13 +17,10 @@ import (
 // with mutated fields. Notice that you still need to clone the internal slices
 // if you want to do any mutations to them.
 type Status struct {
-	ID               string       `json:"id"`
-	Healthy          *Condition   `json:"healthy"`
-	LastActiveRegion string       `json:"lastActiveRegion"`
-	Conditions       []*Condition `json:"conditions"`
-	Metrics          MetricsMap   `json:"metrics,omitempty"`
-	// TODO: Move this `multistream` field somewhere else to make this struct more
-	// generic. Maybe condition dimensions/extraArgs?
+	ID          string               `json:"id"`
+	Healthy     *Condition           `json:"healthy"`
+	Conditions  []*Condition         `json:"conditions"`
+	Metrics     MetricsMap           `json:"metrics,omitempty"`
 	Multistream []*MultistreamStatus `json:"multistream,omitempty"`
 }
 
@@ -37,6 +34,7 @@ type ConditionType string
 type Condition struct {
 	Type               ConditionType        `json:"type,omitempty"`
 	Status             *bool                `json:"status"`
+	ExtraData          interface{}          `json:"extraData,omitempty"`
 	Frequency          stats.ByWindow       `json:"frequency,omitempty"`
 	LastProbeTime      *data.UnixMillisTime `json:"lastProbeTime"`
 	LastTransitionTime *data.UnixMillisTime `json:"lastTransitionsTime"`
@@ -74,9 +72,6 @@ func NewMergedStatus(base *Status, values Status) *Status {
 	if values.Healthy != nil {
 		new.Healthy = values.Healthy
 	}
-	if values.LastActiveRegion != "" {
-		new.LastActiveRegion = values.LastActiveRegion
-	}
 	if values.Conditions != nil {
 		new.Conditions = values.Conditions
 	}
@@ -89,19 +84,28 @@ func NewMergedStatus(base *Status, values Status) *Status {
 	return &new
 }
 
-func (s Status) ConditionsCopy() []*Condition {
+func (s *Status) Condition(typ ConditionType) *Condition {
+	for _, cond := range s.Conditions {
+		if cond.Type == typ {
+			return cond
+		}
+	}
+	return nil
+}
+
+func (s *Status) ConditionsCopy() []*Condition {
 	conditions := make([]*Condition, len(s.Conditions))
 	copy(conditions, s.Conditions)
 	return conditions
 }
 
-func (s Status) MultistreamCopy() []*MultistreamStatus {
+func (s *Status) MultistreamCopy() []*MultistreamStatus {
 	multistream := make([]*MultistreamStatus, len(s.Multistream))
 	copy(multistream, s.Multistream)
 	return multistream
 }
 
-func (s Status) MetricsCopy() MetricsMap {
+func (s *Status) MetricsCopy() MetricsMap {
 	metrics := make(MetricsMap, len(s.Metrics))
 	for k, v := range s.Metrics {
 		metrics[k] = v

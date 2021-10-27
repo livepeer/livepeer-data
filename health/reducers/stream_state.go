@@ -14,6 +14,11 @@ const (
 	ConditionActive health.ConditionType = "Active"
 )
 
+type ActiveConditionExtraData struct {
+	NodeID string `json:"nodeId"`
+	Region string `json:"region"`
+}
+
 type StreamStateReducer struct{}
 
 func (t StreamStateReducer) Bindings() []event.BindingArgs {
@@ -31,10 +36,8 @@ func (t StreamStateReducer) Reduce(current *health.Status, _ interface{}, evtIfa
 	}
 	glog.Infof("Stream state event: region=%s stream=%s active=%v", evt.Region, evt.StreamID(), evt.State.Active)
 
-	lastActiveRegion := current.LastActiveRegion
-	if evt.State.Active {
-		lastActiveRegion = evt.Region
-	} else if lastActiveRegion != "" && evt.Region != lastActiveRegion {
+	last := GetLastActiveData(current)
+	if !evt.State.Active && (evt.NodeID != last.NodeID || evt.Region != last.Region) {
 		glog.Infof("Ignoring inactive stream state event from previous session: region=%s stream=%s", evt.Region, evt.StreamID())
 		return current, nil
 	}
@@ -43,11 +46,20 @@ func (t StreamStateReducer) Reduce(current *health.Status, _ interface{}, evtIfa
 	for i, cond := range conditions {
 		if cond.Type == ConditionActive {
 			status := evt.State.Active
-			conditions[i] = health.NewCondition(cond.Type, evt.Timestamp(), &status, cond)
+			newCond := health.NewCondition(cond.Type, evt.Timestamp(), &status, cond)
+			newCond.ExtraData = ActiveConditionExtraData{NodeID: evt.NodeID, Region: evt.Region}
+			conditions[i] = newCond
 		}
 	}
 	return health.NewMergedStatus(current, health.Status{
-		LastActiveRegion: lastActiveRegion,
-		Conditions:       conditions,
+		Conditions: conditions,
 	}), nil
+}
+
+func GetLastActiveData(status *health.Status) ActiveConditionExtraData {
+	data, ok := status.Condition(ConditionActive).ExtraData.(ActiveConditionExtraData)
+	if !ok {
+		return ActiveConditionExtraData{}
+	}
+	return data
 }
