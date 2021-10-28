@@ -1,11 +1,11 @@
 package api
 
 import (
-	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
-	"strings"
 
+	"github.com/golang/glog"
 	"github.com/nbio/hitch"
 )
 
@@ -31,12 +31,11 @@ func authorization(authUrl string) hitch.Middleware {
 		}
 
 		if res.StatusCode != http.StatusOK {
-			outerErr := fmt.Errorf("authorization failed: %d %s", res.StatusCode, res.Status)
-			var errResp errorResponse
-			if err := json.NewDecoder(res.Body).Decode(&errResp); err == nil && len(errResp.Errors) > 0 {
-				outerErr = fmt.Errorf("authorization failed: %s", strings.Join(errResp.Errors, "; "))
+			rw.Header().Set("Content-Type", res.Header.Get("Content-Type"))
+			rw.WriteHeader(res.StatusCode)
+			if _, err := io.Copy(rw, res.Body); err != nil {
+				glog.Errorf("Error writing auth error response. err=%q, status=%d, headers=%+v", err, res.StatusCode, res.Header)
 			}
-			respondError(rw, res.StatusCode, outerErr)
 			return
 		}
 		next.ServeHTTP(rw, r)
