@@ -55,6 +55,9 @@ func (t MediaServerMetrics) Reduce(current *health.Status, _ interface{}, evtIfa
 }
 
 func multistreamMetrics(current *health.Status, ts time.Time, nodeID string, ms *data.MultistreamTargetMetrics) []*health.Metric {
+	if ms.Metrics == nil {
+		return nil
+	}
 	msDims := map[string]string{
 		"nodeId":        nodeID,
 		"targetId":      ms.Target.ID,
