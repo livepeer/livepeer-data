@@ -36,8 +36,10 @@ func authorization(authUrl string) hitch.Middleware {
 			return
 		}
 
-		if res.StatusCode != http.StatusOK {
-			rw.Header().Set("Content-Type", res.Header.Get("Content-Type"))
+		if res.StatusCode != http.StatusOK && res.StatusCode != http.StatusNoContent {
+			if contentType := res.Header.Get("Content-Type"); contentType != "" {
+				rw.Header().Set("Content-Type", contentType)
+			}
 			rw.WriteHeader(res.StatusCode)
 			if _, err := io.Copy(rw, res.Body); err != nil {
 				glog.Errorf("Error writing auth error response. err=%q, status=%d, headers=%+v", err, res.StatusCode, res.Header)
