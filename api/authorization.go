@@ -1,20 +1,26 @@
 package api
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/golang/glog"
 	"github.com/nbio/hitch"
 )
 
 var authorizationHeaders = []string{"Authorization", "Cookie"}
+var authTimeout = 3 * time.Second
 
 func authorization(authUrl string) hitch.Middleware {
 	return inlineMiddleware(func(rw http.ResponseWriter, r *http.Request, next http.Handler) {
+		ctx, cancel := context.WithTimeout(r.Context(), authTimeout)
+		defer cancel()
+
 		status := getStreamStatus(r)
-		req, err := http.NewRequestWithContext(r.Context(), r.Method, authUrl, nil)
+		req, err := http.NewRequestWithContext(ctx, r.Method, authUrl, nil)
 		if err != nil {
 			respondError(rw, http.StatusInternalServerError, err)
 			return
