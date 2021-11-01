@@ -24,7 +24,9 @@ services:
       rabbitmq-plugins enable --offline rabbitmq_stream
       bash <<EOF &
         until rabbitmqadmin --vhost=livepeer declare exchange name=lp_golivepeer_metadata type=topic && \
-              rabbitmqadmin --vhost=livepeer declare exchange name=webhook_default_exchange type=topic; do
+              rabbitmqadmin --vhost=livepeer declare exchange name=webhook_default_exchange type=topic && \
+              rabbitmqadmin --vhost=livepeer declare exchange name=lp_mist_api_connector type=topic && \
+              rabbitmqadmin --vhost=livepeer declare exchange name=lp_global_replication type=topic; do
           sleep 1;
         done
       EOF
