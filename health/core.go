@@ -106,9 +106,6 @@ func (c *Core) handleSingleEvent(evt data.Event) {
 	record.RUnlock()
 	// Only 1 go-routine processing events rn, so no need for locking here.
 	status, state = c.reducer.Reduce(status, state, evt)
-	if glog.V(4) && rand.Float32() < processLogSampleRate {
-		glog.Infof("Sampled: Health core processing event. streamID=%s, ts=%s, event=%+v status=%+v", streamID, ts, evt, status)
-	}
 
 	record.Lock()
 	defer record.Unlock()
@@ -119,6 +116,11 @@ func (c *Core) handleSingleEvent(evt data.Event) {
 	for _, remEvt := range removed {
 		delete(record.EventsByID, remEvt.ID())
 	}
+	if glog.V(4) && rand.Float32() < processLogSampleRate {
+		glog.Infof("Sampled: Health core processing event. streamID=%s, ts=%s, pastEventsLen=%d, removedPastEvents=%d, event=%+v status=%+v",
+			streamID, ts, len(record.PastEvents), len(removed), evt, status)
+	}
+
 	for _, subs := range record.EventSubs {
 		select {
 		case subs <- evt:
