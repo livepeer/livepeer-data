@@ -24,11 +24,8 @@ docker_run: deps_start docker
 		-e LP_HOST=0.0.0.0 -e LP_RABBITMQ_URI=amqp://rabbitmq:5672/livepeer \
 		$(dockerimg) $(args)
 
-docker_push:
-	for TAG in $(tags) ; \
-	do \
-		docker push $(dockerimg):$$TAG ; \
-	done;
+docker_ci:
+	docker buildx build --push --platform linux/amd64,linux/arm64 $(foreach tag,$(tags),-t $(dockerimg):$(tag)) .
 
 deps_start:
 	docker-compose up -d
