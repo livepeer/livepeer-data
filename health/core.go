@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/rand"
 	"sort"
 	"time"
 
@@ -16,7 +17,10 @@ import (
 var ErrStreamNotFound = errors.New("stream not found")
 var ErrEventNotFound = errors.New("event not found")
 
-const eventSubscriptionBufSize = 10
+const (
+	eventSubscriptionBufSize = 10
+	processLogSampleRate     = 0.04
+)
 
 // Purposedly made of built-in types only to bind directly to cli flags.
 type StreamingOptions struct {
@@ -102,6 +106,9 @@ func (c *Core) handleSingleEvent(evt data.Event) {
 	record.RUnlock()
 	// Only 1 go-routine processing events rn, so no need for locking here.
 	status, state = c.reducer.Reduce(status, state, evt)
+	if glog.V(4) && rand.Float32() < processLogSampleRate {
+		glog.Infof("Sampled: Health core processing event. streamID=%s, ts=%s, event=%+v status=%+v", streamID, ts, evt, status)
+	}
 
 	record.Lock()
 	defer record.Unlock()
