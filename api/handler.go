@@ -57,6 +57,7 @@ func NewHandler(serverCtx context.Context, opts APIHandlerOptions, healthcore *h
 func cors(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		rw.Header().Set("Access-Control-Allow-Origin", "*")
+		rw.Header().Set("Access-Control-Allow-Headers", "*")
 		next.ServeHTTP(rw, r)
 	})
 }
