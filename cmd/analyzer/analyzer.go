@@ -48,10 +48,12 @@ func init() {
 	// Server options
 	fs.StringVar(&serverOpts.Host, "host", "localhost", "Hostname to bind to")
 	fs.UintVar(&serverOpts.Port, "port", 8080, "Port to listen on")
+	fs.DurationVar(&serverOpts.ShutdownGracePeriod, "shutdown-grace-perod", 15*time.Second, "Grace period to wait for server shutdown before using the force")
+	// API Handler
 	fs.StringVar(&serverOpts.APIRoot, "api-root", "/data", "Root path where to bind the API to")
+	fs.StringVar(&serverOpts.AuthURL, "auth-url", "", "Endpoint for an auth server to call for both authentication and authorization of API calls")
 	fs.StringVar(&serverOpts.OwnRegion, "own-region", "", "Identifier of the region where the service is running, used for triggering global request proxying")
 	fs.StringVar(&serverOpts.RegionalHostFormat, "regional-host-format", "localhost", "Format to build regional URL for proxying to other regions. Should contain 1 %s directive where the region will be replaced (e.g. %s.livepeer.monster)")
-	fs.DurationVar(&serverOpts.ShutdownGracePeriod, "shutdown-grace-perod", 15*time.Second, "Grace period to wait for server shutdown before using the force")
 
 	// Streaming options
 	fs.StringVar(&streamingOpts.Stream, "rabbitmq-stream-name", "lp_stream_health_v0", "Name of RabbitMQ stream to create and consume from")

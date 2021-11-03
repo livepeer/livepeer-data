@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/rand"
 	"sort"
 	"time"
 
@@ -16,7 +17,10 @@ import (
 var ErrStreamNotFound = errors.New("stream not found")
 var ErrEventNotFound = errors.New("event not found")
 
-const eventSubscriptionBufSize = 10
+const (
+	eventSubscriptionBufSize = 10
+	processLogSampleRate     = 0.04
+)
 
 // Purposedly made of built-in types only to bind directly to cli flags.
 type StreamingOptions struct {
@@ -112,6 +116,11 @@ func (c *Core) handleSingleEvent(evt data.Event) {
 	for _, remEvt := range removed {
 		delete(record.EventsByID, remEvt.ID())
 	}
+	if glog.V(4) && rand.Float32() < processLogSampleRate {
+		glog.Infof("Sampled: Health core processing event. streamID=%s, ts=%s, pastEventsLen=%d, removedPastEvents=%d, event=%+v status=%+v",
+			streamID, ts, len(record.PastEvents), len(removed), evt, status)
+	}
+
 	for _, subs := range record.EventSubs {
 		select {
 		case subs <- evt:

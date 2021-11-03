@@ -5,6 +5,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/golang/glog"
 	"github.com/google/uuid"
 	"github.com/livepeer/livepeer-data/pkg/data"
 )
@@ -75,15 +76,20 @@ func (s *RecordStorage) StartCleanupLoop(ctx context.Context, ttl time.Duration)
 			select {
 			case <-ticker.C:
 				threshold := time.Now().Add(-ttl)
+				recordsLen := 0
 				s.records.Range(func(key interface{}, value interface{}) bool {
+					recordsLen++
 					record := value.(*Record)
 					lastProbeTime := record.LastStatus.Healthy.LastProbeTime
 					if lastProbeTime != nil && lastProbeTime.Before(threshold) {
+						glog.Infof("Disposing of health record. id=%q, lastProbeTime=%q, ttl=%q", record.ID, lastProbeTime, ttl)
 						close(record.disposed)
 						s.records.Delete(key)
+						recordsLen--
 					}
 					return true
 				})
+				glog.Infof("Finished records clean-up loop. len=%d", recordsLen)
 			case <-ctx.Done():
 				// erase any dangling references
 				s.records = sync.Map{}
@@ -104,6 +110,7 @@ func (s *RecordStorage) GetOrCreate(id string, conditions []ConditionType) *Reco
 	if saved, ok := s.Get(id); ok {
 		return saved
 	}
+	glog.Infof("Creating new health record. id=%q", id)
 	new := NewRecord(id, conditions)
 	if actual, loaded := s.records.LoadOrStore(id, new); loaded {
 		return actual.(*Record)

@@ -5,7 +5,7 @@ go 1.16
 require (
 	github.com/golang/glog v0.0.0-20210429001901-424d2337a529
 	github.com/google/uuid v1.3.0
-	github.com/julienschmidt/httprouter v1.3.0
+	github.com/nbio/hitch v0.0.0-20200727225606-6dd6dd293f2b
 	github.com/peterbourgon/ff v1.7.0
 	github.com/rabbitmq/amqp091-go v1.1.0
 	github.com/rabbitmq/rabbitmq-stream-go-client v0.1.0-beta.0.20211027081212-fd5e6d497413

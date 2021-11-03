@@ -60,7 +60,10 @@ func (t TranscodeReducer) Reduce(current *health.Status, _ interface{}, evtIface
 		}
 	}
 	dimensions := map[string]string{"nodeId": evt.NodeID}
-	metrics := current.MetricsCopy().Add(health.NewMetric(MetricTranscodeRealtimeRatio, dimensions, ts, realtimeRatio(evt)))
+	var metrics health.MetricsMap
+	if rtRatio, ok := realtimeRatio(evt); ok {
+		metrics = current.MetricsCopy().Add(health.NewMetric(MetricTranscodeRealtimeRatio, dimensions, ts, rtRatio))
+	}
 
 	return health.NewMergedStatus(current, health.Status{
 		Conditions: conditions,
@@ -73,7 +76,8 @@ func conditionStatus(evt *data.TranscodeEvent, condType health.ConditionType) *b
 	case ConditionTranscoding:
 		return &evt.Success
 	case ConditionTranscodeRealTime:
-		isRealTime := realtimeRatio(evt) >= 1
+		ratio, ok := realtimeRatio(evt)
+		isRealTime := ok && ratio >= 1
 		return &isRealTime
 	case ConditionTranscodeNoErrors:
 		noErrors := true
@@ -86,6 +90,9 @@ func conditionStatus(evt *data.TranscodeEvent, condType health.ConditionType) *b
 	}
 }
 
-func realtimeRatio(evt *data.TranscodeEvent) float64 {
-	return float64(evt.Segment.Duration*1000) / float64(evt.LatencyMs)
+func realtimeRatio(evt *data.TranscodeEvent) (float64, bool) {
+	if evt.LatencyMs == 0 {
+		return 0, false
+	}
+	return float64(evt.Segment.Duration*1000) / float64(evt.LatencyMs), true
 }
