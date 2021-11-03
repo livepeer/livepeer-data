@@ -8,6 +8,6 @@ require (
 	github.com/nbio/hitch v0.0.0-20200727225606-6dd6dd293f2b
 	github.com/peterbourgon/ff v1.7.0
 	github.com/rabbitmq/amqp091-go v1.1.0
-	github.com/rabbitmq/rabbitmq-stream-go-client v0.1.0-beta.0.20211027081212-fd5e6d497413
+	github.com/rabbitmq/rabbitmq-stream-go-client v0.1.0-RC1
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 )
