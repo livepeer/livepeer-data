@@ -37,7 +37,7 @@ type Condition struct {
 	ExtraData          interface{}          `json:"extraData,omitempty"`
 	Frequency          stats.ByWindow       `json:"frequency,omitempty"`
 	LastProbeTime      *data.UnixMillisTime `json:"lastProbeTime"`
-	LastTransitionTime *data.UnixMillisTime `json:"lastTransitionsTime"`
+	LastTransitionTime *data.UnixMillisTime `json:"lastTransitionTime"`
 }
 
 type MetricName string
