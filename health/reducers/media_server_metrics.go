@@ -43,7 +43,7 @@ func (t MediaServerMetrics) Reduce(current *health.Status, _ interface{}, evtIfa
 		metrics.Add(health.NewMetric(MetricMediaTimeMillis, dims, ts, float64(*evt.Stats.MediaTimeMs)))
 	}
 	for _, ms := range evt.Multistream {
-		for _, metric := range multistreamMetrics(current, ts, evt.NodeID, ms) {
+		for _, metric := range multistreamMetrics(current, ts, evt.NodeID, evt.Region, ms) {
 			metrics.Add(metric)
 		}
 	}
@@ -54,12 +54,13 @@ func (t MediaServerMetrics) Reduce(current *health.Status, _ interface{}, evtIfa
 	return health.NewMergedStatus(current, health.Status{Metrics: metrics}), nil
 }
 
-func multistreamMetrics(current *health.Status, ts time.Time, nodeID string, ms *data.MultistreamTargetMetrics) []*health.Metric {
+func multistreamMetrics(current *health.Status, ts time.Time, nodeID, region string, ms *data.MultistreamTargetMetrics) []*health.Metric {
 	if ms.Metrics == nil {
 		return nil
 	}
 	msDims := map[string]string{
 		"nodeId":        nodeID,
+		"region":        region,
 		"targetId":      ms.Target.ID,
 		"targetName":    ms.Target.Name,
 		"targetProfile": ms.Target.Profile,
