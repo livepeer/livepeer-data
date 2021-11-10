@@ -37,7 +37,8 @@ func (t StreamStateReducer) Reduce(current *health.Status, _ interface{}, evtIfa
 	glog.Infof("Stream state event: region=%s stream=%s active=%v", evt.Region, evt.StreamID(), evt.State.Active)
 
 	last := GetLastActiveData(current)
-	if !evt.State.Active && (evt.NodeID != last.NodeID || evt.Region != last.Region) {
+	hasLast := last.NodeID != "" && last.Region != ""
+	if !evt.State.Active && hasLast && (evt.NodeID != last.NodeID || evt.Region != last.Region) {
 		glog.Infof("Ignoring inactive stream state event from previous session: region=%s stream=%s", evt.Region, evt.StreamID())
 		return current, nil
 	}
