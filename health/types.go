@@ -61,6 +61,16 @@ type Measure struct {
 
 // Status
 
+func NewStatus(id string, conditions []*Condition) *Status {
+	return &Status{
+		ID:          id,
+		Healthy:     NewCondition("", time.Time{}, nil, nil),
+		Conditions:  conditions,
+		Metrics:     MetricsMap{},
+		Multistream: []*MultistreamStatus{},
+	}
+}
+
 func NewMergedStatus(base *Status, values Status) *Status {
 	if base == nil {
 		return &values

@@ -25,22 +25,18 @@ type Record struct {
 	LastStatus   *Status
 }
 
-func NewRecord(id string, conditions []ConditionType) *Record {
-	rec := &Record{
+func NewRecord(id string, conditionTypes []ConditionType) *Record {
+	conditions := make([]*Condition, len(conditionTypes))
+	for i, cond := range conditionTypes {
+		conditions[i] = NewCondition(cond, time.Time{}, nil, nil)
+	}
+	return &Record{
 		ID:         id,
-		Conditions: conditions,
+		Conditions: conditionTypes,
 		disposed:   make(chan struct{}),
 		EventsByID: map[uuid.UUID]data.Event{},
-		LastStatus: &Status{
-			ID:         id,
-			Healthy:    NewCondition("", time.Time{}, nil, nil),
-			Conditions: make([]*Condition, len(conditions)),
-		},
+		LastStatus: NewStatus(id, conditions),
 	}
-	for i, cond := range conditions {
-		rec.LastStatus.Conditions[i] = NewCondition(cond, time.Time{}, nil, nil)
-	}
-	return rec
 }
 
 func (r *Record) SubscribeLocked(ctx context.Context, subs chan data.Event) chan data.Event {
