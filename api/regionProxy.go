@@ -30,6 +30,11 @@ func regionProxy(hostFormat, ownRegion string) hitch.Middleware {
 			respondError(rw, http.StatusLoopDetected, errors.New("proxy loop detected"))
 			return
 		}
+		// Clear any header we may have already set (e.g. CORS) to forward the
+		// response from the other region exactly as is.
+		for h := range rw.Header() {
+			rw.Header().Del(h)
+		}
 		proxy.ServeHTTP(rw, r)
 	})
 }
