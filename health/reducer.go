@@ -7,14 +7,14 @@ import (
 
 type Reducer interface {
 	Bindings() []event.BindingArgs
-	Conditions() []ConditionType
-	Reduce(current *Status, state interface{}, evt data.Event) (*Status, interface{})
+	Conditions() []data.ConditionType
+	Reduce(current *data.HealthStatus, state interface{}, evt data.Event) (*data.HealthStatus, interface{})
 }
 
-type ReducerFunc func(*Status, interface{}, data.Event) (*Status, interface{})
+type ReducerFunc func(*data.HealthStatus, interface{}, data.Event) (*data.HealthStatus, interface{})
 
-func (f ReducerFunc) Bindings() []event.BindingArgs { return nil }
-func (f ReducerFunc) Conditions() []ConditionType   { return nil }
-func (f ReducerFunc) Reduce(current *Status, state interface{}, evt data.Event) (*Status, interface{}) {
+func (f ReducerFunc) Bindings() []event.BindingArgs    { return nil }
+func (f ReducerFunc) Conditions() []data.ConditionType { return nil }
+func (f ReducerFunc) Reduce(current *data.HealthStatus, state interface{}, evt data.Event) (*data.HealthStatus, interface{}) {
 	return f(current, state, evt)
 }

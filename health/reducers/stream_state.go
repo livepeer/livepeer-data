@@ -4,7 +4,6 @@ import (
 	"time"
 
 	"github.com/golang/glog"
-	"github.com/livepeer/livepeer-data/health"
 	"github.com/livepeer/livepeer-data/pkg/data"
 	"github.com/livepeer/livepeer-data/pkg/event"
 )
@@ -13,7 +12,7 @@ const (
 	globalExchange        = "lp_global_replication"
 	streamStateBindingKey = "stream.state.#"
 
-	ConditionActive health.ConditionType = "Active"
+	ConditionActive data.ConditionType = "Active"
 )
 
 type ActiveConditionExtraData struct {
@@ -27,11 +26,11 @@ func (t StreamStateReducer) Bindings() []event.BindingArgs {
 	return []event.BindingArgs{{Exchange: globalExchange, Key: streamStateBindingKey}}
 }
 
-func (t StreamStateReducer) Conditions() []health.ConditionType {
-	return []health.ConditionType{ConditionActive}
+func (t StreamStateReducer) Conditions() []data.ConditionType {
+	return []data.ConditionType{ConditionActive}
 }
 
-func (t StreamStateReducer) Reduce(current *health.Status, _ interface{}, evtIface data.Event) (*health.Status, interface{}) {
+func (t StreamStateReducer) Reduce(current *data.HealthStatus, _ interface{}, evtIface data.Event) (*data.HealthStatus, interface{}) {
 	evt, ok := evtIface.(*data.StreamStateEvent)
 	if !ok {
 		return current, nil
@@ -52,29 +51,29 @@ func (t StreamStateReducer) Reduce(current *health.Status, _ interface{}, evtIfa
 		// TODO: We should actually make the stream state indexed by the session ID
 		// not to need this. Would need to add session ID in all event payloads.
 		conditions = clearConditions(conditions)
-		current = health.NewStatus(current.ID, conditions)
+		current = data.NewHealthStatus(current.ID, conditions)
 	}
 	for i, cond := range conditions {
 		if cond.Type == ConditionActive {
-			newCond := health.NewCondition(cond.Type, evt.Timestamp(), &isActive, cond)
+			newCond := data.NewCondition(cond.Type, evt.Timestamp(), &isActive, cond)
 			newCond.ExtraData = ActiveConditionExtraData{NodeID: evt.NodeID, Region: evt.Region}
 			conditions[i] = newCond
 		}
 	}
-	return health.NewMergedStatus(current, health.Status{
+	return data.NewMergedHealthStatus(current, data.HealthStatus{
 		Conditions: conditions,
 	}), nil
 }
 
-func clearConditions(conditions []*health.Condition) []*health.Condition {
-	cleared := make([]*health.Condition, len(conditions))
+func clearConditions(conditions []*data.Condition) []*data.Condition {
+	cleared := make([]*data.Condition, len(conditions))
 	for i, cond := range conditions {
-		cleared[i] = health.NewCondition(cond.Type, time.Time{}, nil, nil)
+		cleared[i] = data.NewCondition(cond.Type, time.Time{}, nil, nil)
 	}
 	return cleared
 }
 
-func GetLastActiveData(status *health.Status) ActiveConditionExtraData {
+func GetLastActiveData(status *data.HealthStatus) ActiveConditionExtraData {
 	data, ok := status.Condition(ConditionActive).ExtraData.(ActiveConditionExtraData)
 	if !ok {
 		return ActiveConditionExtraData{}

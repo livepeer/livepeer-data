@@ -5,7 +5,7 @@ import (
 	"github.com/livepeer/livepeer-data/pkg/data"
 )
 
-var healthyRequirementDefaults = map[health.ConditionType]bool{
+var healthyRequirementDefaults = map[data.ConditionType]bool{
 	ConditionTranscoding:       false,
 	ConditionTranscodeRealTime: false,
 	ConditionMultistreaming:    true,
@@ -13,7 +13,7 @@ var healthyRequirementDefaults = map[health.ConditionType]bool{
 
 var HealthReducer = health.ReducerFunc(reduceHealth)
 
-func reduceHealth(current *health.Status, _ interface{}, evt data.Event) (*health.Status, interface{}) {
+func reduceHealth(current *data.HealthStatus, _ interface{}, evt data.Event) (*data.HealthStatus, interface{}) {
 	isHealthy := true
 	for _, cond := range current.Conditions {
 		status, isRequired := healthyRequirementDefaults[cond.Type]
@@ -28,7 +28,7 @@ func reduceHealth(current *health.Status, _ interface{}, evt data.Event) (*healt
 			break
 		}
 	}
-	healthyCond := health.NewCondition("", evt.Timestamp(), &isHealthy, current.Healthy)
+	healthyCond := data.NewCondition("", evt.Timestamp(), &isHealthy, current.Healthy)
 
-	return health.NewMergedStatus(current, health.Status{Healthy: healthyCond}), nil
+	return data.NewMergedHealthStatus(current, data.HealthStatus{Healthy: healthyCond}), nil
 }

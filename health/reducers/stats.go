@@ -10,18 +10,18 @@ import (
 
 type statsAggrs struct {
 	HealthStats    stats.WindowAggregators
-	ConditionStats map[health.ConditionType]stats.WindowAggregators
+	ConditionStats map[data.ConditionType]stats.WindowAggregators
 }
 
 func StatsReducer(statsWindows []time.Duration) health.ReducerFunc {
-	return func(current *health.Status, stateIface interface{}, evt data.Event) (*health.Status, interface{}) {
+	return func(current *data.HealthStatus, stateIface interface{}, evt data.Event) (*data.HealthStatus, interface{}) {
 		var state *statsAggrs
 		if stateIface != nil {
 			state = stateIface.(*statsAggrs)
 		} else {
 			state = &statsAggrs{
 				HealthStats:    stats.WindowAggregators{},
-				ConditionStats: map[health.ConditionType]stats.WindowAggregators{},
+				ConditionStats: map[data.ConditionType]stats.WindowAggregators{},
 			}
 		}
 
@@ -37,18 +37,18 @@ func StatsReducer(statsWindows []time.Duration) health.ReducerFunc {
 		}
 		healthy := reduceCondStats(current.Healthy, ts, state.HealthStats, statsWindows)
 
-		return health.NewMergedStatus(current, health.Status{
+		return data.NewMergedHealthStatus(current, data.HealthStatus{
 			Healthy:    healthy,
 			Conditions: conditions,
 		}), state
 	}
 }
 
-func reduceCondStats(cond *health.Condition, ts time.Time, statsAggr stats.WindowAggregators, statsWindows []time.Duration) *health.Condition {
+func reduceCondStats(cond *data.Condition, ts time.Time, statsAggr stats.WindowAggregators, statsWindows []time.Duration) *data.Condition {
 	if cond.LastProbeTime == nil || cond.LastProbeTime.Time != ts {
 		return cond
 	}
-	newCond := health.NewCondition(cond.Type, ts, cond.Status, cond)
+	newCond := data.NewCondition(cond.Type, ts, cond.Status, cond)
 	newCond.Frequency = statsAggr.Averages(statsWindows, ts, ptrBoolToFloat(cond.Status))
 	return newCond
 }

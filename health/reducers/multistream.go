@@ -6,13 +6,12 @@ import (
 	"time"
 
 	"github.com/golang/glog"
-	"github.com/livepeer/livepeer-data/health"
 	"github.com/livepeer/livepeer-data/pkg/data"
 	"github.com/livepeer/livepeer-data/pkg/event"
 )
 
 const (
-	ConditionMultistreaming health.ConditionType = "Multistreaming"
+	ConditionMultistreaming data.ConditionType = "Multistreaming"
 
 	webhooksExchange      = "webhook_default_exchange"
 	multistreamBindingKey = "events.multistream.#"
@@ -24,11 +23,11 @@ func (t MultistreamReducer) Bindings() []event.BindingArgs {
 	return []event.BindingArgs{{Exchange: webhooksExchange, Key: multistreamBindingKey}}
 }
 
-func (t MultistreamReducer) Conditions() []health.ConditionType {
-	return []health.ConditionType{ConditionMultistreaming}
+func (t MultistreamReducer) Conditions() []data.ConditionType {
+	return []data.ConditionType{ConditionMultistreaming}
 }
 
-func (t MultistreamReducer) Reduce(current *health.Status, _ interface{}, evtIface data.Event) (*health.Status, interface{}) {
+func (t MultistreamReducer) Reduce(current *data.HealthStatus, _ interface{}, evtIface data.Event) (*data.HealthStatus, interface{}) {
 	evt, ok := evtIface.(*data.WebhookEvent)
 	if !ok {
 		return current, nil
@@ -49,9 +48,9 @@ func (t MultistreamReducer) Reduce(current *health.Status, _ interface{}, evtIfa
 	multistream, idx := findOrCreateMultistreamStatus(multistream, target)
 	if status := connectedStatusFromEvent(evt); status != nil {
 		currConnected := multistream[idx].Connected
-		multistream[idx] = &health.MultistreamStatus{
+		multistream[idx] = &data.MultistreamStatus{
 			Target:    target,
-			Connected: health.NewCondition("", ts, status, currConnected),
+			Connected: data.NewCondition("", ts, status, currConnected),
 		}
 	}
 
@@ -59,17 +58,17 @@ func (t MultistreamReducer) Reduce(current *health.Status, _ interface{}, evtIfa
 	for i, cond := range conditions {
 		if cond.Type == ConditionMultistreaming {
 			status := allTargetsConnected(multistream)
-			conditions[i] = health.NewCondition(cond.Type, ts, &status, cond)
+			conditions[i] = data.NewCondition(cond.Type, ts, &status, cond)
 		}
 	}
 
-	return health.NewMergedStatus(current, health.Status{
+	return data.NewMergedHealthStatus(current, data.HealthStatus{
 		Conditions:  conditions,
 		Multistream: multistream,
 	}), nil
 }
 
-func allTargetsConnected(multistream []*health.MultistreamStatus) bool {
+func allTargetsConnected(multistream []*data.MultistreamStatus) bool {
 	for _, ms := range multistream {
 		if ms.Connected.Status == nil || !*ms.Connected.Status {
 			return false
@@ -92,16 +91,16 @@ func connectedStatusFromEvent(evt *data.WebhookEvent) *bool {
 	return &connected
 }
 
-func findOrCreateMultistreamStatus(multistream []*health.MultistreamStatus, target data.MultistreamTargetInfo) ([]*health.MultistreamStatus, int) {
+func findOrCreateMultistreamStatus(multistream []*data.MultistreamStatus, target data.MultistreamTargetInfo) ([]*data.MultistreamStatus, int) {
 	for idx, ms := range multistream {
 		if targetsEq(ms.Target, target) {
 			return multistream, idx
 		}
 	}
 
-	multistream = append(multistream, &health.MultistreamStatus{
+	multistream = append(multistream, &data.MultistreamStatus{
 		Target:    target,
-		Connected: health.NewCondition("", time.Time{}, nil, nil),
+		Connected: data.NewCondition("", time.Time{}, nil, nil),
 	})
 	return multistream, len(multistream) - 1
 }

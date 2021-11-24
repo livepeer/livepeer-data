@@ -1,22 +1,21 @@
-package health
+package data
 
 import (
 	"encoding/json"
 	"fmt"
 	"time"
 
-	"github.com/livepeer/livepeer-data/pkg/data"
 	"github.com/livepeer/livepeer-data/stats"
 )
 
-// Status is a soft-immutable struct. It should never be modified inline or a
+// HealthStatus is a soft-immutable struct. It should never be modified inline or a
 // lot of things could become inconsistent. Create a new instance/copy for any
 // mutation to be performed and beware of the internal slices and pointers.
 //
 // Use NewMergedStatus below to facilitate the creation of new status objects
 // with mutated fields. Notice that you still need to clone the internal slices
 // if you want to do any mutations to them.
-type Status struct {
+type HealthStatus struct {
 	ID          string               `json:"id"`
 	Healthy     *Condition           `json:"healthy"`
 	Conditions  []*Condition         `json:"conditions"`
@@ -25,19 +24,19 @@ type Status struct {
 }
 
 type MultistreamStatus struct {
-	Target    data.MultistreamTargetInfo `json:"target"`
-	Connected *Condition                 `json:"connected"`
+	Target    MultistreamTargetInfo `json:"target"`
+	Connected *Condition            `json:"connected"`
 }
 
 type ConditionType string
 
 type Condition struct {
-	Type               ConditionType        `json:"type,omitempty"`
-	Status             *bool                `json:"status"`
-	ExtraData          interface{}          `json:"extraData,omitempty"`
-	Frequency          stats.ByWindow       `json:"frequency,omitempty"`
-	LastProbeTime      *data.UnixMillisTime `json:"lastProbeTime"`
-	LastTransitionTime *data.UnixMillisTime `json:"lastTransitionTime"`
+	Type               ConditionType   `json:"type,omitempty"`
+	Status             *bool           `json:"status"`
+	ExtraData          interface{}     `json:"extraData,omitempty"`
+	Frequency          stats.ByWindow  `json:"frequency,omitempty"`
+	LastProbeTime      *UnixMillisTime `json:"lastProbeTime"`
+	LastTransitionTime *UnixMillisTime `json:"lastTransitionTime"`
 }
 
 type MetricName string
@@ -61,8 +60,8 @@ type Measure struct {
 
 // Status
 
-func NewStatus(id string, conditions []*Condition) *Status {
-	return &Status{
+func NewHealthStatus(id string, conditions []*Condition) *HealthStatus {
+	return &HealthStatus{
 		ID:          id,
 		Healthy:     NewCondition("", time.Time{}, nil, nil),
 		Conditions:  conditions,
@@ -71,7 +70,7 @@ func NewStatus(id string, conditions []*Condition) *Status {
 	}
 }
 
-func NewMergedStatus(base *Status, values Status) *Status {
+func NewMergedHealthStatus(base *HealthStatus, values HealthStatus) *HealthStatus {
 	if base == nil {
 		return &values
 	}
@@ -94,7 +93,7 @@ func NewMergedStatus(base *Status, values Status) *Status {
 	return &new
 }
 
-func (s *Status) Condition(typ ConditionType) *Condition {
+func (s *HealthStatus) Condition(typ ConditionType) *Condition {
 	for _, cond := range s.Conditions {
 		if cond.Type == typ {
 			return cond
@@ -103,19 +102,19 @@ func (s *Status) Condition(typ ConditionType) *Condition {
 	return nil
 }
 
-func (s *Status) ConditionsCopy() []*Condition {
+func (s *HealthStatus) ConditionsCopy() []*Condition {
 	conditions := make([]*Condition, len(s.Conditions))
 	copy(conditions, s.Conditions)
 	return conditions
 }
 
-func (s *Status) MultistreamCopy() []*MultistreamStatus {
+func (s *HealthStatus) MultistreamCopy() []*MultistreamStatus {
 	multistream := make([]*MultistreamStatus, len(s.Multistream))
 	copy(multistream, s.Multistream)
 	return multistream
 }
 
-func (s *Status) MetricsCopy() MetricsMap {
+func (s *HealthStatus) MetricsCopy() MetricsMap {
 	metrics := make(MetricsMap, len(s.Metrics))
 	for k, v := range s.Metrics {
 		metrics[k] = v
@@ -131,7 +130,7 @@ func NewCondition(condType ConditionType, ts time.Time, status *bool, last *Cond
 		*cond = *last
 	}
 	if status != nil {
-		cond.LastProbeTime = &data.UnixMillisTime{Time: ts}
+		cond.LastProbeTime = &UnixMillisTime{Time: ts}
 		if cond.Status == nil || *status != *cond.Status {
 			cond.LastTransitionTime = cond.LastProbeTime
 		}
@@ -194,7 +193,7 @@ func (m *Metric) Matches(name MetricName, odim map[string]string) bool {
 // Measure
 
 func (m Measure) MarshalJSON() ([]byte, error) {
-	return json.Marshal([]interface{}{data.UnixMillisTime{Time: m.Timestamp}, m.Value})
+	return json.Marshal([]interface{}{UnixMillisTime{Time: m.Timestamp}, m.Value})
 }
 
 func (m *Measure) UnmarshalJSON(raw []byte) error {
@@ -204,7 +203,7 @@ func (m *Measure) UnmarshalJSON(raw []byte) error {
 	} else if len(arr) != 2 {
 		return fmt.Errorf("invalid measure slice (%v), must have exactly 2 elements", arr)
 	}
-	millisTs := data.NewUnixMillisTime(int64(arr[0]))
+	millisTs := NewUnixMillisTime(int64(arr[0]))
 	m.Timestamp, m.Value = millisTs.Time, arr[1]
 	return nil
 }

@@ -26,9 +26,9 @@ func (p Pipeline) Bindings() []event.BindingArgs {
 	return bindings
 }
 
-func (p Pipeline) Conditions() []health.ConditionType {
-	added := map[health.ConditionType]bool{}
-	conds := []health.ConditionType{}
+func (p Pipeline) Conditions() []data.ConditionType {
+	added := map[data.ConditionType]bool{}
+	conds := []data.ConditionType{}
 	for _, reducer := range p {
 		for _, newCond := range reducer.Conditions() {
 			if added[newCond] {
@@ -42,7 +42,7 @@ func (p Pipeline) Conditions() []health.ConditionType {
 	return conds
 }
 
-func (p Pipeline) Reduce(current *health.Status, stateIface interface{}, evt data.Event) (*health.Status, interface{}) {
+func (p Pipeline) Reduce(current *data.HealthStatus, stateIface interface{}, evt data.Event) (*data.HealthStatus, interface{}) {
 	var state []interface{}
 	if stateIface != nil {
 		state = stateIface.([]interface{})

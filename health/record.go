@@ -12,7 +12,7 @@ import (
 
 type Record struct {
 	ID         string
-	Conditions []ConditionType
+	Conditions []data.ConditionType
 
 	sync.RWMutex
 	disposed chan struct{}
@@ -22,20 +22,20 @@ type Record struct {
 	EventSubs  []chan<- data.Event
 
 	ReducerState interface{}
-	LastStatus   *Status
+	LastStatus   *data.HealthStatus
 }
 
-func NewRecord(id string, conditionTypes []ConditionType) *Record {
-	conditions := make([]*Condition, len(conditionTypes))
+func NewRecord(id string, conditionTypes []data.ConditionType) *Record {
+	conditions := make([]*data.Condition, len(conditionTypes))
 	for i, cond := range conditionTypes {
-		conditions[i] = NewCondition(cond, time.Time{}, nil, nil)
+		conditions[i] = data.NewCondition(cond, time.Time{}, nil, nil)
 	}
 	return &Record{
 		ID:         id,
 		Conditions: conditionTypes,
 		disposed:   make(chan struct{}),
 		EventsByID: map[uuid.UUID]data.Event{},
-		LastStatus: NewStatus(id, conditions),
+		LastStatus: data.NewHealthStatus(id, conditions),
 	}
 }
 
@@ -102,7 +102,7 @@ func (s *RecordStorage) Get(id string) (*Record, bool) {
 	return nil, false
 }
 
-func (s *RecordStorage) GetOrCreate(id string, conditions []ConditionType) *Record {
+func (s *RecordStorage) GetOrCreate(id string, conditions []data.ConditionType) *Record {
 	if saved, ok := s.Get(id); ok {
 		return saved
 	}
