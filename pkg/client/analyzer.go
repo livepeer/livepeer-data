@@ -90,7 +90,9 @@ func (a *analyzer) doGet(ctx context.Context, url string) ([]byte, error) {
 			url, resp.StatusCode, took, string(body))
 	}
 	if resp.StatusCode != http.StatusOK {
-		glog.Errorf("Status error from analyzer url=%q, status=%d, body=%q", url, resp.StatusCode, string(body))
+		if glog.V(7) || resp.StatusCode != http.StatusNotFound {
+			glog.Errorf("Status error from analyzer url=%q, status=%d, body=%q", url, resp.StatusCode, string(body))
+		}
 		var errResp errorResponse
 		if err := json.Unmarshal(body, &errResp); err != nil {
 			glog.Errorf("Failed to parse error response url=%q, status=%d, err=%q", url, resp.StatusCode, err)
