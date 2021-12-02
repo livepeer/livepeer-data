@@ -34,12 +34,6 @@ type AMQPProducer struct {
 	shutdownDone  context.CancelFunc
 }
 
-type AMQPChanPublisher interface {
-	Publish(exchange, key string, mandatory, immediate bool, msg amqp.Publishing) error
-}
-
-type AMQPConnectFunc func(ctx context.Context, uri string, confirms chan amqp.Confirmation, closed chan *amqp.Error) (AMQPChanPublisher, error)
-
 func NewAMQPProducer(uri string, connectFn AMQPConnectFunc) (*AMQPProducer, error) {
 	testCtx, cancel := context.WithCancel(context.Background())
 	_, err := connectFn(testCtx, uri, nil, nil)
@@ -253,40 +247,4 @@ func (p *AMQPProducer) isShuttingDown() bool {
 
 func (p *AMQPProducer) isShutdownDone() bool {
 	return p.shutdownCtx.Err() != nil
-}
-
-func NewAMQPConnectFunc(setup func(c *amqp.Channel) error) AMQPConnectFunc {
-	return func(ctx context.Context, uri string, confirms chan amqp.Confirmation, closed chan *amqp.Error) (AMQPChanPublisher, error) {
-		conn, err := amqp.Dial(uri)
-		if err != nil {
-			return nil, fmt.Errorf("dial: %w", err)
-		}
-		go func() {
-			<-ctx.Done()
-			conn.Close()
-		}()
-
-		channel, err := conn.Channel()
-		if err != nil {
-			conn.Close()
-			return nil, fmt.Errorf("open channel: %w", err)
-		}
-		if err := channel.Confirm(false); err != nil {
-			conn.Close()
-			return nil, fmt.Errorf("request confirms: %w", err)
-		}
-		if setup != nil {
-			if err := setup(channel); err != nil {
-				conn.Close()
-				return nil, fmt.Errorf("channel setup: %w", err)
-			}
-		}
-		if confirms != nil {
-			channel.NotifyPublish(confirms)
-		}
-		if closed != nil {
-			channel.NotifyClose(closed)
-		}
-		return channel, nil
-	}
 }

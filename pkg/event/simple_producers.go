@@ -4,12 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-
-	amqp "github.com/rabbitmq/amqp091-go"
 )
 
 func NewAMQPExchangeProducer(ctx context.Context, uri, exchange, keyNs string) (Producer, error) {
-	connectFunc := NewAMQPConnectFunc(func(channel *amqp.Channel) error {
+	connectFunc := NewAMQPConnectFunc(func(channel AMQPChanSetup) error {
 		err := channel.ExchangeDeclare(exchange, "topic", true, false, false, false, nil)
 		if err != nil {
 			return fmt.Errorf("exchange declare: %w", err)
@@ -33,7 +31,7 @@ func NewAMQPExchangeProducer(ctx context.Context, uri, exchange, keyNs string) (
 }
 
 func NewAMQPQueueProducer(ctx context.Context, uri, queue string) (Producer, error) {
-	connectFunc := NewAMQPConnectFunc(func(channel *amqp.Channel) error {
+	connectFunc := NewAMQPConnectFunc(func(channel AMQPChanSetup) error {
 		_, err := channel.QueueDeclare(queue, true, false, false, false, nil)
 		if err != nil {
 			return fmt.Errorf("queue declare: %w", err)
