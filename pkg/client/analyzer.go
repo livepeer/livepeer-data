@@ -96,7 +96,7 @@ func (a *analyzer) doGet(ctx context.Context, url string) ([]byte, error) {
 		var errResp errorResponse
 		if err := json.Unmarshal(body, &errResp); err != nil {
 			glog.Errorf("Failed to parse error response url=%q, status=%d, err=%q", url, resp.StatusCode, err)
-			errResp.Errors = []string{string(body)}
+			errResp.Errors = []string{strings.TrimSpace(string(body))}
 		}
 		return nil, APIError{resp.StatusCode, errResp.Errors}
 	}
