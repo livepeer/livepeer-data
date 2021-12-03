@@ -8,10 +8,6 @@ import (
 	"github.com/rabbitmq/rabbitmq-stream-go-client/pkg/stream"
 )
 
-type Producer interface {
-	Publish(ctx context.Context, key string, body interface{}, persistent bool) error
-}
-
 type (
 	BindingArgs struct {
 		Key      string
@@ -45,5 +41,9 @@ type (
 		Consume(ctx context.Context, opts ConsumeOptions, handler Handler) error
 		CheckConnection() error
 		Close() error
+	}
+
+	Producer interface {
+		Publish(ctx context.Context, key string, body interface{}, persistent bool) error
 	}
 )

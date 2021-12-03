@@ -11,8 +11,6 @@ import (
 type AMQPChanOps interface {
 	Publish(exchange, key string, mandatory, immediate bool, msg amqp.Publishing) error
 	Consume(queue, consumer string, autoAck, exclusive, noLocal, noWait bool, args amqp.Table) (<-chan amqp.Delivery, error)
-	Ack(uint64, bool) error
-	Nack(uint64, bool, bool) error
 }
 
 type AMQPChanSetup interface {
