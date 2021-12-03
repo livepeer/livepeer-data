@@ -21,7 +21,7 @@ type subscription struct {
 	concurrency int
 }
 
-type AMQPConsumer struct {
+type amqpConsumer struct {
 	amqpURI   string
 	connectFn AMQPConnectFunc
 
@@ -34,9 +34,9 @@ type AMQPConsumer struct {
 	shutdown    context.CancelFunc
 }
 
-func NewAMQPConsumer(uri string, connectFn AMQPConnectFunc) (*AMQPConsumer, error) {
+func NewAMQPConsumer(uri string, connectFn AMQPConnectFunc) (AMQPConsumer, error) {
 	shutCtx, shutdown := context.WithCancel(context.Background())
-	amqp := &AMQPConsumer{
+	amqp := &amqpConsumer{
 		amqpURI:   uri,
 		connectFn: connectFn,
 		// subsChan:      make(chan *subscription, 5),
@@ -51,7 +51,10 @@ func NewAMQPConsumer(uri string, connectFn AMQPConnectFunc) (*AMQPConsumer, erro
 }
 
 // Shutdown will try to gracefully stop the background event consuming process.
-func (c *AMQPConsumer) Shutdown() error {
+func (c *amqpConsumer) Shutdown(context.Context) error {
+	if c.shutdownCtx.Err() != nil {
+		return ErrConsumerClosed
+	}
 	c.shutdown()
 	return nil
 }
@@ -64,7 +67,7 @@ func (c *AMQPConsumer) Shutdown() error {
 //
 // There is currently no way to cancel a consumption after it has started.
 // Shutdown the whole consumer if you need that.
-func (c *AMQPConsumer) Consume(queue string, concurrency int, handler AMQPMessageHandler) error {
+func (c *amqpConsumer) Consume(queue string, concurrency int, handler AMQPMessageHandler) error {
 	if c.shutdownCtx.Err() != nil {
 		return ErrConsumerClosed
 	}
@@ -79,7 +82,7 @@ func (c *AMQPConsumer) Consume(queue string, concurrency int, handler AMQPMessag
 	return nil
 }
 
-func (c *AMQPConsumer) reconnectLoop() {
+func (c *amqpConsumer) reconnectLoop() {
 	// initial state is already connected
 	for {
 		<-time.After(RetryMinDelay)
@@ -96,7 +99,7 @@ func (c *AMQPConsumer) reconnectLoop() {
 	}
 }
 
-func (c *AMQPConsumer) connect() error {
+func (c *amqpConsumer) connect() error {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 	var (

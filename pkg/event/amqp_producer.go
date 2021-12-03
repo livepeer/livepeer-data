@@ -24,7 +24,7 @@ var (
 	ErrProducerClosed       = errors.New("amqp: producer closed")
 )
 
-type AMQPProducer struct {
+type amqpProducer struct {
 	amqpURI   string
 	publishQ  chan *publishMessage
 	connectFn AMQPConnectFunc
@@ -34,7 +34,7 @@ type AMQPProducer struct {
 	shutdownDone  context.CancelFunc
 }
 
-func NewAMQPProducer(uri string, connectFn AMQPConnectFunc) (*AMQPProducer, error) {
+func NewAMQPProducer(uri string, connectFn AMQPConnectFunc) (AMQPProducer, error) {
 	testCtx, cancel := context.WithCancel(context.Background())
 	_, err := connectFn(testCtx, uri, nil, nil)
 	cancel()
@@ -42,7 +42,7 @@ func NewAMQPProducer(uri string, connectFn AMQPConnectFunc) (*AMQPProducer, erro
 		return nil, err
 	}
 	shutCtx, shutDone := context.WithCancel(context.Background())
-	amqp := &AMQPProducer{
+	amqp := &amqpProducer{
 		amqpURI:       uri,
 		publishQ:      make(chan *publishMessage, PublishChannelSize),
 		connectFn:     connectFn,
@@ -62,7 +62,7 @@ func NewAMQPProducer(uri string, connectFn AMQPConnectFunc) (*AMQPProducer, erro
 // The Publish function must not be called concurrently with Shutdown or the
 // events sent concurrently may be lost (concurrent Publish and Shutdown
 // functions may succeed but the event never really gets sent).
-func (p *AMQPProducer) Shutdown(ctx context.Context) error {
+func (p *amqpProducer) Shutdown(ctx context.Context) error {
 	close(p.shutdownStart)
 
 	select {
@@ -80,7 +80,7 @@ type AMQPMessage struct {
 	Persistent    bool
 }
 
-func (p *AMQPProducer) Publish(ctx context.Context, msg AMQPMessage) error {
+func (p *amqpProducer) Publish(ctx context.Context, msg AMQPMessage) error {
 	if p.isShutdownDone() {
 		return ErrProducerClosed
 	} else if p.isShuttingDown() {
@@ -107,7 +107,7 @@ type publishMessage struct {
 	retries int
 }
 
-func (p *AMQPProducer) newPublishMessage(msg AMQPMessage, bodyRaw []byte) *publishMessage {
+func (p *amqpProducer) newPublishMessage(msg AMQPMessage, bodyRaw []byte) *publishMessage {
 	deliveryMode := amqp.Transient
 	if msg.Persistent {
 		deliveryMode = amqp.Persistent
@@ -125,7 +125,7 @@ func (p *AMQPProducer) newPublishMessage(msg AMQPMessage, bodyRaw []byte) *publi
 	}
 }
 
-func (p *AMQPProducer) mainLoop() {
+func (p *amqpProducer) mainLoop() {
 	for {
 		retryAfter := time.After(RetryMinDelay)
 		err := p.connectAndLoopPublish()
@@ -138,7 +138,7 @@ func (p *AMQPProducer) mainLoop() {
 	}
 }
 
-func (p *AMQPProducer) connectAndLoopPublish() error {
+func (p *amqpProducer) connectAndLoopPublish() error {
 	defer func() {
 		if rec := recover(); rec != nil {
 			glog.Errorf("Panic in background AMQP publisher: value=%v", rec)
@@ -222,7 +222,7 @@ func (p *AMQPProducer) connectAndLoopPublish() error {
 	}
 }
 
-func (p *AMQPProducer) retryMsg(msg *publishMessage) {
+func (p *amqpProducer) retryMsg(msg *publishMessage) {
 	msg.retries++
 	if msg.retries >= MaxRetries {
 		glog.Errorf("Dropping message reaching max retries: exchange=%q, key=%q, body=%q", msg.Exchange, msg.Key, msg.Publishing.Body)
@@ -236,7 +236,7 @@ func (p *AMQPProducer) retryMsg(msg *publishMessage) {
 	}
 }
 
-func (p *AMQPProducer) isShuttingDown() bool {
+func (p *amqpProducer) isShuttingDown() bool {
 	select {
 	case <-p.shutdownStart:
 		return true
@@ -245,6 +245,6 @@ func (p *AMQPProducer) isShuttingDown() bool {
 	}
 }
 
-func (p *AMQPProducer) isShutdownDone() bool {
+func (p *amqpProducer) isShutdownDone() bool {
 	return p.shutdownCtx.Err() != nil
 }

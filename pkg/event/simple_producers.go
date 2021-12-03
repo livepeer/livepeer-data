@@ -6,7 +6,7 @@ import (
 	"fmt"
 )
 
-func NewAMQPExchangeProducer(ctx context.Context, uri, exchange, keyNs string) (Producer, error) {
+func NewAMQPExchangeProducer(ctx context.Context, uri, exchange, keyNs string) (SimpleProducer, error) {
 	connectFunc := NewAMQPConnectFunc(func(channel AMQPChanSetup) error {
 		err := channel.ExchangeDeclare(exchange, "topic", true, false, false, false, nil)
 		if err != nil {
@@ -30,7 +30,7 @@ func NewAMQPExchangeProducer(ctx context.Context, uri, exchange, keyNs string) (
 	}), nil
 }
 
-func NewAMQPQueueProducer(ctx context.Context, uri, queue string) (Producer, error) {
+func NewAMQPQueueProducer(ctx context.Context, uri, queue string) (SimpleProducer, error) {
 	connectFunc := NewAMQPConnectFunc(func(channel AMQPChanSetup) error {
 		_, err := channel.QueueDeclare(queue, true, false, false, false, nil)
 		if err != nil {
