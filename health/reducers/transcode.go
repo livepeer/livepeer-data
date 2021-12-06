@@ -3,22 +3,21 @@ package reducers
 import (
 	"fmt"
 
-	"github.com/livepeer/livepeer-data/health"
 	"github.com/livepeer/livepeer-data/pkg/data"
 	"github.com/livepeer/livepeer-data/pkg/event"
 )
 
 const (
-	ConditionTranscoding       health.ConditionType = "Transcoding"
-	ConditionTranscodeRealTime health.ConditionType = "TranscodeRealTime"
-	ConditionTranscodeNoErrors health.ConditionType = "TranscodeNoErrors"
+	ConditionTranscoding       data.ConditionType = "Transcoding"
+	ConditionTranscodeRealTime data.ConditionType = "TranscodeRealTime"
+	ConditionTranscodeNoErrors data.ConditionType = "TranscodeNoErrors"
 
-	MetricTranscodeRealtimeRatio health.MetricName = "TranscodeRealtimeRatio"
+	MetricTranscodeRealtimeRatio data.MetricName = "TranscodeRealtimeRatio"
 
 	transcodeBindingKeyFormat = "broadcaster.stream_health.transcode.%s.#"
 )
 
-var transcodeConditions = []health.ConditionType{ConditionTranscoding, ConditionTranscodeRealTime, ConditionTranscodeNoErrors}
+var transcodeConditions = []data.ConditionType{ConditionTranscoding, ConditionTranscodeRealTime, ConditionTranscodeNoErrors}
 
 type TranscodeReducer struct {
 	GolpExchange  string
@@ -42,11 +41,11 @@ func (t TranscodeReducer) Bindings() []event.BindingArgs {
 	return bindings
 }
 
-func (t TranscodeReducer) Conditions() []health.ConditionType {
+func (t TranscodeReducer) Conditions() []data.ConditionType {
 	return transcodeConditions
 }
 
-func (t TranscodeReducer) Reduce(current *health.Status, _ interface{}, evtIface data.Event) (*health.Status, interface{}) {
+func (t TranscodeReducer) Reduce(current *data.HealthStatus, _ interface{}, evtIface data.Event) (*data.HealthStatus, interface{}) {
 	evt, ok := evtIface.(*data.TranscodeEvent)
 	if !ok {
 		return current, nil
@@ -56,22 +55,22 @@ func (t TranscodeReducer) Reduce(current *health.Status, _ interface{}, evtIface
 	conditions := current.ConditionsCopy()
 	for i, cond := range conditions {
 		if status := conditionStatus(evt, cond.Type); status != nil {
-			conditions[i] = health.NewCondition(cond.Type, ts, status, cond)
+			conditions[i] = data.NewCondition(cond.Type, ts, status, cond)
 		}
 	}
 	dimensions := map[string]string{"nodeId": evt.NodeID}
-	var metrics health.MetricsMap
+	var metrics data.MetricsMap
 	if rtRatio, ok := realtimeRatio(evt); ok {
-		metrics = current.MetricsCopy().Add(health.NewMetric(MetricTranscodeRealtimeRatio, dimensions, ts, rtRatio))
+		metrics = current.MetricsCopy().Add(data.NewMetric(MetricTranscodeRealtimeRatio, dimensions, ts, rtRatio))
 	}
 
-	return health.NewMergedStatus(current, health.Status{
+	return data.NewMergedHealthStatus(current, data.HealthStatus{
 		Conditions: conditions,
 		Metrics:    metrics,
 	}), nil
 }
 
-func conditionStatus(evt *data.TranscodeEvent, condType health.ConditionType) *bool {
+func conditionStatus(evt *data.TranscodeEvent, condType data.ConditionType) *bool {
 	switch condType {
 	case ConditionTranscoding:
 		return &evt.Success

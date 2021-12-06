@@ -4,18 +4,17 @@ import (
 	"time"
 
 	"github.com/golang/glog"
-	"github.com/livepeer/livepeer-data/health"
 	"github.com/livepeer/livepeer-data/pkg/data"
 	"github.com/livepeer/livepeer-data/pkg/event"
 )
 
 const (
-	MetricViewerCount                health.MetricName = "ViewerCount"
-	MetricMediaTimeMillis            health.MetricName = "MediaTimeMillis"
-	MetricMultistreamMediaTimeMillis health.MetricName = "MultistreamMediaTimeMillis"
-	MetricMultistreamActiveSec       health.MetricName = "MultistreamActiveSec"
-	MetricMultistreamBytes           health.MetricName = "MultistreamBytes"
-	MetricMultistreamBitrateSec      health.MetricName = "MultistreamBitrateSec"
+	MetricViewerCount                data.MetricName = "ViewerCount"
+	MetricMediaTimeMillis            data.MetricName = "MediaTimeMillis"
+	MetricMultistreamMediaTimeMillis data.MetricName = "MultistreamMediaTimeMillis"
+	MetricMultistreamActiveSec       data.MetricName = "MultistreamActiveSec"
+	MetricMultistreamBytes           data.MetricName = "MultistreamBytes"
+	MetricMultistreamBitrateSec      data.MetricName = "MultistreamBitrateSec"
 
 	mediaServerExchange = "lp_mist_api_connector"
 	metricsBindingKey   = "stream.metrics.#"
@@ -27,11 +26,11 @@ func (t MediaServerMetrics) Bindings() []event.BindingArgs {
 	return []event.BindingArgs{{Exchange: mediaServerExchange, Key: metricsBindingKey}}
 }
 
-func (t MediaServerMetrics) Conditions() []health.ConditionType {
+func (t MediaServerMetrics) Conditions() []data.ConditionType {
 	return nil
 }
 
-func (t MediaServerMetrics) Reduce(current *health.Status, _ interface{}, evtIface data.Event) (*health.Status, interface{}) {
+func (t MediaServerMetrics) Reduce(current *data.HealthStatus, _ interface{}, evtIface data.Event) (*data.HealthStatus, interface{}) {
 	evt, ok := evtIface.(*data.MediaServerMetricsEvent)
 	if !ok {
 		return current, nil
@@ -40,7 +39,7 @@ func (t MediaServerMetrics) Reduce(current *health.Status, _ interface{}, evtIfa
 	metrics := current.MetricsCopy()
 	ts, dims := evt.Timestamp(), map[string]string{"region": evt.Region, "nodeId": evt.NodeID}
 	if evt.Stats.MediaTimeMs != nil {
-		metrics.Add(health.NewMetric(MetricMediaTimeMillis, dims, ts, float64(*evt.Stats.MediaTimeMs)))
+		metrics.Add(data.NewMetric(MetricMediaTimeMillis, dims, ts, float64(*evt.Stats.MediaTimeMs)))
 	}
 	for _, ms := range evt.Multistream {
 		for _, metric := range multistreamMetrics(current, ts, evt.NodeID, evt.Region, ms) {
@@ -51,10 +50,10 @@ func (t MediaServerMetrics) Reduce(current *health.Status, _ interface{}, evtIfa
 	if vc := totalViewerCount(metrics); vc > 10 {
 		glog.Warning("High viewer count stream! streamId=%q viewerCount=%d", evt.StreamID(), vc)
 	}
-	return health.NewMergedStatus(current, health.Status{Metrics: metrics}), nil
+	return data.NewMergedHealthStatus(current, data.HealthStatus{Metrics: metrics}), nil
 }
 
-func multistreamMetrics(current *health.Status, ts time.Time, nodeID, region string, ms *data.MultistreamTargetMetrics) []*health.Metric {
+func multistreamMetrics(current *data.HealthStatus, ts time.Time, nodeID, region string, ms *data.MultistreamTargetMetrics) []*data.Metric {
 	if ms.Metrics == nil {
 		return nil
 	}
@@ -65,20 +64,20 @@ func multistreamMetrics(current *health.Status, ts time.Time, nodeID, region str
 		"targetName":    ms.Target.Name,
 		"targetProfile": ms.Target.Profile,
 	}
-	metrics := []*health.Metric{
-		health.NewMetric(MetricMultistreamMediaTimeMillis, msDims, ts, float64(ms.Metrics.MediaTimeMs)),
-		health.NewMetric(MetricMultistreamActiveSec, msDims, ts, float64(ms.Metrics.ActiveSec)),
-		health.NewMetric(MetricMultistreamBytes, msDims, ts, float64(ms.Metrics.Bytes)),
+	metrics := []*data.Metric{
+		data.NewMetric(MetricMultistreamMediaTimeMillis, msDims, ts, float64(ms.Metrics.MediaTimeMs)),
+		data.NewMetric(MetricMultistreamActiveSec, msDims, ts, float64(ms.Metrics.ActiveSec)),
+		data.NewMetric(MetricMultistreamBytes, msDims, ts, float64(ms.Metrics.Bytes)),
 	}
 	if prevBytes := current.Metrics.GetMetric(MetricMultistreamBytes, msDims); prevBytes != nil {
 		prevTs, prevVal := prevBytes.Last.Timestamp, int64(prevBytes.Last.Value)
 		bitrate := float64(ms.Metrics.Bytes-prevVal) / float64(ts.Sub(prevTs)/time.Second)
-		metrics = append(metrics, health.NewMetric(MetricMultistreamBitrateSec, msDims, ts, bitrate))
+		metrics = append(metrics, data.NewMetric(MetricMultistreamBitrateSec, msDims, ts, bitrate))
 	}
 	return metrics
 }
 
-func totalViewerCount(metrics health.MetricsMap) int {
+func totalViewerCount(metrics data.MetricsMap) int {
 	total := 0.0
 	for _, metric := range metrics[MetricViewerCount] {
 		if time.Since(metric.Last.Timestamp) > 5*time.Minute {

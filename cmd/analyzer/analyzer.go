@@ -72,6 +72,7 @@ func init() {
 		ff.WithConfigFileFlag("config"),
 		ff.WithConfigFileParser(ff.PlainParser),
 		ff.WithEnvVarPrefix("LP"),
+		ff.WithEnvVarIgnoreCommas(true),
 	)
 	flag.CommandLine.Parse(nil)
 	glogVFlag.Value.Set(strconv.Itoa(*verbosity))

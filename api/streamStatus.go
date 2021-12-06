@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/livepeer/livepeer-data/health"
+	"github.com/livepeer/livepeer-data/pkg/data"
 	"github.com/nbio/hitch"
 )
 
@@ -32,6 +33,6 @@ func streamStatus(healthcore *health.Core, streamIDParam string) hitch.Middlewar
 	})
 }
 
-func getStreamStatus(r *http.Request) *health.Status {
-	return r.Context().Value(streamStatusKey).(*health.Status)
+func getStreamStatus(r *http.Request) *data.HealthStatus {
+	return r.Context().Value(streamStatusKey).(*data.HealthStatus)
 }

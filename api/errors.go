@@ -10,7 +10,7 @@ import (
 )
 
 type errorResponse struct {
-	Errors []string
+	Errors []string `json:"errors"`
 }
 
 func respondError(rw http.ResponseWriter, defaultStatus int, errs ...error) {
