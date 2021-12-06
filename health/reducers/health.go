@@ -5,30 +5,37 @@ import (
 	"github.com/livepeer/livepeer-data/pkg/data"
 )
 
-var healthyRequirementDefaults = map[data.ConditionType]bool{
-	ConditionTranscoding:       false,
-	ConditionTranscodeRealTime: false,
-	ConditionMultistreaming:    true,
+var trueValue = true
+
+type healthRequirement struct {
+	condition data.ConditionType
+	optional  bool
+}
+
+var healthRequirements = []healthRequirement{
+	{ConditionTranscoding, false},
+	{ConditionTranscodeRealTime, false},
+	{ConditionMultistreaming, true},
 }
 
 var HealthReducer = health.ReducerFunc(reduceHealth)
 
 func reduceHealth(current *data.HealthStatus, _ interface{}, evt data.Event) (*data.HealthStatus, interface{}) {
-	isHealthy := true
-	for _, cond := range current.Conditions {
-		status, isRequired := healthyRequirementDefaults[cond.Type]
-		if !isRequired {
+	healthStatus := &trueValue
+	for _, req := range healthRequirements {
+		cond := current.Condition(req.condition)
+		if cond == nil || cond.Status == nil {
+			if !req.optional {
+				healthStatus = nil
+			}
 			continue
 		}
-		if cond.Status != nil {
-			status = *cond.Status
-		}
-		if !status {
-			isHealthy = false
+		if !*cond.Status {
+			healthStatus = cond.Status
 			break
 		}
 	}
-	healthyCond := data.NewCondition("", evt.Timestamp(), &isHealthy, current.Healthy)
+	healthyCond := data.NewCondition("", evt.Timestamp(), healthStatus, current.Healthy)
 
 	return data.NewMergedHealthStatus(current, data.HealthStatus{Healthy: healthyCond}), nil
 }
