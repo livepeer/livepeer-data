@@ -13,6 +13,7 @@ import (
 	"github.com/livepeer/livepeer-data/pkg/data"
 	"github.com/livepeer/livepeer-data/pkg/jsse"
 	"github.com/nbio/hitch"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 const (
@@ -25,6 +26,7 @@ type APIHandlerOptions struct {
 	APIRoot                       string
 	AuthURL                       string
 	RegionalHostFormat, OwnRegion string
+	Prometheus                    bool
 }
 
 type apiHandler struct {
@@ -39,6 +41,9 @@ func NewHandler(serverCtx context.Context, opts APIHandlerOptions, healthcore *h
 	router := hitch.New()
 	router.Use(cors)
 	router.HandleFunc("GET", "/_healthz", handler.healthcheck)
+	if opts.Prometheus {
+		router.Handle("GET", "/metrics", promhttp.Handler())
+	}
 
 	streamApiRoot := path.Join(opts.APIRoot, "/stream/:streamId")
 	middlewares := []hitch.Middleware{
