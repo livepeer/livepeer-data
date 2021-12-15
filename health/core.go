@@ -31,6 +31,10 @@ var (
 	},
 		[]string{"event_type"},
 	)
+	recordStorageSize = metrics.Factory.NewGauge(prometheus.GaugeOpts{
+		Name: metrics.FQName("record_storage_size"),
+		Help: "Gauge for the current count of streams stored in memory in the record storage",
+	})
 )
 
 // Purposedly made of built-in types only to bind directly to cli flags.
@@ -62,6 +66,7 @@ func NewCore(opts CoreOptions, consumer event.StreamConsumer, reducer Reducer) *
 		opts:     opts,
 		consumer: consumer,
 		reducer:  reducer,
+		storage:  RecordStorage{SizeGauge: recordStorageSize},
 	}
 }
 
