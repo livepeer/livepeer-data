@@ -6,7 +6,6 @@ import (
 
 	"github.com/livepeer/livepeer-data/health"
 	"github.com/livepeer/livepeer-data/pkg/data"
-	"github.com/nbio/hitch"
 )
 
 type contextKey int
@@ -15,10 +14,9 @@ const (
 	streamStatusKey contextKey = iota
 )
 
-func streamStatus(healthcore *health.Core, streamIDParam string) hitch.Middleware {
+func streamStatus(healthcore *health.Core, streamIDParam string) middleware {
 	return inlineMiddleware(func(rw http.ResponseWriter, r *http.Request, next http.Handler) {
-		params := hitch.Params(r)
-		streamID := params.ByName(streamIDParam)
+		streamID := apiParam(r, streamIDParam)
 		if streamID == "" {
 			next.ServeHTTP(rw, r)
 			return

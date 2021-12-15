@@ -9,11 +9,11 @@ import (
 	"time"
 
 	"github.com/golang/glog"
+	"github.com/julienschmidt/httprouter"
 	"github.com/livepeer/livepeer-data/health"
 	"github.com/livepeer/livepeer-data/monitor"
 	"github.com/livepeer/livepeer-data/pkg/data"
 	"github.com/livepeer/livepeer-data/pkg/jsse"
-	"github.com/nbio/hitch"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
@@ -39,26 +39,26 @@ type apiHandler struct {
 func NewHandler(serverCtx context.Context, opts APIHandlerOptions, healthcore *health.Core) http.Handler {
 	handler := &apiHandler{opts, serverCtx, healthcore}
 
-	router := hitch.New()
-	router.Use(cors)
-	router.Get("/_healthz", http.HandlerFunc(handler.healthcheck))
+	router := httprouter.New()
+	router.HandlerFunc("GET", "/_healthz", handler.healthcheck)
 	if opts.Prometheus {
 		monitor.Init()
-		router.Get("/metrics", promhttp.Handler())
+		router.Handler("GET", "/metrics", promhttp.Handler())
 	}
 
 	streamApiRoot := path.Join(opts.APIRoot, "/stream/:streamId")
-	middlewares := []hitch.Middleware{
+	middlewares := []middleware{
+		cors,
 		streamStatus(healthcore, "streamId"),
 		regionProxy(opts.RegionalHostFormat, opts.OwnRegion),
 	}
 	if opts.AuthURL != "" {
 		middlewares = append(middlewares, authorization(opts.AuthURL))
 	}
-	router.Get(streamApiRoot+"/health", prepareHandlerFunc("get_stream_health", handler.getStreamHealth, middlewares...))
-	router.Get(streamApiRoot+"/events", prepareHandlerFunc("stream_health_events", handler.subscribeEvents, middlewares...))
+	router.Handler("GET", streamApiRoot+"/health", prepareHandlerFunc("get_stream_health", handler.getStreamHealth, middlewares...))
+	router.Handler("GET", streamApiRoot+"/events", prepareHandlerFunc("stream_health_events", handler.subscribeEvents, middlewares...))
 
-	return router.Handler()
+	return router
 }
 
 func cors(next http.Handler) http.Handler {

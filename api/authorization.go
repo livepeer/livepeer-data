@@ -8,13 +8,12 @@ import (
 	"time"
 
 	"github.com/golang/glog"
-	"github.com/nbio/hitch"
 )
 
 var authorizationHeaders = []string{"Authorization", "Cookie"}
 var authTimeout = 3 * time.Second
 
-func authorization(authUrl string) hitch.Middleware {
+func authorization(authUrl string) middleware {
 	return inlineMiddleware(func(rw http.ResponseWriter, r *http.Request, next http.Handler) {
 		ctx, cancel := context.WithTimeout(r.Context(), authTimeout)
 		defer cancel()

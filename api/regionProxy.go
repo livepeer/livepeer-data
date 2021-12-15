@@ -9,12 +9,11 @@ import (
 
 	"github.com/golang/glog"
 	"github.com/livepeer/livepeer-data/health/reducers"
-	"github.com/nbio/hitch"
 )
 
 const proxyLoopHeader = "X-Livepeer-Proxy"
 
-func regionProxy(hostFormat, ownRegion string) hitch.Middleware {
+func regionProxy(hostFormat, ownRegion string) middleware {
 	proxy := &httputil.ReverseProxy{
 		Director:      regionProxyDirector(hostFormat),
 		FlushInterval: 100 * time.Millisecond,
