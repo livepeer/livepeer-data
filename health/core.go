@@ -10,16 +10,27 @@ import (
 
 	"github.com/golang/glog"
 	"github.com/google/uuid"
+	"github.com/livepeer/livepeer-data/metrics"
 	"github.com/livepeer/livepeer-data/pkg/data"
 	"github.com/livepeer/livepeer-data/pkg/event"
+	"github.com/prometheus/client_golang/prometheus"
 )
-
-var ErrStreamNotFound = errors.New("stream not found")
-var ErrEventNotFound = errors.New("event not found")
 
 const (
 	eventSubscriptionBufSize = 10
 	processLogSampleRate     = 0.04
+)
+
+var (
+	ErrStreamNotFound = errors.New("stream not found")
+	ErrEventNotFound  = errors.New("event not found")
+
+	eventsProcessedCount = metrics.Factory.NewCounterVec(prometheus.CounterOpts{
+		Name: metrics.FQName("events_processed"),
+		Help: "Count of events processed by the healthcore system, partitioned by event type",
+	},
+		[]string{"event_type"},
+	)
 )
 
 // Purposedly made of built-in types only to bind directly to cli flags.
@@ -94,6 +105,7 @@ func (c *Core) HandleMessage(msg event.StreamMessage) {
 			continue
 		}
 		c.handleSingleEvent(evt)
+		eventsProcessedCount.WithLabelValues(string(evt.Type())).Inc()
 	}
 }
 
