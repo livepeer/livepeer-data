@@ -1,4 +1,4 @@
-package monitor
+package metrics
 
 import (
 	"net/http"
@@ -10,14 +10,14 @@ import (
 var (
 	httpReqDuration = Factory.NewSummaryVec(
 		prometheus.SummaryOpts{
-			Name: MetricName("http_request_duration_sec"),
+			Name: FQName("http_request_duration_sec"),
 			Help: "Request duration of HTTP requests in seconds",
 		},
 		[]string{"code", "method", "api"},
 	)
 	httpReqTimeToHeaders = Factory.NewSummaryVec(
 		prometheus.SummaryOpts{
-			Name: MetricName("http_request_time_to_headers_sec"),
+			Name: FQName("http_request_time_to_headers_sec"),
 			Help: "Time until HTTP headers are written, in seconds",
 		},
 		[]string{"code", "method", "api"},
@@ -25,7 +25,7 @@ var (
 	httpReqInFlight = func(api string) prometheus.Gauge {
 		return Factory.NewGauge(
 			prometheus.GaugeOpts{
-				Name:        MetricName("http_request_in_flight"),
+				Name:        FQName("http_request_in_flight"),
 				Help:        "Number of current requests in-flight for the specific API",
 				ConstLabels: prometheus.Labels{"api": api},
 			},

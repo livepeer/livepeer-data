@@ -4,7 +4,7 @@ import (
 	"net/http"
 
 	"github.com/julienschmidt/httprouter"
-	"github.com/livepeer/livepeer-data/monitor"
+	"github.com/livepeer/livepeer-data/metrics"
 )
 
 type middleware func(http.Handler) http.Handler
@@ -29,5 +29,5 @@ func prepareHandler(name string, handler http.Handler, middlewares ...middleware
 	for i := len(middlewares) - 1; i >= 0; i-- {
 		handler = middlewares[i](handler)
 	}
-	return monitor.ObservedHandler(name, handler)
+	return metrics.ObservedHandler(name, handler)
 }

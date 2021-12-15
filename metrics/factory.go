@@ -1,4 +1,4 @@
-package monitor
+package metrics
 
 import (
 	"github.com/prometheus/client_golang/prometheus"
@@ -21,6 +21,6 @@ func Init() {
 	Factory = promauto.With(prometheus.DefaultRegisterer)
 }
 
-func MetricName(name string) string {
+func FQName(name string) string {
 	return prometheus.BuildFQName(Namespace, Subsystem, name)
 }

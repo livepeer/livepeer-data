@@ -11,7 +11,7 @@ import (
 	"github.com/golang/glog"
 	"github.com/julienschmidt/httprouter"
 	"github.com/livepeer/livepeer-data/health"
-	"github.com/livepeer/livepeer-data/monitor"
+	"github.com/livepeer/livepeer-data/metrics"
 	"github.com/livepeer/livepeer-data/pkg/data"
 	"github.com/livepeer/livepeer-data/pkg/jsse"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -42,7 +42,7 @@ func NewHandler(serverCtx context.Context, opts APIHandlerOptions, healthcore *h
 	router := httprouter.New()
 	router.HandlerFunc("GET", "/_healthz", handler.healthcheck)
 	if opts.Prometheus {
-		monitor.Init()
+		metrics.Init()
 		router.Handler("GET", "/metrics", promhttp.Handler())
 	}
 

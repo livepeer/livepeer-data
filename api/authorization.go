@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/golang/glog"
-	"github.com/livepeer/livepeer-data/monitor"
+	"github.com/livepeer/livepeer-data/metrics"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
@@ -17,9 +17,9 @@ var (
 	authorizationHeaders = []string{"Authorization", "Cookie"}
 	authTimeout          = 3 * time.Second
 
-	authRequestDuration = monitor.Factory.NewSummaryVec(
+	authRequestDuration = metrics.Factory.NewSummaryVec(
 		prometheus.SummaryOpts{
-			Name: monitor.MetricName("auth_request_duration_sec"),
+			Name: metrics.FQName("auth_request_duration_sec"),
 			Help: "Duration of performed authorization requests in seconds",
 		},
 		[]string{"code", "method"},
