@@ -8,10 +8,26 @@ import (
 	"time"
 
 	"github.com/golang/glog"
+	"github.com/livepeer/livepeer-data/monitor"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
-var authorizationHeaders = []string{"Authorization", "Cookie"}
-var authTimeout = 3 * time.Second
+var (
+	authorizationHeaders = []string{"Authorization", "Cookie"}
+	authTimeout          = 3 * time.Second
+
+	authRequestDuration = monitor.Factory.NewSummaryVec(
+		prometheus.SummaryOpts{
+			Name: monitor.MetricName("auth_request_duration_sec"),
+			Help: "Duration of performed authorization requests in seconds",
+		},
+		[]string{"code", "method"},
+	)
+	httpClient = &http.Client{
+		Transport: promhttp.InstrumentRoundTripperDuration(authRequestDuration, http.DefaultTransport),
+	}
+)
 
 func authorization(authUrl string) middleware {
 	return inlineMiddleware(func(rw http.ResponseWriter, r *http.Request, next http.Handler) {
@@ -29,7 +45,7 @@ func authorization(authUrl string) middleware {
 		for _, header := range authorizationHeaders {
 			req.Header[header] = r.Header[header]
 		}
-		res, err := http.DefaultClient.Do(req)
+		res, err := httpClient.Do(req)
 		if err != nil {
 			respondError(rw, http.StatusInternalServerError, fmt.Errorf("error authorizing request: %w", err))
 			return
