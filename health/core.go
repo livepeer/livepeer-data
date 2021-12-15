@@ -35,6 +35,10 @@ var (
 		Name: metrics.FQName("record_storage_size"),
 		Help: "Gauge for the current count of streams stored in memory in the record storage",
 	})
+	eventsTimeOffset = metrics.Factory.NewSummary(prometheus.SummaryOpts{
+		Name: metrics.FQName("events_time_offset_ms"),
+		Help: "Offset between processed events timestamp and the current system time in milliseconds",
+	})
 )
 
 // Purposedly made of built-in types only to bind directly to cli flags.
@@ -110,7 +114,11 @@ func (c *Core) HandleMessage(msg event.StreamMessage) {
 			continue
 		}
 		c.handleSingleEvent(evt)
+
 		eventsProcessedCount.WithLabelValues(string(evt.Type())).Inc()
+		if evtOffset := time.Since(evt.Timestamp()); evtOffset > 0 {
+			eventsTimeOffset.Observe(float64(evtOffset / time.Millisecond))
+		}
 	}
 }
 
