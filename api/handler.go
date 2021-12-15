@@ -41,10 +41,10 @@ func NewHandler(serverCtx context.Context, opts APIHandlerOptions, healthcore *h
 
 	router := hitch.New()
 	router.Use(cors)
-	router.HandleFunc("GET", "/_healthz", handler.healthcheck)
+	router.Get("/_healthz", http.HandlerFunc(handler.healthcheck))
 	if opts.Prometheus {
 		monitor.Init()
-		router.Handle("GET", "/metrics", promhttp.Handler())
+		router.Get("/metrics", promhttp.Handler())
 	}
 
 	streamApiRoot := path.Join(opts.APIRoot, "/stream/:streamId")
@@ -55,8 +55,8 @@ func NewHandler(serverCtx context.Context, opts APIHandlerOptions, healthcore *h
 	if opts.AuthURL != "" {
 		middlewares = append(middlewares, authorization(opts.AuthURL))
 	}
-	router.Get(streamApiRoot+"/health", monitor.ObservedHandler("get_stream_health", handler.getStreamHealth), middlewares...)
-	router.Get(streamApiRoot+"/events", monitor.ObservedHandler("stream_health_events", handler.subscribeEvents), middlewares...)
+	router.Get(streamApiRoot+"/health", prepareHandlerFunc("get_stream_health", handler.getStreamHealth, middlewares...))
+	router.Get(streamApiRoot+"/events", prepareHandlerFunc("stream_health_events", handler.subscribeEvents, middlewares...))
 
 	return router.Handler()
 }

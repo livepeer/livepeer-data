@@ -24,7 +24,7 @@ var (
 	)
 )
 
-func ObservedHandler(apiName string, handler http.HandlerFunc) http.Handler {
+func ObservedHandler(apiName string, handler http.Handler) http.Handler {
 	if !inited {
 		return handler
 	}

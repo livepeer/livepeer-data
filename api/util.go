@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/livepeer/livepeer-data/monitor"
 	"github.com/livepeer/livepeer-data/pkg/data"
 	"github.com/livepeer/livepeer-data/pkg/jsse"
 	"github.com/nbio/hitch"
@@ -20,6 +21,17 @@ func inlineMiddleware(middleware func(rw http.ResponseWriter, r *http.Request, n
 			middleware(rw, r, next)
 		})
 	}
+}
+
+func prepareHandlerFunc(name string, handler http.HandlerFunc, middlewares ...hitch.Middleware) http.Handler {
+	return prepareHandler(name, handler, middlewares...)
+}
+
+func prepareHandler(name string, handler http.Handler, middlewares ...hitch.Middleware) http.Handler {
+	for i := len(middlewares) - 1; i >= 0; i-- {
+		handler = middlewares[i](handler)
+	}
+	return monitor.ObservedHandler(name, handler)
 }
 
 func toSSEEvent(evt data.Event) (jsse.Event, error) {
