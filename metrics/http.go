@@ -22,29 +22,25 @@ var (
 		},
 		[]string{"code", "method", "api"},
 	)
-	httpReqInFlight = func(api string) prometheus.Gauge {
-		return Factory.NewGauge(
-			prometheus.GaugeOpts{
-				Name:        FQName("http_request_in_flight"),
-				Help:        "Number of current requests in-flight for the specific API",
-				ConstLabels: prometheus.Labels{"api": api},
-			},
-		)
-	}
+	httpReqInFlight = Factory.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: FQName("http_request_in_flight"),
+			Help: "Number of current requests in-flight for the specific API",
+		},
+		[]string{"api"},
+	)
 )
 
 func ObservedHandler(apiName string, handler http.Handler) http.Handler {
-	if !inited {
-		return handler
-	}
+	apiLabel := prometheus.Labels{"api": apiName}
 	handler = promhttp.InstrumentHandlerTimeToWriteHeader(
-		httpReqTimeToHeaders.MustCurryWith(prometheus.Labels{"api": apiName}),
+		httpReqTimeToHeaders.MustCurryWith(apiLabel),
 		handler)
 	handler = promhttp.InstrumentHandlerDuration(
-		httpReqDuration.MustCurryWith(prometheus.Labels{"api": apiName}),
+		httpReqDuration.MustCurryWith(apiLabel),
 		handler)
 	handler = promhttp.InstrumentHandlerInFlight(
-		httpReqInFlight(apiName),
+		httpReqInFlight.WithLabelValues(apiName),
 		handler)
 	return handler
 }

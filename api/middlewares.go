@@ -21,13 +21,16 @@ func inlineMiddleware(middleware func(rw http.ResponseWriter, r *http.Request, n
 	}
 }
 
-func prepareHandlerFunc(name string, handler http.HandlerFunc, middlewares ...middleware) http.Handler {
-	return prepareHandler(name, handler, middlewares...)
+func prepareHandlerFunc(name string, withMetrics bool, handler http.HandlerFunc, middlewares ...middleware) http.Handler {
+	return prepareHandler(name, withMetrics, handler, middlewares...)
 }
 
-func prepareHandler(name string, handler http.Handler, middlewares ...middleware) http.Handler {
+func prepareHandler(name string, withMetrics bool, handler http.Handler, middlewares ...middleware) http.Handler {
 	for i := len(middlewares) - 1; i >= 0; i-- {
 		handler = middlewares[i](handler)
 	}
-	return metrics.ObservedHandler(name, handler)
+	if withMetrics {
+		handler = metrics.ObservedHandler(name, handler)
+	}
+	return handler
 }

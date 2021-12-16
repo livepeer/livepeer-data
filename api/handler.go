@@ -11,7 +11,6 @@ import (
 	"github.com/golang/glog"
 	"github.com/julienschmidt/httprouter"
 	"github.com/livepeer/livepeer-data/health"
-	"github.com/livepeer/livepeer-data/metrics"
 	"github.com/livepeer/livepeer-data/pkg/data"
 	"github.com/livepeer/livepeer-data/pkg/jsse"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -42,7 +41,6 @@ func NewHandler(serverCtx context.Context, opts APIHandlerOptions, healthcore *h
 	router := httprouter.New()
 	router.HandlerFunc("GET", "/_healthz", handler.healthcheck)
 	if opts.Prometheus {
-		metrics.Init()
 		router.Handler("GET", "/metrics", promhttp.Handler())
 	}
 
@@ -55,8 +53,8 @@ func NewHandler(serverCtx context.Context, opts APIHandlerOptions, healthcore *h
 	if opts.AuthURL != "" {
 		middlewares = append(middlewares, authorization(opts.AuthURL))
 	}
-	router.Handler("GET", streamApiRoot+"/health", prepareHandlerFunc("get_stream_health", handler.getStreamHealth, middlewares...))
-	router.Handler("GET", streamApiRoot+"/events", prepareHandlerFunc("stream_health_events", handler.subscribeEvents, middlewares...))
+	router.Handler("GET", streamApiRoot+"/health", prepareHandlerFunc("get_stream_health", opts.Prometheus, handler.getStreamHealth, middlewares...))
+	router.Handler("GET", streamApiRoot+"/events", prepareHandlerFunc("stream_health_events", opts.Prometheus, handler.subscribeEvents, middlewares...))
 
 	return router
 }

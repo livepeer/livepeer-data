@@ -9,15 +9,9 @@ var (
 	Namespace = "livepeer"
 	Subsystem = "analyzer"
 	Factory   promauto.Factory
-
-	inited bool
 )
 
-func Init() {
-	if inited {
-		panic("can only init monitor once")
-	}
-	inited = true
+func init() {
 	Factory = promauto.With(prometheus.DefaultRegisterer)
 }
 
