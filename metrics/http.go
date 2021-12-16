@@ -8,23 +8,23 @@ import (
 )
 
 var (
-	httpReqDuration = Factory.NewSummaryVec(
+	httpReqsDuration = Factory.NewSummaryVec(
 		prometheus.SummaryOpts{
-			Name: FQName("http_request_duration_sec"),
+			Name: FQName("http_requests_duration_sec"),
 			Help: "Request duration of HTTP requests in seconds",
 		},
 		[]string{"code", "method", "api"},
 	)
-	httpReqTimeToHeaders = Factory.NewSummaryVec(
+	httpReqsTimeToHeaders = Factory.NewSummaryVec(
 		prometheus.SummaryOpts{
-			Name: FQName("http_request_time_to_headers_sec"),
+			Name: FQName("http_requests_time_to_headers_sec"),
 			Help: "Time until HTTP headers are written, in seconds",
 		},
 		[]string{"code", "method", "api"},
 	)
-	httpReqInFlight = Factory.NewGaugeVec(
+	httpReqsInFlight = Factory.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Name: FQName("http_request_in_flight"),
+			Name: FQName("http_requests_in_flight"),
 			Help: "Number of current requests in-flight for the specific API",
 		},
 		[]string{"api"},
@@ -34,13 +34,13 @@ var (
 func ObservedHandler(apiName string, handler http.Handler) http.Handler {
 	apiLabel := prometheus.Labels{"api": apiName}
 	handler = promhttp.InstrumentHandlerTimeToWriteHeader(
-		httpReqTimeToHeaders.MustCurryWith(apiLabel),
+		httpReqsTimeToHeaders.MustCurryWith(apiLabel),
 		handler)
 	handler = promhttp.InstrumentHandlerDuration(
-		httpReqDuration.MustCurryWith(apiLabel),
+		httpReqsDuration.MustCurryWith(apiLabel),
 		handler)
 	handler = promhttp.InstrumentHandlerInFlight(
-		httpReqInFlight.WithLabelValues(apiName),
+		httpReqsInFlight.WithLabelValues(apiName),
 		handler)
 	return handler
 }

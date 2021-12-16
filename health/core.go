@@ -31,19 +31,19 @@ var (
 	},
 		[]string{"event_type"},
 	)
-	eventProcessingDuration = metrics.Factory.NewSummaryVec(prometheus.SummaryOpts{
-		Name: metrics.FQName("event_processing_duration_ms"),
+	eventsProcessingDuration = metrics.Factory.NewSummaryVec(prometheus.SummaryOpts{
+		Name: metrics.FQName("events_processing_duration_ms"),
 		Help: "Duration for processing a given event type on healthcore system in milliseconds",
 	},
 		[]string{"event_type"},
 	)
-	recordStorageSize = metrics.Factory.NewGauge(prometheus.GaugeOpts{
-		Name: metrics.FQName("record_storage_size"),
-		Help: "Gauge for the current count of streams stored in memory in the record storage",
-	})
 	eventsTimeOffset = metrics.Factory.NewSummary(prometheus.SummaryOpts{
 		Name: metrics.FQName("events_time_offset_sec"),
 		Help: "Offset between processed events timestamp and the current system time in seconds",
+	})
+	recordStorageSize = metrics.Factory.NewGauge(prometheus.GaugeOpts{
+		Name: metrics.FQName("record_storage_size"),
+		Help: "Gauge for the current count of streams stored in memory in the record storage",
 	})
 )
 
@@ -125,7 +125,7 @@ func (c *Core) HandleMessage(msg event.StreamMessage) {
 		dur := time.Since(start)
 
 		eventsProcessedCount.WithLabelValues(string(evt.Type())).Inc()
-		eventProcessingDuration.WithLabelValues(string(evt.Type())).Observe(dur.Seconds() * 1000)
+		eventsProcessingDuration.WithLabelValues(string(evt.Type())).Observe(dur.Seconds() * 1000)
 		if evtOffset := time.Since(evt.Timestamp()); evtOffset > 0 {
 			eventsTimeOffset.Observe(evtOffset.Seconds())
 		}
