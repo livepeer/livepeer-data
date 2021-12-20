@@ -1,4 +1,4 @@
-package main
+package analyzer
 
 import (
 	"context"
@@ -18,12 +18,11 @@ import (
 	"github.com/peterbourgon/ff"
 )
 
-var (
-	// Version content of this constant will be set at build time,
-	// using -ldflags, using output of the `git describe` command.
-	Version = "undefined"
-
-	// CLI flags, bound in init below
+// Build flags to be overwritten at build-time and passed to Run()
+type BuildFlags struct {
+	Version string
+}
+type cliFlags struct {
 	rabbitmqUri string
 	amqpUri     string
 
@@ -34,34 +33,35 @@ var (
 	serverOpts       api.ServerOptions
 	streamingOpts    health.StreamingOptions
 	memoryRecordsTtl time.Duration
-)
+}
 
-func init() {
+func parseFlags() cliFlags {
+	cli := cliFlags{}
 	fs := flag.NewFlagSet("analyzer", flag.ExitOnError)
 
-	fs.StringVar(&rabbitmqUri, "rabbitmq-uri", "amqp://guest:guest@localhost:5672/livepeer", "URI for RabbitMQ server to consume from. Can be specified as a default AMQP URI which will be converted to stream protocol.")
-	fs.StringVar(&amqpUri, "amqp-uri", "", "Explicit AMQP URI in case of non-default protocols/ports (optional). Must point to the same cluster as rabbitmqUri")
+	fs.StringVar(&cli.rabbitmqUri, "rabbitmq-uri", "amqp://guest:guest@localhost:5672/livepeer", "URI for RabbitMQ server to consume from. Can be specified as a default AMQP URI which will be converted to stream protocol.")
+	fs.StringVar(&cli.amqpUri, "amqp-uri", "", "Explicit AMQP URI in case of non-default protocols/ports (optional). Must point to the same cluster as rabbitmqUri")
 
-	fs.StringVar(&golivepeerExchange, "golivepeer-exchange", "lp_golivepeer_metadata", "Name of RabbitMQ exchange to bind the stream to on creation")
-	fs.StringVar(&shardPrefixesFlag, "shard-prefixes", "", "Comma-separated list of prefixes of manifest IDs to process events from")
+	fs.StringVar(&cli.golivepeerExchange, "golivepeer-exchange", "lp_golivepeer_metadata", "Name of RabbitMQ exchange to bind the stream to on creation")
+	fs.StringVar(&cli.shardPrefixesFlag, "shard-prefixes", "", "Comma-separated list of prefixes of manifest IDs to process events from")
 
 	// Server options
-	fs.StringVar(&serverOpts.Host, "host", "localhost", "Hostname to bind to")
-	fs.UintVar(&serverOpts.Port, "port", 8080, "Port to listen on")
-	fs.DurationVar(&serverOpts.ShutdownGracePeriod, "shutdown-grace-perod", 15*time.Second, "Grace period to wait for server shutdown before using the force")
+	fs.StringVar(&cli.serverOpts.Host, "host", "localhost", "Hostname to bind to")
+	fs.UintVar(&cli.serverOpts.Port, "port", 8080, "Port to listen on")
+	fs.DurationVar(&cli.serverOpts.ShutdownGracePeriod, "shutdown-grace-perod", 15*time.Second, "Grace period to wait for server shutdown before using the force")
 	// API Handler
-	fs.StringVar(&serverOpts.APIRoot, "api-root", "/data", "Root path where to bind the API to")
-	fs.StringVar(&serverOpts.AuthURL, "auth-url", "", "Endpoint for an auth server to call for both authentication and authorization of API calls")
-	fs.StringVar(&serverOpts.OwnRegion, "own-region", "", "Identifier of the region where the service is running, used for triggering global request proxying")
-	fs.StringVar(&serverOpts.RegionalHostFormat, "regional-host-format", "localhost", "Format to build regional URL for proxying to other regions. Should contain 1 %s directive where the region will be replaced (e.g. %s.livepeer.monster)")
+	fs.StringVar(&cli.serverOpts.APIRoot, "api-root", "/data", "Root path where to bind the API to")
+	fs.StringVar(&cli.serverOpts.AuthURL, "auth-url", "", "Endpoint for an auth server to call for both authentication and authorization of API calls")
+	fs.StringVar(&cli.serverOpts.OwnRegion, "own-region", "", "Identifier of the region where the service is running, used for triggering global request proxying")
+	fs.StringVar(&cli.serverOpts.RegionalHostFormat, "regional-host-format", "localhost", "Format to build regional URL for proxying to other regions. Should contain 1 %s directive where the region will be replaced (e.g. %s.livepeer.monster)")
 
 	// Streaming options
-	fs.StringVar(&streamingOpts.Stream, "rabbitmq-stream-name", "lp_stream_health_v0", "Name of RabbitMQ stream to create and consume from")
-	fs.StringVar(&streamingOpts.ConsumerName, "consumer-name", "", `Consumer name to use when consuming stream (default "analyzer-${hostname}")`)
-	fs.StringVar(&streamingOpts.MaxLengthBytes, "stream-max-length", "50gb", "When creating a new stream, config for max total storage size")
-	fs.StringVar(&streamingOpts.MaxSegmentSizeBytes, "stream-max-segment-size", "500mb", "When creating a new stream, config for max stream segment size in storage")
-	fs.DurationVar(&streamingOpts.MaxAge, "stream-max-age", 30*24*time.Hour, `When creating a new stream, config for max age of stored events`)
-	fs.DurationVar(&memoryRecordsTtl, "memory-records-ttl", 24*time.Hour, `How long to keep data records in memory about inactive streams`)
+	fs.StringVar(&cli.streamingOpts.Stream, "rabbitmq-stream-name", "lp_stream_health_v0", "Name of RabbitMQ stream to create and consume from")
+	fs.StringVar(&cli.streamingOpts.ConsumerName, "consumer-name", "", `Consumer name to use when consuming stream (default "analyzer-${hostname}")`)
+	fs.StringVar(&cli.streamingOpts.MaxLengthBytes, "stream-max-length", "50gb", "When creating a new stream, config for max total storage size")
+	fs.StringVar(&cli.streamingOpts.MaxSegmentSizeBytes, "stream-max-segment-size", "500mb", "When creating a new stream, config for max stream segment size in storage")
+	fs.DurationVar(&cli.streamingOpts.MaxAge, "stream-max-age", 30*24*time.Hour, `When creating a new stream, config for max age of stored events`)
+	fs.DurationVar(&cli.memoryRecordsTtl, "memory-records-ttl", 24*time.Hour, `How long to keep data records in memory about inactive streams`)
 
 	flag.Set("logtostderr", "true")
 	glogVFlag := flag.Lookup("v")
@@ -77,40 +77,42 @@ func init() {
 	flag.CommandLine.Parse(nil)
 	glogVFlag.Value.Set(strconv.Itoa(*verbosity))
 
-	if streamingOpts.ConsumerName == "" {
-		streamingOpts.ConsumerName = "analyzer-" + hostname()
+	if cli.streamingOpts.ConsumerName == "" {
+		cli.streamingOpts.ConsumerName = "analyzer-" + hostname()
 	}
-	if shardPrefixesFlag != "" {
-		shardPrefixes = strings.Split(shardPrefixesFlag, ",")
+	if cli.shardPrefixesFlag != "" {
+		cli.shardPrefixes = strings.Split(cli.shardPrefixesFlag, ",")
 	}
+	return cli
 }
 
-func main() {
-	glog.Infof("Stream health care system starting up... version=%q", Version)
+func Run(build BuildFlags) {
+	cli := parseFlags()
+	glog.Infof("Stream health care system starting up... version=%q", build.Version)
 	ctx := contextUntilSignal(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 
-	streamUri := rabbitmqUri
-	if amqpUri == "" && strings.HasPrefix(streamUri, "amqp") {
-		streamUri, amqpUri = "", streamUri
+	streamUri := cli.rabbitmqUri
+	if cli.amqpUri == "" && strings.HasPrefix(streamUri, "amqp") {
+		streamUri, cli.amqpUri = "", streamUri
 	}
-	consumer, err := event.NewStreamConsumer(streamUri, amqpUri)
+	consumer, err := event.NewStreamConsumer(streamUri, cli.amqpUri)
 	if err != nil {
 		glog.Fatalf("Error creating stream consumer. err=%q", err)
 	}
 	defer consumer.Close()
 
-	reducer := reducers.Default(golivepeerExchange, shardPrefixes)
+	reducer := reducers.Default(cli.golivepeerExchange, cli.shardPrefixes)
 	healthcore := health.NewCore(health.CoreOptions{
-		Streaming:        streamingOpts,
+		Streaming:        cli.streamingOpts,
 		StartTimeOffset:  reducers.DefaultStarTimeOffset(),
-		MemoryRecordsTtl: memoryRecordsTtl,
+		MemoryRecordsTtl: cli.memoryRecordsTtl,
 	}, consumer, reducer)
 	if err := healthcore.Start(ctx); err != nil {
 		glog.Fatalf("Error starting health core. err=%q", err)
 	}
 
 	glog.Info("Starting server...")
-	err = api.ListenAndServe(ctx, serverOpts, healthcore)
+	err = api.ListenAndServe(ctx, cli.serverOpts, healthcore)
 	if err != nil {
 		glog.Fatalf("Error starting api server. err=%q", err)
 	}
