@@ -19,7 +19,7 @@ var (
 
 	authRequestDuration = metrics.Factory.NewSummaryVec(
 		prometheus.SummaryOpts{
-			Name: metrics.FQName("auth_request_duration_sec"),
+			Name: metrics.FQName("auth_request_duration_seconds"),
 			Help: "Duration of performed authorization requests in seconds",
 		},
 		[]string{"code", "method"},

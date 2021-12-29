@@ -10,14 +10,14 @@ import (
 var (
 	httpReqsDuration = Factory.NewSummaryVec(
 		prometheus.SummaryOpts{
-			Name: FQName("http_requests_duration_sec"),
+			Name: FQName("http_requests_duration_seconds"),
 			Help: "Request duration of HTTP requests in seconds",
 		},
 		[]string{"code", "method", "api"},
 	)
 	httpReqsTimeToHeaders = Factory.NewSummaryVec(
 		prometheus.SummaryOpts{
-			Name: FQName("http_requests_time_to_headers_sec"),
+			Name: FQName("http_requests_time_to_headers_seconds"),
 			Help: "Time until HTTP headers are written, in seconds",
 		},
 		[]string{"code", "method", "api"},
