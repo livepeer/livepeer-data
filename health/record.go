@@ -8,6 +8,7 @@ import (
 	"github.com/golang/glog"
 	"github.com/google/uuid"
 	"github.com/livepeer/livepeer-data/pkg/data"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 type Record struct {
@@ -61,7 +62,8 @@ func (r *Record) SubscribeLocked(ctx context.Context, subs chan data.Event) chan
 }
 
 type RecordStorage struct {
-	records sync.Map
+	records   sync.Map
+	SizeGauge prometheus.Gauge
 }
 
 func (s *RecordStorage) StartCleanupLoop(ctx context.Context, ttl time.Duration) {
@@ -72,20 +74,23 @@ func (s *RecordStorage) StartCleanupLoop(ctx context.Context, ttl time.Duration)
 			select {
 			case <-ticker.C:
 				threshold := time.Now().Add(-ttl)
-				recordsLen := 0
+				recordsSize := 0
 				s.records.Range(func(key interface{}, value interface{}) bool {
-					recordsLen++
+					recordsSize++
 					record := value.(*Record)
 					lastProbeTime := record.LastStatus.Healthy.LastProbeTime
 					if lastProbeTime != nil && lastProbeTime.Before(threshold) {
 						glog.Infof("Disposing of health record. id=%q, lastProbeTime=%q, ttl=%q", record.ID, lastProbeTime, ttl)
 						close(record.disposed)
 						s.records.Delete(key)
-						recordsLen--
+						recordsSize--
 					}
 					return true
 				})
-				glog.Infof("Finished records clean-up loop. len=%d", recordsLen)
+				glog.Infof("Finished records clean-up loop. size=%d", recordsSize)
+				if s.SizeGauge != nil {
+					s.SizeGauge.Set(float64(recordsSize))
+				}
 			case <-ctx.Done():
 				// erase any dangling references
 				s.records = sync.Map{}
@@ -106,10 +111,13 @@ func (s *RecordStorage) GetOrCreate(id string, conditions []data.ConditionType) 
 	if saved, ok := s.Get(id); ok {
 		return saved
 	}
-	glog.Infof("Creating new health record. id=%q", id)
 	new := NewRecord(id, conditions)
 	if actual, loaded := s.records.LoadOrStore(id, new); loaded {
 		return actual.(*Record)
+	}
+	glog.Infof("Created new health record. id=%q", id)
+	if s.SizeGauge != nil {
+		s.SizeGauge.Inc()
 	}
 	return new
 }

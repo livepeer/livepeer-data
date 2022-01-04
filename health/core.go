@@ -10,16 +10,41 @@ import (
 
 	"github.com/golang/glog"
 	"github.com/google/uuid"
+	"github.com/livepeer/livepeer-data/metrics"
 	"github.com/livepeer/livepeer-data/pkg/data"
 	"github.com/livepeer/livepeer-data/pkg/event"
+	"github.com/prometheus/client_golang/prometheus"
 )
-
-var ErrStreamNotFound = errors.New("stream not found")
-var ErrEventNotFound = errors.New("event not found")
 
 const (
 	eventSubscriptionBufSize = 10
 	processLogSampleRate     = 0.04
+)
+
+var (
+	ErrStreamNotFound = errors.New("stream not found")
+	ErrEventNotFound  = errors.New("event not found")
+
+	eventsProcessedCount = metrics.Factory.NewCounterVec(prometheus.CounterOpts{
+		Name: metrics.FQName("events_processed_total"),
+		Help: "Count of events processed by the healthcore system, partitioned by event type",
+	},
+		[]string{"event_type"},
+	)
+	eventsProcessingDuration = metrics.Factory.NewSummaryVec(prometheus.SummaryOpts{
+		Name: metrics.FQName("events_processing_duration_milliseconds"),
+		Help: "Duration for processing a given event type on healthcore system in milliseconds",
+	},
+		[]string{"event_type"},
+	)
+	eventsTimeOffset = metrics.Factory.NewSummary(prometheus.SummaryOpts{
+		Name: metrics.FQName("events_time_offset_seconds"),
+		Help: "Offset between processed events timestamp and the current system time in seconds",
+	})
+	recordStorageSize = metrics.Factory.NewGauge(prometheus.GaugeOpts{
+		Name: metrics.FQName("record_storage_size"),
+		Help: "Gauge for the current count of streams stored in memory in the record storage",
+	})
 )
 
 // Purposedly made of built-in types only to bind directly to cli flags.
@@ -51,6 +76,7 @@ func NewCore(opts CoreOptions, consumer event.StreamConsumer, reducer Reducer) *
 		opts:     opts,
 		consumer: consumer,
 		reducer:  reducer,
+		storage:  RecordStorage{SizeGauge: recordStorageSize},
 	}
 }
 
@@ -93,7 +119,18 @@ func (c *Core) HandleMessage(msg event.StreamMessage) {
 			glog.Errorf("Health core received malformed message. err=%q, data=%q", err, rawEvt)
 			continue
 		}
+
+		start := time.Now()
 		c.handleSingleEvent(evt)
+		dur := time.Since(start)
+
+		eventsProcessedCount.WithLabelValues(string(evt.Type())).
+			Inc()
+		eventsProcessingDuration.WithLabelValues(string(evt.Type())).
+			Observe(dur.Seconds() * 1000)
+		if evtOffset := time.Since(evt.Timestamp()); evtOffset > 0 {
+			eventsTimeOffset.Observe(evtOffset.Seconds())
+		}
 	}
 }
 

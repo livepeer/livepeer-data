@@ -4,23 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/http"
 	"strconv"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/livepeer/livepeer-data/pkg/data"
 	"github.com/livepeer/livepeer-data/pkg/jsse"
-	"github.com/nbio/hitch"
 )
-
-func inlineMiddleware(middleware func(rw http.ResponseWriter, r *http.Request, next http.Handler)) hitch.Middleware {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-			middleware(rw, r, next)
-		})
-	}
-}
 
 func toSSEEvent(evt data.Event) (jsse.Event, error) {
 	data, err := json.Marshal(evt)
