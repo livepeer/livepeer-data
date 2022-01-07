@@ -23,8 +23,7 @@ const (
 )
 
 type APIHandlerOptions struct {
-	APIRoot                       string
-	AuthURL                       string
+	ServerName, APIRoot, AuthURL  string
 	RegionalHostFormat, OwnRegion string
 	Prometheus                    bool
 }
@@ -44,23 +43,30 @@ func NewHandler(serverCtx context.Context, opts APIHandlerOptions, healthcore *h
 		router.Handler("GET", "/metrics", promhttp.Handler())
 	}
 
-	streamApiRoot := path.Join(opts.APIRoot, "/stream/:streamId")
 	middlewares := []middleware{
-		cors,
 		streamStatus(healthcore, "streamId"),
 		regionProxy(opts.RegionalHostFormat, opts.OwnRegion),
 	}
 	if opts.AuthURL != "" {
 		middlewares = append(middlewares, authorization(opts.AuthURL))
 	}
-	router.Handler("GET", streamApiRoot+"/health", prepareHandlerFunc("get_stream_health", opts.Prometheus, handler.getStreamHealth, middlewares...))
-	router.Handler("GET", streamApiRoot+"/events", prepareHandlerFunc("stream_health_events", opts.Prometheus, handler.subscribeEvents, middlewares...))
+	addApiHandler := func(apiPath, name string, handler http.HandlerFunc) {
+		fullPath := path.Join(opts.APIRoot, "/stream/:streamId", apiPath)
+		fullHandler := prepareHandlerFunc(name, opts.Prometheus, handler, middlewares...)
+		router.Handler("GET", fullPath, fullHandler)
+	}
+	addApiHandler("/health", "get_stream_health", handler.getStreamHealth)
+	addApiHandler("/events", "stream_health_events", handler.subscribeEvents)
 
-	return router
+	globalMiddlewares := []middleware{cors(opts.ServerName)}
+	return prepareHandler("", false, router, globalMiddlewares...)
 }
 
-func cors(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+func cors(server string) middleware {
+	return inlineMiddleware(func(rw http.ResponseWriter, r *http.Request, next http.Handler) {
+		if server != "" {
+			rw.Header().Set("Server", server)
+		}
 		rw.Header().Set("Access-Control-Allow-Origin", "*")
 		rw.Header().Set("Access-Control-Allow-Headers", "*")
 		next.ServeHTTP(rw, r)
