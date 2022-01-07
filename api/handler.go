@@ -46,7 +46,6 @@ func NewHandler(serverCtx context.Context, opts APIHandlerOptions, healthcore *h
 
 	streamApiRoot := path.Join(opts.APIRoot, "/stream/:streamId")
 	middlewares := []middleware{
-		cors,
 		streamStatus(healthcore, "streamId"),
 		regionProxy(opts.RegionalHostFormat, opts.OwnRegion),
 	}
@@ -56,7 +55,8 @@ func NewHandler(serverCtx context.Context, opts APIHandlerOptions, healthcore *h
 	router.Handler("GET", streamApiRoot+"/health", prepareHandlerFunc("get_stream_health", opts.Prometheus, handler.getStreamHealth, middlewares...))
 	router.Handler("GET", streamApiRoot+"/events", prepareHandlerFunc("stream_health_events", opts.Prometheus, handler.subscribeEvents, middlewares...))
 
-	return router
+	globalMiddlewares := []middleware{cors}
+	return prepareHandler("", false, router, globalMiddlewares...)
 }
 
 func cors(next http.Handler) http.Handler {
