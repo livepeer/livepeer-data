@@ -25,7 +25,7 @@ docker_run: deps_start docker
 		$(dockerimg) $(args)
 
 docker_ci:
-	docker buildx build --push --platform linux/amd64,linux/arm64 $(foreach tag,$(tags),-t $(dockerimg):$(tag)) .
+	docker buildx build --push --platform linux/amd64,linux/arm64 $(foreach tag,$(tags),-t $(dockerimg):$(tag)) --build-arg version=$(version) .
 
 deps_start:
 	docker-compose up -d
