@@ -23,8 +23,7 @@ const (
 )
 
 type APIHandlerOptions struct {
-	APIRoot                       string
-	AuthURL                       string
+	ServerName, APIRoot, AuthURL  string
 	RegionalHostFormat, OwnRegion string
 	Prometheus                    bool
 }
@@ -55,12 +54,15 @@ func NewHandler(serverCtx context.Context, opts APIHandlerOptions, healthcore *h
 	router.Handler("GET", streamApiRoot+"/health", prepareHandlerFunc("get_stream_health", opts.Prometheus, handler.getStreamHealth, middlewares...))
 	router.Handler("GET", streamApiRoot+"/events", prepareHandlerFunc("stream_health_events", opts.Prometheus, handler.subscribeEvents, middlewares...))
 
-	globalMiddlewares := []middleware{cors}
+	globalMiddlewares := []middleware{cors(opts.ServerName)}
 	return prepareHandler("", false, router, globalMiddlewares...)
 }
 
-func cors(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+func cors(server string) middleware {
+	return inlineMiddleware(func(rw http.ResponseWriter, r *http.Request, next http.Handler) {
+		if server != "" {
+			rw.Header().Set("Server", server)
+		}
 		rw.Header().Set("Access-Control-Allow-Origin", "*")
 		rw.Header().Set("Access-Control-Allow-Headers", "*")
 		next.ServeHTTP(rw, r)
