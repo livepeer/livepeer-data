@@ -50,7 +50,7 @@ type cliFlags struct {
 	shardPrefixesFlag  string
 	shardPrefixes      []string
 
-	ServerOpts       api.ServerOptions `json:"server"`
+	serverOpts       api.ServerOptions
 	streamingOpts    health.StreamingOptions
 	memoryRecordsTtl time.Duration
 }
@@ -60,6 +60,7 @@ func parseFlags(version string) cliFlags {
 	fs := flag.NewFlagSet("analyzer", flag.ExitOnError)
 
 	fs.BoolVar(&cli.json, "json", false, "Print application info as json")
+	fs.BoolVar(&cli.json, "j", false, "Print application info as json (shorthand)")
 
 	fs.StringVar(&cli.rabbitmqUri, "rabbitmq-uri", "amqp://guest:guest@localhost:5672/livepeer", "URI for RabbitMQ server to consume from. Can be specified as a default AMQP URI which will be converted to stream protocol.")
 	fs.StringVar(&cli.amqpUri, "amqp-uri", "", "Explicit AMQP URI in case of non-default protocols/ports (optional). Must point to the same cluster as rabbitmqUri")
@@ -68,15 +69,15 @@ func parseFlags(version string) cliFlags {
 	fs.StringVar(&cli.shardPrefixesFlag, "shard-prefixes", "", "Comma-separated list of prefixes of manifest IDs to process events from")
 
 	// Server options
-	fs.StringVar(&cli.ServerOpts.Host, "host", "localhost", "Hostname to bind to")
-	fs.UintVar(&cli.ServerOpts.Port, "port", 8080, "Port to listen on")
-	fs.DurationVar(&cli.ServerOpts.ShutdownGracePeriod, "shutdown-grace-perod", 15*time.Second, "Grace period to wait for server shutdown before using the force")
+	fs.StringVar(&cli.serverOpts.Host, "host", "localhost", "Hostname to bind to")
+	fs.UintVar(&cli.serverOpts.Port, "port", 8080, "Port to listen on")
+	fs.DurationVar(&cli.serverOpts.ShutdownGracePeriod, "shutdown-grace-perod", 15*time.Second, "Grace period to wait for server shutdown before using the force")
 	// API Handler
-	fs.StringVar(&cli.ServerOpts.APIRoot, "api-root", "/data", "Root path where to bind the API to")
-	fs.BoolVar(&cli.ServerOpts.Prometheus, "prometheus", false, "Whether to enable Prometheus metrics registry and expose /metrics endpoint")
-	fs.StringVar(&cli.ServerOpts.AuthURL, "auth-url", "", "Endpoint for an auth server to call for both authentication and authorization of API calls")
-	fs.StringVar(&cli.ServerOpts.OwnRegion, "own-region", "", "Identifier of the region where the service is running, used for triggering global request proxying")
-	fs.StringVar(&cli.ServerOpts.RegionalHostFormat, "regional-host-format", "localhost", "Format to build regional URL for proxying to other regions. Should contain 1 %s directive where the region will be replaced (e.g. %s.livepeer.monster)")
+	fs.StringVar(&cli.serverOpts.APIRoot, "api-root", "/data", "Root path where to bind the API to")
+	fs.BoolVar(&cli.serverOpts.Prometheus, "prometheus", false, "Whether to enable Prometheus metrics registry and expose /metrics endpoint")
+	fs.StringVar(&cli.serverOpts.AuthURL, "auth-url", "", "Endpoint for an auth server to call for both authentication and authorization of API calls")
+	fs.StringVar(&cli.serverOpts.OwnRegion, "own-region", "", "Identifier of the region where the service is running, used for triggering global request proxying")
+	fs.StringVar(&cli.serverOpts.RegionalHostFormat, "regional-host-format", "localhost", "Format to build regional URL for proxying to other regions. Should contain 1 %s directive where the region will be replaced (e.g. %s.livepeer.monster)")
 
 	// Streaming options
 	fs.StringVar(&cli.streamingOpts.Stream, "rabbitmq-stream-name", "lp_stream_health_v0", "Name of RabbitMQ stream to create and consume from")
@@ -132,7 +133,7 @@ func parseFlags(version string) cliFlags {
 
 func Run(build BuildFlags) {
 	cli := parseFlags(build.Version)
-	cli.ServerOpts.APIHandlerOptions.ServerName = "analyzer/" + build.Version
+	cli.serverOpts.APIHandlerOptions.ServerName = "analyzer/" + build.Version
 
 	glog.Infof("Stream health care system starting up... version=%q", build.Version)
 	ctx := contextUntilSignal(context.Background(), syscall.SIGINT, syscall.SIGTERM)
@@ -158,7 +159,7 @@ func Run(build BuildFlags) {
 	}
 
 	glog.Info("Starting server...")
-	err = api.ListenAndServe(ctx, cli.ServerOpts, healthcore)
+	err = api.ListenAndServe(ctx, cli.serverOpts, healthcore)
 	if err != nil {
 		glog.Fatalf("Error starting api server. err=%q", err)
 	}
