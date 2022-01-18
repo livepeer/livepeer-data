@@ -2,7 +2,6 @@ package analyzer
 
 import (
 	"context"
-	"encoding/json"
 	"flag"
 	"os"
 	"os/signal"
@@ -16,6 +15,7 @@ import (
 	"github.com/livepeer/livepeer-data/health"
 	"github.com/livepeer/livepeer-data/health/reducers"
 	"github.com/livepeer/livepeer-data/pkg/event"
+	"github.com/livepeer/livepeer-data/pkg/mist-connector"
 	"github.com/peterbourgon/ff"
 )
 
@@ -24,24 +24,8 @@ type BuildFlags struct {
 	Version string
 }
 
-type MistOptional struct {
-	Name   string `json:"name"`
-	Help   string `json:"help"`
-	Option string `json:"option,omitempty"`
-	// Short   string `json:"short"`
-	Default string `json:"default,omitempty"`
-}
-
-type MistConfig struct {
-	Name         string         `json:"name"`
-	Description  string         `json:"desc"`
-	FriendlyName string         `json:"friendly"`
-	Optional     []MistOptional `json:"optional,omitempty"`
-	Version      string         `json:"version,omitempty"`
-}
-
 type cliFlags struct {
-	json bool
+	mistJson bool
 
 	rabbitmqUri string
 	amqpUri     string
@@ -59,8 +43,7 @@ func parseFlags(version string) cliFlags {
 	cli := cliFlags{}
 	fs := flag.NewFlagSet("analyzer", flag.ExitOnError)
 
-	fs.BoolVar(&cli.json, "json", false, "Print application info as json")
-	fs.BoolVar(&cli.json, "j", false, "Print application info as json (shorthand)")
+	fs.BoolVar(&cli.mistJson, "j", false, "Print application info as json")
 
 	fs.StringVar(&cli.rabbitmqUri, "rabbitmq-uri", "amqp://guest:guest@localhost:5672/livepeer", "URI for RabbitMQ server to consume from. Can be specified as a default AMQP URI which will be converted to stream protocol.")
 	fs.StringVar(&cli.amqpUri, "amqp-uri", "", "Explicit AMQP URI in case of non-default protocols/ports (optional). Must point to the same cluster as rabbitmqUri")
@@ -108,24 +91,15 @@ func parseFlags(version string) cliFlags {
 		cli.shardPrefixes = strings.Split(cli.shardPrefixesFlag, ",")
 	}
 
-	if cli.json {
-		data := &MistConfig{
-			Name:         "LivepeerAnalyzer",
-			Version:      version,
-			Description:  "",
-			FriendlyName: "Livepeer Analyzer",
-			Optional:     []MistOptional{},
-		}
-		fs.VisitAll(func(f *flag.Flag) {
-			data.Optional = append(data.Optional, MistOptional{
-				Name:    f.Name,
-				Help:    f.Usage,
-				Default: f.DefValue,
-			})
-		})
-		b, _ := json.Marshal(data)
-		os.Stdout.Write(b)
-		os.Exit(255)
+	if cli.mistJson {
+		mistconnector.PrintMistConfigJson(
+			"LivepeerAnalyzer",
+			"Stream health data analyzer service for aggregated reporting of running streams status",
+			"Livepeer Analyzer",
+			version,
+			fs,
+		)
+		os.Exit(0)
 	}
 
 	return cli
