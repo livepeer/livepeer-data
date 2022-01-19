@@ -15,6 +15,7 @@ import (
 	"github.com/livepeer/livepeer-data/health"
 	"github.com/livepeer/livepeer-data/health/reducers"
 	"github.com/livepeer/livepeer-data/pkg/event"
+	"github.com/livepeer/livepeer-data/pkg/mistconnector"
 	"github.com/peterbourgon/ff"
 )
 
@@ -22,7 +23,10 @@ import (
 type BuildFlags struct {
 	Version string
 }
+
 type cliFlags struct {
+	mistJson bool
+
 	rabbitmqUri string
 	amqpUri     string
 
@@ -35,9 +39,11 @@ type cliFlags struct {
 	memoryRecordsTtl time.Duration
 }
 
-func parseFlags() cliFlags {
+func parseFlags(version string) cliFlags {
 	cli := cliFlags{}
 	fs := flag.NewFlagSet("analyzer", flag.ExitOnError)
+
+	fs.BoolVar(&cli.mistJson, "j", false, "Print application info as json")
 
 	fs.StringVar(&cli.rabbitmqUri, "rabbitmq-uri", "amqp://guest:guest@localhost:5672/livepeer", "URI for RabbitMQ server to consume from. Can be specified as a default AMQP URI which will be converted to stream protocol.")
 	fs.StringVar(&cli.amqpUri, "amqp-uri", "", "Explicit AMQP URI in case of non-default protocols/ports (optional). Must point to the same cluster as rabbitmqUri")
@@ -84,11 +90,23 @@ func parseFlags() cliFlags {
 	if cli.shardPrefixesFlag != "" {
 		cli.shardPrefixes = strings.Split(cli.shardPrefixesFlag, ",")
 	}
+
+	if cli.mistJson {
+		mistconnector.PrintMistConfigJson(
+			"LivepeerAnalyzer",
+			"Stream health data analyzer service for aggregated reporting of running streams status",
+			"Livepeer Analyzer",
+			version,
+			fs,
+		)
+		os.Exit(0)
+	}
+
 	return cli
 }
 
 func Run(build BuildFlags) {
-	cli := parseFlags()
+	cli := parseFlags(build.Version)
 	cli.serverOpts.APIHandlerOptions.ServerName = "analyzer/" + build.Version
 
 	glog.Infof("Stream health care system starting up... version=%q", build.Version)
