@@ -31,7 +31,7 @@ func isIntType(value string) bool {
 	return false
 }
 
-func PrintMistConfigJson(name string, description string, friendlyName string, version string, flagSet *flag.FlagSet) {
+func PrintMistConfigJson(name, description, friendlyName, version string, flagSet *flag.FlagSet) {
 	data := MistConfig{
 		Name:         name,
 		Version:      version,
