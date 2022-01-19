@@ -47,9 +47,8 @@ func PrintMistConfigJson(name, description, friendlyName, version string, flagSe
 		Optional:     make(map[string]MistOptional),
 	}
 	flagSet.VisitAll(func(f *flag.Flag) {
-		var flagType string = ""
+		var flagType string = "str"
 		if len(f.DefValue) > 0 {
-			flagType = "str"
 			if isIntType(f.DefValue) {
 				flagType = "uint"
 			}
