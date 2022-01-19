@@ -15,7 +15,7 @@ import (
 	"github.com/livepeer/livepeer-data/health"
 	"github.com/livepeer/livepeer-data/health/reducers"
 	"github.com/livepeer/livepeer-data/pkg/event"
-	"github.com/livepeer/livepeer-data/pkg/mist-connector"
+	"github.com/livepeer/livepeer-data/pkg/mistconnector"
 	"github.com/peterbourgon/ff"
 )
 

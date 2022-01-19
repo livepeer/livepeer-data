@@ -31,6 +31,13 @@ func isIntType(value string) bool {
 	return false
 }
 
+func isBoolType(value string) bool {
+	if _, err := strconv.ParseBool(value); err == nil {
+		return true
+	}
+	return false
+}
+
 func PrintMistConfigJson(name, description, friendlyName, version string, flagSet *flag.FlagSet) {
 	data := MistConfig{
 		Name:         name,
@@ -43,9 +50,12 @@ func PrintMistConfigJson(name, description, friendlyName, version string, flagSe
 		var flagType string = ""
 		if len(f.DefValue) > 0 {
 			flagType = "str"
-		}
-		if isIntType(f.DefValue) {
-			flagType = "uint"
+			if isIntType(f.DefValue) {
+				flagType = "uint"
+			}
+			if isBoolType(f.DefValue) {
+				flagType = ""
+			}
 		}
 		data.Optional[f.Name] = MistOptional{
 			Name:    f.Name,
