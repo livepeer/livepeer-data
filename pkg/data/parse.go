@@ -35,6 +35,12 @@ func ParseEvent(data []byte) (Event, error) {
 			return nil, fmt.Errorf("error unmarshalling media server metrics event: %w", err)
 		}
 		return mesemev, nil
+	case EventTypeTask:
+		var tev *TaskEvent
+		if err := json.Unmarshal(data, &tev); err != nil {
+			return nil, fmt.Errorf("error unmarshalling task event: %w", err)
+		}
+		return tev, nil
 	default:
 		return nil, fmt.Errorf("unknown event type=%q, streamId=%q, ts=%d", base.Type(), base.StreamID_, base.Timestamp_)
 	}
