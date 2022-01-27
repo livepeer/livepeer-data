@@ -13,18 +13,17 @@ type AMQPChanOps interface {
 }
 
 type AMQPChanSetup interface {
-	ExchangeBind(string, string, string, bool, amqp.Table) error
-	ExchangeDeclare(string, string, bool, bool, bool, bool, amqp.Table) error
-	ExchangeDeclarePassive(string, string, bool, bool, bool, bool, amqp.Table) error
-	ExchangeDelete(string, bool, bool) error
-	ExchangeUnbind(string, string, string, bool, amqp.Table) error
-	QueueBind(string, string, string, bool, amqp.Table) error
-	QueueDeclare(string, bool, bool, bool, bool, amqp.Table) (amqp.Queue, error)
-	QueueDeclarePassive(string, bool, bool, bool, bool, amqp.Table) (amqp.Queue, error)
-	QueueDelete(string, bool, bool, bool) (int, error)
-	QueueInspect(string) (amqp.Queue, error)
-	QueuePurge(string, bool) (int, error)
-	QueueUnbind(string, string, string, amqp.Table) error
+	ExchangeBind(destination, key, source string, noWait bool, args amqp.Table) error
+	ExchangeDeclare(name, kind string, durable, autoDelete, internal, noWait bool, args amqp.Table) error
+	ExchangeDeclarePassive(name, kind string, durable, autoDelete, internal, noWait bool, args amqp.Table) error
+	ExchangeDelete(name string, ifUnused, noWait bool) error
+	ExchangeUnbind(destination, key, source string, noWait bool, args amqp.Table) error
+	QueueBind(name, key, exchange string, noWait bool, args amqp.Table) error
+	QueueDeclare(name string, durable, autoDelete, exclusive, noWait bool, args amqp.Table) (amqp.Queue, error)
+	QueueDeclarePassive(name string, durable, autoDelete, exclusive, noWait bool, args amqp.Table) (amqp.Queue, error)
+	QueueDelete(name string, ifUnused, ifEmpty, noWait bool) (int, error)
+	QueueInspect(name string) (amqp.Queue, error)
+	QueueUnbind(name, key, exchange string, args amqp.Table) error
 }
 
 type AMQPConnectFunc func(ctx context.Context, uri string, confirms chan amqp.Confirmation, closed chan *amqp.Error) (AMQPChanOps, error)
