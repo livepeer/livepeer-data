@@ -30,16 +30,16 @@ type amqpConsumer struct {
 	currChannel   AMQPChanOps
 	currCtx       context.Context
 
-	shutdownCtx context.Context
-	shutdown    context.CancelFunc
+	shutdownCtx    context.Context
+	shutdown       context.CancelFunc
+	consumersGroup sync.WaitGroup
 }
 
 func NewAMQPConsumer(uri string, connectFn AMQPConnectFunc) (AMQPConsumer, error) {
 	shutCtx, shutdown := context.WithCancel(context.Background())
 	amqp := &amqpConsumer{
-		amqpURI:   uri,
-		connectFn: connectFn,
-		// subsChan:      make(chan *subscription, 5),
+		amqpURI:     uri,
+		connectFn:   connectFn,
 		shutdownCtx: shutCtx,
 		shutdown:    shutdown,
 	}
@@ -51,12 +51,26 @@ func NewAMQPConsumer(uri string, connectFn AMQPConnectFunc) (AMQPConsumer, error
 }
 
 // Shutdown will try to gracefully stop the background event consuming process.
-func (c *amqpConsumer) Shutdown(context.Context) error {
+func (c *amqpConsumer) Shutdown(ctx context.Context) error {
 	if c.shutdownCtx.Err() != nil {
 		return ErrConsumerClosed
 	}
 	c.shutdown()
-	return nil
+	select {
+	case <-c.consumersDone():
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func (c *amqpConsumer) consumersDone() chan struct{} {
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		c.consumersGroup.Wait()
+	}()
+	return done
 }
 
 // Consume starts consuming messages from the given queue and calls the provided
@@ -70,11 +84,13 @@ func (c *amqpConsumer) Shutdown(context.Context) error {
 func (c *amqpConsumer) Consume(queue string, concurrency int, handler AMQPMessageHandler) error {
 	if c.shutdownCtx.Err() != nil {
 		return ErrConsumerClosed
+	} else if concurrency < 1 {
+		return fmt.Errorf("concurrency must be at least 1, got %d", concurrency)
 	}
 	c.lock.Lock()
 	defer c.lock.Unlock()
 	sub := &subscription{queue, handler, concurrency}
-	err := doConsume(c.currCtx, c.currChannel, sub)
+	err := doConsume(c.currCtx, c.consumersGroup, c.currChannel, sub)
 	if err != nil {
 		return err
 	}
@@ -112,7 +128,7 @@ func (c *amqpConsumer) connect() error {
 		return err
 	}
 	for _, sub := range c.subscriptions {
-		if err := doConsume(ctx, channel, sub); err != nil {
+		if err := doConsume(ctx, c.consumersGroup, channel, sub); err != nil {
 			cancel()
 			return fmt.Errorf("error consuming queue %q: %v", sub.queue, err)
 		}
@@ -130,14 +146,16 @@ func (c *amqpConsumer) connect() error {
 	return nil
 }
 
-func doConsume(ctx context.Context, amqpch AMQPChanOps, sub *subscription) error {
+func doConsume(ctx context.Context, wg sync.WaitGroup, amqpch AMQPChanOps, sub *subscription) error {
 	// TODO: Create custom consumer names to be able to cancel them.
 	subs, err := amqpch.Consume(sub.queue, "", false, false, false, false, nil)
 	if err != nil {
 		return err
 	}
+	wg.Add(sub.concurrency)
 	for i := 0; i < sub.concurrency; i++ {
 		go func() {
+			defer wg.Done()
 			defer func() {
 				if rec := recover(); rec != nil {
 					glog.Errorf("Panic in background AMQP consumer: value=%v", rec)
