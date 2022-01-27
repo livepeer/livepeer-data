@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/rabbitmq/amqp091-go"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
@@ -14,18 +13,18 @@ type AMQPChanOps interface {
 }
 
 type AMQPChanSetup interface {
-	ExchangeBind(string, string, string, bool, amqp091.Table) error
-	ExchangeDeclare(string, string, bool, bool, bool, bool, amqp091.Table) error
-	ExchangeDeclarePassive(string, string, bool, bool, bool, bool, amqp091.Table) error
+	ExchangeBind(string, string, string, bool, amqp.Table) error
+	ExchangeDeclare(string, string, bool, bool, bool, bool, amqp.Table) error
+	ExchangeDeclarePassive(string, string, bool, bool, bool, bool, amqp.Table) error
 	ExchangeDelete(string, bool, bool) error
-	ExchangeUnbind(string, string, string, bool, amqp091.Table) error
-	QueueBind(string, string, string, bool, amqp091.Table) error
-	QueueDeclare(string, bool, bool, bool, bool, amqp091.Table) (amqp091.Queue, error)
-	QueueDeclarePassive(string, bool, bool, bool, bool, amqp091.Table) (amqp091.Queue, error)
+	ExchangeUnbind(string, string, string, bool, amqp.Table) error
+	QueueBind(string, string, string, bool, amqp.Table) error
+	QueueDeclare(string, bool, bool, bool, bool, amqp.Table) (amqp.Queue, error)
+	QueueDeclarePassive(string, bool, bool, bool, bool, amqp.Table) (amqp.Queue, error)
 	QueueDelete(string, bool, bool, bool) (int, error)
-	QueueInspect(string) (amqp091.Queue, error)
+	QueueInspect(string) (amqp.Queue, error)
 	QueuePurge(string, bool) (int, error)
-	QueueUnbind(string, string, string, amqp091.Table) error
+	QueueUnbind(string, string, string, amqp.Table) error
 }
 
 type AMQPConnectFunc func(ctx context.Context, uri string, confirms chan amqp.Confirmation, closed chan *amqp.Error) (AMQPChanOps, error)
