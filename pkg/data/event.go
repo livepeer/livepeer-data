@@ -20,7 +20,7 @@ type Base struct {
 	Type_      EventType      `json:"type"`
 	ID_        uuid.UUID      `json:"id"`
 	Timestamp_ UnixMillisTime `json:"timestamp"`
-	StreamID_  string         `json:"streamId"`
+	StreamID_  string         `json:"streamId,omitempty"`
 }
 
 var _ Event = (*Base)(nil)

@@ -36,6 +36,6 @@ func ParseEvent(data []byte) (Event, error) {
 		}
 		return mesemev, nil
 	default:
-		return nil, fmt.Errorf("unknown event type=%q, streamId=%q, ts=%d", base.Type, base.StreamID_, base.Timestamp_)
+		return nil, fmt.Errorf("unknown event type=%q, streamId=%q, ts=%d", base.Type(), base.StreamID_, base.Timestamp_)
 	}
 }
