@@ -1,0 +1,79 @@
+name: Publish new release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  create_release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@master
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Release ${{ github.ref }}
+          body: |
+            Release ${{ github.ref }}
+          draft: false
+          prerelease: false
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    needs: create_release
+    steps:
+      - name: Set up Go 1.17
+        uses: actions/setup-go@v1
+        with:
+          go-version: 1.17
+        id: go
+      - name: Check out code into the Go module directory
+        uses: actions/checkout@v1
+      - name: Restore cache
+        uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+      - name: Get dependencies
+        run: |
+          go mod download
+      - name: Build analyzer binary
+        run: |
+          mkdir -p releases/ build/
+          for platform in linux darwin windows
+          do
+            for arch in arm64 amd64
+            do
+              GOOS="$platform" GOARCH="$arch" make analyzer
+              cd "build/"
+              if [ "$platform" = "windows" ]
+              then
+                mv analyzer.exe livepeer-analyzer.exe
+                zip -9 "../releases/livepeer-analyzer-${platform}-${arch}.zip" "livepeer-analyzer.exe"
+              else
+                mv analyzer livepeer-analyzer
+                tar -czf "../releases/livepeer-analyzer-${platform}-${arch}.tar.gz" "livepeer-analyzer"
+              fi
+              cd -
+            done
+          done
+
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            build/livepeer-*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
