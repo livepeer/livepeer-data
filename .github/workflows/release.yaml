@@ -74,6 +74,6 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            build/livepeer-*
+            releases/livepeer-*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
