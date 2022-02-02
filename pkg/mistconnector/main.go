@@ -51,8 +51,7 @@ func PrintMistConfigJson(name, description, friendlyName, version string, flagSe
 		if len(f.DefValue) > 0 {
 			if isIntType(f.DefValue) {
 				flagType = "uint"
-			}
-			if isBoolType(f.DefValue) {
+			} else if isBoolType(f.DefValue) {
 				flagType = ""
 			}
 		}
