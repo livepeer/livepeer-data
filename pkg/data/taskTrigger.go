@@ -2,16 +2,16 @@ package data
 
 import "encoding/json"
 
-const EventTypeTask EventType = "task"
+const EventTypeTaskTrigger EventType = "task_trigger"
 
-func NewTaskEvent(info TaskInfo) *TaskEvent {
-	return &TaskEvent{
-		Base: newEventBase(EventTypeTranscode, ""),
+func NewTaskTriggerEvent(info TaskInfo) *TaskTriggerEvent {
+	return &TaskTriggerEvent{
+		Base: newEventBase(EventTypeTaskTrigger, ""),
 		Task: info,
 	}
 }
 
-type TaskEvent struct {
+type TaskTriggerEvent struct {
 	Base
 	Task TaskInfo `json:"task"`
 }

@@ -1,6 +1,6 @@
 package data
 
-const EventTypeTaskResult EventType = "task"
+const EventTypeTaskResult EventType = "task_result"
 
 func NewTaskResultEvent(info TaskInfo, err *ErrorInfo, output *TaskOutput) *TaskResultEvent {
 	return &TaskResultEvent{
