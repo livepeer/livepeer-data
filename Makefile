@@ -47,3 +47,15 @@ check_local_rabbit:
 		echo "> echo '127.0.0.1 rabbitmq' >> /etc/hosts"; \
 		exit 1; \
 	}
+
+.PHONY: release
+release:
+	@if [[ ! "$(version)" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-.+)?$$ ]]; then \
+		echo "Must provide semantic version as arg to make." ; \
+		echo "e.g. make release version=1.2.3-beta" ; \
+		exit 1 ; \
+	fi
+	@git diff --quiet || { echo "Git working directory is dirty."; exit 1 ; }
+
+	git tag -a v$(version) -m "Release v$(version)"
+	git push origin v$(version)
