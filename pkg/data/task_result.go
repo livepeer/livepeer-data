@@ -24,5 +24,13 @@ type ErrorInfo struct {
 }
 
 type TaskOutput struct {
-	Import interface{} `json:"import,omitempty"`
+	Import *ImportTaskOutput `json:"import,omitempty"`
+}
+
+type ImportTaskOutput struct {
+	VideoFilePath    string      `json:"videoFilePath"`
+	MetadataFilePath string      `json:"metadataFilePath"`
+	Metadata         interface{} `json:"metadata"`
+	// This is livepeerAPI.AssetSpec but we don't want to depend on the whole pkg
+	AssetSpec interface{} `json:"assetSpec"`
 }
