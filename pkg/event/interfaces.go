@@ -8,10 +8,6 @@ import (
 	"github.com/rabbitmq/rabbitmq-stream-go-client/pkg/stream"
 )
 
-type Producer interface {
-	Publish(ctx context.Context, key string, body interface{}, persistent bool) error
-}
-
 type (
 	BindingArgs struct {
 		Key      string
@@ -45,5 +41,24 @@ type (
 		Consume(ctx context.Context, opts ConsumeOptions, handler Handler) error
 		CheckConnection() error
 		Close() error
+	}
+
+	SimpleProducer interface {
+		Publish(ctx context.Context, key string, body interface{}, persistent bool) error
+	}
+
+	AMQPProducer interface {
+		Publish(ctx context.Context, msg AMQPMessage) error
+		Shutdown(context.Context) error
+	}
+
+	AMQPConsumer interface {
+		Consume(queue string, concurrency int, handler AMQPMessageHandler) error
+		Shutdown(context.Context) error
+	}
+
+	AMQPClient interface {
+		AMQPProducer
+		AMQPConsumer
 	}
 )
