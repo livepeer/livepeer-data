@@ -28,9 +28,8 @@ type TaskOutput struct {
 }
 
 type ImportTaskOutput struct {
-	VideoFilePath    string      `json:"videoFilePath"`
-	MetadataFilePath string      `json:"metadataFilePath"`
-	Metadata         interface{} `json:"metadata"`
+	VideoFilePath    string `json:"videoFilePath"`
+	MetadataFilePath string `json:"metadataFilePath"`
 	// This is livepeerAPI.AssetSpec but we don't want to depend on the whole pkg
 	AssetSpec interface{} `json:"assetSpec"`
 }
