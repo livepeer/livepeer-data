@@ -25,6 +25,7 @@ type ErrorInfo struct {
 
 type TaskOutput struct {
 	Import *ImportTaskOutput `json:"import,omitempty"`
+	Export *ExportTaskOutput `json:"export,omitempty"`
 }
 
 type ImportTaskOutput struct {
@@ -32,4 +33,14 @@ type ImportTaskOutput struct {
 	MetadataFilePath string `json:"metadataFilePath"`
 	// This is livepeerAPI.AssetSpec but we don't want to depend on the whole pkg
 	AssetSpec interface{} `json:"assetSpec"`
+}
+
+type ExportTaskOutput struct {
+	IPFS     *IPFSExportInfo `json:"ipfs,omitempty"`
+	Internal interface{}     `json:"internal,omitempty"`
+}
+
+type IPFSExportInfo struct {
+	VideoFileCID       string `json:"videoFileCid"`
+	ERC1155MetadataCID string `json:"erc1155MetadataCid,omitempty"`
 }
