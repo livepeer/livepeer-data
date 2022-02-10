@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
+	"runtime/debug"
 	"time"
 
 	"github.com/golang/glog"
@@ -155,7 +156,7 @@ func (p *amqpProducer) mainLoop() {
 func (p *amqpProducer) connectAndLoopPublish() error {
 	defer func() {
 		if rec := recover(); rec != nil {
-			glog.Errorf("Panic in background AMQP publisher: value=%v", rec)
+			glog.Errorf("Panic in background AMQP publisher: value=%q stack:\n%s", rec, string(debug.Stack()))
 		}
 	}()
 	var (

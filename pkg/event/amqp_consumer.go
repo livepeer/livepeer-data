@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"runtime/debug"
 	"sync"
 	"time"
 
@@ -158,7 +159,7 @@ func doConsume(ctx context.Context, wg sync.WaitGroup, amqpch AMQPChanOps, sub *
 			defer wg.Done()
 			defer func() {
 				if rec := recover(); rec != nil {
-					glog.Errorf("Panic in background AMQP consumer: value=%v", rec)
+					glog.Errorf("Panic in background AMQP consumer: value=%q stack:\n%s", rec, string(debug.Stack()))
 				}
 			}()
 			for {
