@@ -32,6 +32,7 @@ type TaskOutput struct {
 type TranscodeTaskOutput struct {
 	Assets []ImportTaskOutput `json:"assets,omitempty"`
 }
+
 type ImportTaskOutput struct {
 	VideoFilePath    string `json:"videoFilePath"`
 	MetadataFilePath string `json:"metadataFilePath"`
