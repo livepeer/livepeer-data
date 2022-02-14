@@ -24,8 +24,13 @@ type ErrorInfo struct {
 }
 
 type TaskOutput struct {
-	Import *ImportTaskOutput `json:"import,omitempty"`
-	Export *ExportTaskOutput `json:"export,omitempty"`
+	Import    *ImportTaskOutput    `json:"import,omitempty"`
+	Export    *ExportTaskOutput    `json:"export,omitempty"`
+	Transcode *TranscodeTaskOutput `json:"transcode,omitempty"`
+}
+
+type TranscodeTaskOutput struct {
+	Assets []ImportTaskOutput `json:"assets,omitempty"`
 }
 
 type ImportTaskOutput struct {
