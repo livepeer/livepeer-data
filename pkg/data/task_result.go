@@ -41,6 +41,6 @@ type ExportTaskOutput struct {
 }
 
 type IPFSExportInfo struct {
-	VideoFileCID       string `json:"videoFileCid"`
-	ERC1155MetadataCID string `json:"erc1155MetadataCid,omitempty"`
+	VideoFileCID   string `json:"videoFileCid"`
+	NFTMetadataCID string `json:"nftMetadataCid,omitempty"`
 }
