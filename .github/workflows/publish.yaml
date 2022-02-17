@@ -21,9 +21,9 @@ jobs:
           docker login -u $DOCKER_USERNAME -p $DOCKER_PASSWORD
 
       - name: Check out code
-        uses: actions/checkout@master
+        uses: actions/checkout@v2
 
-      - name: Tags
+      - name: Identify git ref tags state
         id: tags
         uses: livepeer/action-gh-release-tags@v0
 
