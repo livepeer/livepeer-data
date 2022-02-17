@@ -1,14 +1,14 @@
-name: Publish
+name: Publish images to dockerhub
 on: push
 
 jobs:
   docker:
     runs-on: ubuntu-20.04
     steps:
-      - name: Set up Docker Buildx      
-        uses: crazy-max/ghaction-docker-buildx@v1      
-        with:        
-          version: latest  
+      - name: Set up Docker Buildx
+        uses: crazy-max/ghaction-docker-buildx@v1
+        with:
+          version: latest
 
       - name: docker login
         env:
@@ -20,7 +20,7 @@ jobs:
           docker login -u $DOCKER_USERNAME -p $DOCKER_PASSWORD
 
       - name: Check out code
-        uses: actions/checkout@v1
+        uses: actions/checkout@master
 
       - name: Tags
         id: tags
