@@ -12,6 +12,7 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@master
+
       - name: Create Release
         id: create_release
         uses: actions/create-release@v1
@@ -35,8 +36,10 @@ jobs:
         with:
           go-version: 1.17
         id: go
+
       - name: Check out code into the Go module directory
-        uses: actions/checkout@v1
+        uses: actions/checkout@master
+
       - name: Restore cache
         uses: actions/cache@v2
         with:
@@ -46,9 +49,11 @@ jobs:
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
           restore-keys: |
             ${{ runner.os }}-go-
+
       - name: Get dependencies
         run: |
           go mod download
+
       - name: Build analyzer binary
         run: |
           mkdir -p releases/ build/
@@ -69,6 +74,14 @@ jobs:
               cd -
             done
           done
+
+      - name: Generate sha256 checksum and gpg signatures for release artifacts
+        uses: livepeer/action-gh-checksum-and-gpg-sign@latest
+        with:
+          artifacts-dir: releases
+          release-name: ${{ github.ref }}
+          gpg-key: ${{ secrets.CI_GPG_SIGNING_KEY }}
+          gpg-key-passphrase: ${{ secrets.CI_GPG_SIGNING_PASSPHRASE }}
 
       - name: Release
         uses: softprops/action-gh-release@v1
