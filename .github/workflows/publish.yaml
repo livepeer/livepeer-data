@@ -22,6 +22,8 @@ jobs:
 
       - name: Check out code
         uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
 
       - name: Identify git ref tags state
         id: tags
