@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
+	"runtime/debug"
 	"time"
 
 	"github.com/golang/glog"
@@ -22,6 +23,8 @@ const (
 var (
 	ErrProducerShuttingDown = errors.New("amqp: producer shutting down")
 	ErrProducerClosed       = errors.New("amqp: producer closed")
+	ErrMaxRetriesReached    = errors.New("amqp: publish max retries reached")
+	ErrRetryQueueFull       = errors.New("amqp: retry queue full")
 )
 
 type amqpProducer struct {
@@ -74,10 +77,16 @@ func (p *amqpProducer) Shutdown(ctx context.Context) error {
 	}
 }
 
+type PublishResult struct {
+	Message AMQPMessage
+	Error   error
+}
+
 type AMQPMessage struct {
 	Exchange, Key string
 	Body          interface{}
 	Persistent    bool
+	ResultChan    chan<- PublishResult
 }
 
 func (p *amqpProducer) Publish(ctx context.Context, msg AMQPMessage) error {
@@ -105,6 +114,12 @@ type publishMessage struct {
 	AMQPMessage
 	// internal loop state
 	retries int
+}
+
+func (m *publishMessage) sendResult(err error) {
+	if m.ResultChan != nil {
+		m.ResultChan <- PublishResult{m.AMQPMessage, err}
+	}
 }
 
 func (p *amqpProducer) newPublishMessage(msg AMQPMessage, bodyRaw []byte) *publishMessage {
@@ -141,7 +156,7 @@ func (p *amqpProducer) mainLoop() {
 func (p *amqpProducer) connectAndLoopPublish() error {
 	defer func() {
 		if rec := recover(); rec != nil {
-			glog.Errorf("Panic in background AMQP publisher: value=%v", rec)
+			glog.Errorf("Panic in background AMQP publisher: value=%q stack:\n%s", rec, string(debug.Stack()))
 		}
 	}()
 	var (
@@ -201,7 +216,9 @@ func (p *amqpProducer) connectAndLoopPublish() error {
 				break
 			}
 			delete(outstandingMsgs, tag)
-			if !success {
+			if success {
+				msg.sendResult(nil)
+			} else {
 				p.retryMsg(msg)
 			}
 			if isShuttingDown && isFlushed() {
@@ -217,6 +234,9 @@ func (p *amqpProducer) connectAndLoopPublish() error {
 			shutdown, isShuttingDown = nil, true
 		case <-p.shutdownCtx.Done():
 			glog.Warningf("Forcing shutdown with %d pending publishes and %d pending confirmations", len(p.publishQ), len(outstandingMsgs))
+			for _, msg := range outstandingMsgs {
+				msg.sendResult(ErrProducerShuttingDown)
+			}
 			return nil
 		}
 	}
@@ -226,6 +246,7 @@ func (p *amqpProducer) retryMsg(msg *publishMessage) {
 	msg.retries++
 	if msg.retries >= MaxRetries {
 		glog.Errorf("Dropping message reaching max retries: exchange=%q, key=%q, body=%q", msg.Exchange, msg.Key, msg.Publishing.Body)
+		msg.sendResult(ErrMaxRetriesReached)
 		return
 	}
 
@@ -233,6 +254,7 @@ func (p *amqpProducer) retryMsg(msg *publishMessage) {
 	case p.publishQ <- msg:
 	default:
 		glog.Errorf("Failed to re-enqueue message: exchange=%q, key=%q, body=%q", msg.Exchange, msg.Key, msg.Publishing.Body)
+		msg.sendResult(ErrRetryQueueFull)
 	}
 }
 
