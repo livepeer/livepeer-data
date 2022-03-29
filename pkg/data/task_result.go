@@ -30,7 +30,7 @@ type TaskOutput struct {
 }
 
 type TranscodeTaskOutput struct {
-	Assets []ImportTaskOutput `json:"assets,omitempty"`
+	Asset ImportTaskOutput `json:"asset,omitempty"`
 }
 
 type ImportTaskOutput struct {
