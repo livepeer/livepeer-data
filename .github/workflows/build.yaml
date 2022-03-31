@@ -139,14 +139,16 @@ jobs:
         with:
           update: true
           install: >-
-            base-devel
+            go
             git
-
-      - name: Set up go
-        id: go
-        uses: actions/setup-go@v3
-        with:
-          go-version: 1.17
+            make
+            autoconf
+            automake
+            patch
+            libtool
+            texinfo
+            gtk-doc
+            zip
 
       - name: Check out code
         uses: actions/checkout@v3
