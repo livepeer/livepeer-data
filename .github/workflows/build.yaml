@@ -124,6 +124,9 @@ jobs:
           path: releases/
 
   windows:
+    defaults:
+      run:
+        shell: msys2 {0}
     strategy:
       matrix:
         arch:
@@ -132,6 +135,13 @@ jobs:
     name: Build binaries for windows platform
     runs-on: windows-2022
     steps:
+      - uses: msys2/setup-msys2@v2
+        with:
+          update: true
+          install: >-
+            base-devel
+            git
+
       - name: Set up go
         id: go
         uses: actions/setup-go@v3
@@ -157,7 +167,6 @@ jobs:
         run: go mod download
 
       - name: Build
-        shell: bash
         run: |
           mkdir -p "build/" "releases/"
           GOARCH="${{ matrix.arch }}" make
