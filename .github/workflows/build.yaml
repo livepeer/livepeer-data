@@ -94,6 +94,22 @@ jobs:
           GOARCH="${{ matrix.arch }}" make
           cd build/
           mv analyzer livepeer-analyzer
+
+      - name: Codesign and notarize binaries
+        uses: livepeer/action-gh-codesign-apple@latest
+        with:
+          developer-certificate-id: ${{ secrets.CI_MACOS_CERTIFICATE_ID }}
+          developer-certificate-base64: ${{ secrets.CI_MACOS_CERTIFICATE_BASE64 }}
+          developer-certificate-password: ${{ secrets.CI_MACOS_CERTIFICATE_PASSWORD }}
+          app-notarization-email: ${{ secrets.CI_MACOS_NOTARIZATION_USER }}
+          app-notarization-password: ${{ secrets.CI_MACOS_NOTARIZATION_PASSWORD }}
+          binary-path: "build/livepeer-analyzer"
+          app-notarization-file: "livepeer-analyzer-darwin-${{ matrix.arch }}.zip"
+          app-bundle-id: "org.livepeer.analyzer"
+
+      - name: Archive signed binary
+        run: |
+          cd build/
           tar -czf "../releases/livepeer-analyzer-darwin-${{ matrix.arch }}.tar.gz" livepeer-analyzer
 
       - name: Upload artifacts for cutting release

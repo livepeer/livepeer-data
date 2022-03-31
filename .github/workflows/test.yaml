@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - main
+      - "hjp/*"
 
 jobs:
   test:
@@ -23,7 +24,7 @@ jobs:
           fetch-depth: 0
 
       - name: Restore cache
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
           path: |
             ~/.cache/go-build
