@@ -163,7 +163,7 @@ jobs:
           GOARCH="${{ matrix.arch }}" make
           cd build/
           mv analyzer.exe livepeer-analyzer.exe
-          tar -czf "../releases/livepeer-analyzer-windows-${{ matrix.arch }}.tar.gz" livepeer-analyzer.exe
+          zip -9q "../releases/livepeer-analyzer-windows-${{ matrix.arch }}.zip" "livepeer-analyzer.exe"
 
       - name: Upload artifacts for cutting release
         uses: actions/upload-artifact@master
