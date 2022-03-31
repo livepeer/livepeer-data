@@ -48,7 +48,7 @@ func (t MediaServerMetrics) Reduce(current *data.HealthStatus, _ interface{}, ev
 	}
 
 	if vc := totalViewerCount(metrics); vc > 10 {
-		glog.Warning("High viewer count stream! streamId=%q viewerCount=%d", evt.StreamID(), vc)
+		glog.Warningf("High viewer count stream! streamId=%q viewerCount=%d", evt.StreamID(), vc)
 	}
 	return data.NewMergedHealthStatus(current, data.HealthStatus{Metrics: metrics}), nil
 }
