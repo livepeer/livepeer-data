@@ -1,71 +1,50 @@
-name: Publish new release
+name: Create release on github
 
 on:
-  push:
-    tags:
-      - "v*"
+  workflow_run:
+    workflows:
+      - Build binaries
+    types:
+      - "completed"
 
 jobs:
-  build:
-    name: Build
-    runs-on: ubuntu-latest
+  release:
+    runs-on: ubuntu-20.04
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     steps:
-      - name: Set up Go 1.17
-        uses: actions/setup-go@v1
-        with:
-          go-version: 1.17
-        id: go
-
-      - name: Check out code into the Go module directory
+      - name: checkout
         uses: actions/checkout@master
-
-      - name: Restore cache
-        uses: actions/cache@v2
         with:
-          path: |
-            ~/.cache/go-build
-            ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-          restore-keys: |
-            ${{ runner.os }}-go-
+          fetch-depth: 0
+          ref: ${{ github.event.workflow_run.head_branch }}
 
-      - name: Get dependencies
-        run: |
-          go mod download
+      - name: Download artifacts from build stage
+        uses: dawidd6/action-download-artifact@v2
+        with:
+          workflow: build.yaml
+          name: release-artifacts
+          path: releases/
 
-      - name: Build analyzer binary
-        run: |
-          mkdir -p releases/ build/
-          for platform in linux darwin windows
-          do
-            for arch in arm64 amd64
-            do
-              GOOS="$platform" GOARCH="$arch" make analyzer
-              cd "build/"
-              if [ "$platform" = "windows" ]
-              then
-                mv analyzer.exe livepeer-analyzer.exe
-                zip -9 "../releases/livepeer-analyzer-${platform}-${arch}.zip" "livepeer-analyzer.exe"
-              else
-                mv analyzer livepeer-analyzer
-                tar -czf "../releases/livepeer-analyzer-${platform}-${arch}.tar.gz" "livepeer-analyzer"
-              fi
-              cd -
-            done
-          done
+      - uses: actions-ecosystem/action-regex-match@v2
+        id: match-tag
+        with:
+          text: ${{ github.event.workflow_run.head_branch }}
+          regex: '^v([0-9]+\.\d+\.\d+)$'
 
       - name: Generate sha256 checksum and gpg signatures for release artifacts
+        if: ${{ steps.match-tag.outputs.match != '' }}
         uses: livepeer/action-gh-checksum-and-gpg-sign@latest
         with:
           artifacts-dir: releases
-          release-name: ${{ github.ref_name }}
+          release-name: ${{ github.event.workflow_run.head_branch }}
           gpg-key: ${{ secrets.CI_GPG_SIGNING_KEY }}
           gpg-key-passphrase: ${{ secrets.CI_GPG_SIGNING_PASSPHRASE }}
 
-      - name: Release
+      - name: Release to github
         uses: softprops/action-gh-release@v1
+        if: ${{ steps.match-tag.outputs.match != '' }}
         with:
+          generate_release_notes: true
+          tag_name: ${{ github.event.workflow_run.head_branch }}
           files: |
             releases/*
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
