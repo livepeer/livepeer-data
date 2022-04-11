@@ -21,6 +21,7 @@ type MistConfig struct {
 	Description  string                  `json:"desc"`
 	FriendlyName string                  `json:"friendly"`
 	Optional     map[string]MistOptional `json:"optional,omitempty"`
+	Required     map[string]MistOptional `json:"required,omitempty"`
 	Version      string                  `json:"version,omitempty"`
 }
 
