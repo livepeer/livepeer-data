@@ -5,7 +5,7 @@ tags ?= latest $(version)
 allCmds := $(shell ls ./cmd/)
 dockerimg := livepeer/data
 
-.PHONY: all $(allCmds) docker docker_run docker_push deps_start deps_stop check_local_rabbit
+.PHONY: all $(allCmds) docker docker_run docker_push deps_start deps_stop check_local_rabbit test
 
 all: $(allCmds)
 
@@ -17,6 +17,9 @@ run: check_local_rabbit deps_start
 
 docker:
 	docker build $(foreach tag,$(tags),-t $(dockerimg):$(tag)) --build-arg version=$(version) .
+
+test:
+	go test ./... -v
 
 docker_run: deps_start docker
 	docker run -it --rm --name=$(cmd) --entrypoint=./$(cmd) \

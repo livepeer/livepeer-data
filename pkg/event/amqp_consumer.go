@@ -138,7 +138,7 @@ func (c *amqpConsumer) connect() error {
 		defer cancel()
 		select {
 		case err := <-closed:
-			glog.Infof("Channel or connection closed: %w", err)
+			glog.Infof("Channel or connection closed: %s", err)
 		case <-c.shutdownCtx.Done():
 			glog.Infof("Shutting down consumer as requested")
 		}
