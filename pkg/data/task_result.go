@@ -27,6 +27,7 @@ type TaskOutput struct {
 	Import    *ImportTaskOutput    `json:"import,omitempty"`
 	Export    *ExportTaskOutput    `json:"export,omitempty"`
 	Transcode *TranscodeTaskOutput `json:"transcode,omitempty"`
+	Prepare   *PrepareTaskOutput   `json:"prepare,omitempty"`
 }
 
 type TranscodeTaskOutput struct {
@@ -37,7 +38,8 @@ type ImportTaskOutput struct {
 	VideoFilePath    string `json:"videoFilePath"`
 	MetadataFilePath string `json:"metadataFilePath"`
 	// This is livepeerAPI.AssetSpec but we don't want to depend on the whole pkg
-	AssetSpec interface{} `json:"assetSpec"`
+	AssetSpec                  interface{} `json:"assetSpec"`
+	PlaybackRecordingSessionId string      `json:"playbackRecordingSessionId"`
 }
 
 type ExportTaskOutput struct {
@@ -48,4 +50,8 @@ type ExportTaskOutput struct {
 type IPFSExportInfo struct {
 	VideoFileCID   string `json:"videoFileCid"`
 	NFTMetadataCID string `json:"nftMetadataCid,omitempty"`
+}
+
+type PrepareTaskOutput struct {
+	PlaybackRecordingSessionId string `json:"playbackRecordingSessionId"`
 }
