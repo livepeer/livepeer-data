@@ -17,9 +17,8 @@ import (
 )
 
 const (
-	eventSubscriptionBufSize         = 10
-	processLogSampleRate             = 0.04
-	streamConsumerReconnectThreshold = 3 * time.Minute
+	eventSubscriptionBufSize = 10
+	processLogSampleRate     = 0.04
 )
 
 var (
@@ -53,6 +52,7 @@ type StreamingOptions struct {
 	Stream, ConsumerName string
 
 	event.RawStreamOptions
+	ReconnectThreshold time.Duration
 }
 
 type CoreOptions struct {
@@ -271,7 +271,7 @@ func (c *Core) consumeOptions() (event.ConsumeOptions, error) {
 		},
 		ConsumerOptions:    event.NewConsumerOptions(opts.ConsumerName, event.TimestampOffset(startTime)),
 		MemorizeOffset:     true,
-		ReconnectThreshold: streamConsumerReconnectThreshold,
+		ReconnectThreshold: opts.ReconnectThreshold,
 	}, nil
 }
 
