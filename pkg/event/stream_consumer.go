@@ -73,26 +73,17 @@ func (c *strmConsumer) ConsumeChan(ctx context.Context, opts ConsumeOptions) (<-
 	}
 
 	msgChan := make(chan StreamMessage, 100)
-	handleMessages := func(consumerCtx stream.ConsumerContext, message *streamAmqp.Message) {
-		if glog.V(10) {
-			cons := consumerCtx.Consumer
-			glog.Infof("Read message from stream. consumer=%q, stream=%q, offset=%v, data=%q",
-				cons.GetName(), cons.GetStreamName(), cons.GetOffset(), string(message.GetData()))
-		}
-		msgChan <- StreamMessage{consumerCtx, message}
-	}
-	connect := func(prevConsumer stream.ConsumerContext) (*stream.Consumer, error) {
+	connect := func(prevConsumer stream.ConsumerContext, msgHandler stream.MessagesHandler) (*stream.Consumer, error) {
 		connectOpts := *opts.ConsumerOptions
 		if prevCons := prevConsumer.Consumer; prevCons != nil {
 			if offset := prevCons.GetOffset(); opts.MemorizeOffset && offset > 0 {
 				connectOpts.SetOffset(OffsetSpec.Offset(offset))
 			}
 		}
-		return c.env.NewConsumer(opts.Stream, handleMessages, &connectOpts)
+		return c.env.NewConsumer(opts.Stream, msgHandler, &connectOpts)
 	}
-
 	ctx = whileAll(ctx.Done(), c.done)
-	done, err := newReconnectingConsumer(ctx, opts.Stream, connect)
+	done, err := newReconnectingConsumer(ctx, opts.Stream, connect, msgChan)
 	if err != nil {
 		return nil, err
 	}
@@ -150,10 +141,18 @@ func (c *strmConsumer) ensureStream(streamName string, opts *StreamOptions) erro
 	return nil
 }
 
-type connectConsumerFunc = func(prevConsumer stream.ConsumerContext) (*stream.Consumer, error)
+type connectConsumerFunc = func(prevConsumer stream.ConsumerContext, msgHandler stream.MessagesHandler) (*stream.Consumer, error)
 
-func newReconnectingConsumer(ctx context.Context, streamName string, connect connectConsumerFunc) (<-chan struct{}, error) {
-	consumer, err := connect(stream.ConsumerContext{})
+func newReconnectingConsumer(ctx context.Context, streamName string, connect connectConsumerFunc, msgChan chan<- StreamMessage) (<-chan struct{}, error) {
+	innerMsgHandler := func(consumerCtx stream.ConsumerContext, message *streamAmqp.Message) {
+		if glog.V(10) {
+			cons := consumerCtx.Consumer
+			glog.Infof("Read message from stream. consumer=%q, stream=%q, offset=%v, data=%q",
+				cons.GetName(), cons.GetStreamName(), cons.GetOffset(), string(message.GetData()))
+		}
+		msgChan <- StreamMessage{consumerCtx, message}
+	}
+	consumer, err := connect(stream.ConsumerContext{}, innerMsgHandler)
 	if err != nil {
 		return nil, err
 	}
@@ -170,7 +169,7 @@ func newReconnectingConsumer(ctx context.Context, streamName string, connect con
 				return
 			case ev := <-consumer.NotifyClose():
 				glog.Errorf("Stream consumer closed, reconnecting. consumer=%q, stream=%q, reason=%q", ev.Name, ev.StreamName, ev.Reason)
-				consumer = ensureConnect(ctx, streamName, connect, stream.ConsumerContext{Consumer: consumer})
+				consumer = ensureConnect(ctx, streamName, connect, stream.ConsumerContext{Consumer: consumer}, innerMsgHandler)
 				if consumer == nil {
 					return
 				}
@@ -180,9 +179,9 @@ func newReconnectingConsumer(ctx context.Context, streamName string, connect con
 	return done, nil
 }
 
-func ensureConnect(ctx context.Context, streamName string, connect connectConsumerFunc, prevConsumer stream.ConsumerContext) *stream.Consumer {
+func ensureConnect(ctx context.Context, streamName string, connect connectConsumerFunc, prevConsumer stream.ConsumerContext, msgHandler stream.MessagesHandler) *stream.Consumer {
 	for {
-		consumer, err := connect(prevConsumer)
+		consumer, err := connect(prevConsumer, msgHandler)
 		if err == nil {
 			return consumer
 		}
