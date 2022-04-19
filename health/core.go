@@ -17,8 +17,9 @@ import (
 )
 
 const (
-	eventSubscriptionBufSize = 10
-	processLogSampleRate     = 0.04
+	eventSubscriptionBufSize         = 10
+	processLogSampleRate             = 0.04
+	streamConsumerReconnectThreshold = 3 * time.Minute
 )
 
 var (
@@ -268,8 +269,9 @@ func (c *Core) consumeOptions() (event.ConsumeOptions, error) {
 			StreamOptions: *streamOpts,
 			Bindings:      bindings,
 		},
-		ConsumerOptions: event.NewConsumerOptions(opts.ConsumerName, event.TimestampOffset(startTime)),
-		MemorizeOffset:  true,
+		ConsumerOptions:    event.NewConsumerOptions(opts.ConsumerName, event.TimestampOffset(startTime)),
+		MemorizeOffset:     true,
+		ReconnectThreshold: streamConsumerReconnectThreshold,
 	}, nil
 }
 
