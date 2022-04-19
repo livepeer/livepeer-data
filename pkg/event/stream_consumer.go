@@ -83,7 +83,7 @@ func (c *strmConsumer) ConsumeChan(ctx context.Context, opts ConsumeOptions) (<-
 		return c.env.NewConsumer(opts.Stream, msgHandler, &connectOpts)
 	}
 	ctx = whileAll(ctx.Done(), c.done)
-	done, err := newReconnectingConsumer(ctx, opts.Stream, connect, msgChan)
+	done, err := newReconnectingConsumer(ctx, opts.Stream, connect, msgChan, opts.ReconnectThreshold)
 	if err != nil {
 		return nil, err
 	}
@@ -143,16 +143,20 @@ func (c *strmConsumer) ensureStream(streamName string, opts *StreamOptions) erro
 
 type connectConsumerFunc = func(prevConsumer stream.ConsumerContext, msgHandler stream.MessagesHandler) (*stream.Consumer, error)
 
-func newReconnectingConsumer(ctx context.Context, streamName string, connect connectConsumerFunc, msgChan chan<- StreamMessage) (<-chan struct{}, error) {
-	innerMsgHandler := func(consumerCtx stream.ConsumerContext, message *streamAmqp.Message) {
+func newReconnectingConsumer(ctx context.Context, streamName string, connect connectConsumerFunc, outerMsgChan chan<- StreamMessage, reconnectThreshold time.Duration) (<-chan struct{}, error) {
+	if reconnectThreshold <= 0 {
+		reconnectThreshold = 10 * time.Minute
+	}
+	innerMsgChan := make(chan StreamMessage)
+	msgHandler := func(consumerCtx stream.ConsumerContext, message *streamAmqp.Message) {
 		if glog.V(10) {
 			cons := consumerCtx.Consumer
 			glog.Infof("Read message from stream. consumer=%q, stream=%q, offset=%v, data=%q",
 				cons.GetName(), cons.GetStreamName(), cons.GetOffset(), string(message.GetData()))
 		}
-		msgChan <- StreamMessage{consumerCtx, message}
+		innerMsgChan <- StreamMessage{consumerCtx, message}
 	}
-	consumer, err := connect(stream.ConsumerContext{}, innerMsgHandler)
+	consumer, err := connect(stream.ConsumerContext{}, msgHandler)
 	if err != nil {
 		return nil, err
 	}
@@ -160,6 +164,8 @@ func newReconnectingConsumer(ctx context.Context, streamName string, connect con
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
+		reconnectTimer := time.NewTimer(reconnectThreshold)
+		defer reconnectTimer.Stop()
 		for {
 			select {
 			case <-ctx.Done():
@@ -169,11 +175,23 @@ func newReconnectingConsumer(ctx context.Context, streamName string, connect con
 				return
 			case ev := <-consumer.NotifyClose():
 				glog.Errorf("Stream consumer closed, reconnecting. consumer=%q, stream=%q, reason=%q", ev.Name, ev.StreamName, ev.Reason)
-				consumer = ensureConnect(ctx, streamName, connect, stream.ConsumerContext{Consumer: consumer}, innerMsgHandler)
+				consumer = ensureConnect(ctx, streamName, connect, stream.ConsumerContext{Consumer: consumer}, msgHandler)
 				if consumer == nil {
 					return
 				}
+			case msg := <-innerMsgChan:
+				outerMsgChan <- msg
+			case <-reconnectTimer.C:
+				glog.V(5).Infof("Reconnecting after %v without any messages. consumer=%q, stream=%q", reconnectThreshold, consumer.GetName(), streamName)
+				if err := consumer.Close(); err != nil {
+					glog.Errorf("Error closing stream consumer. consumer=%q, stream=%q, err=%q", consumer.GetName(), streamName, err)
+				}
+				// Nothing to do here. The NotifyClose() event above wil be triggered.
 			}
+			if !reconnectTimer.Stop() {
+				<-reconnectTimer.C
+			}
+			reconnectTimer.Reset(reconnectThreshold)
 		}
 	}()
 	return done, nil
