@@ -30,7 +30,7 @@ type (
 		MemorizeOffset bool
 		// ReconnectThreshold is the time that the client will wait without
 		// receiving any messages before it restarts the stream consumer out of
-		// caution. The default is 10 minutes.
+		// caution. If not specified no automatic reconnection will be made.
 		ReconnectThreshold time.Duration
 	}
 

@@ -144,9 +144,6 @@ func (c *strmConsumer) ensureStream(streamName string, opts *StreamOptions) erro
 type connectConsumerFunc = func(prevConsumer stream.ConsumerContext, msgHandler stream.MessagesHandler) (*stream.Consumer, error)
 
 func newReconnectingConsumer(ctx context.Context, streamName string, connect connectConsumerFunc, outerMsgChan chan<- StreamMessage, reconnectThreshold time.Duration) (<-chan struct{}, error) {
-	if reconnectThreshold <= 0 {
-		reconnectThreshold = 10 * time.Minute
-	}
 	innerMsgChan := make(chan StreamMessage)
 	msgHandler := func(consumerCtx stream.ConsumerContext, message *streamAmqp.Message) {
 		if glog.V(10) {
@@ -161,11 +158,23 @@ func newReconnectingConsumer(ctx context.Context, streamName string, connect con
 		return nil, err
 	}
 
-	done := make(chan struct{})
+	var (
+		done                = make(chan struct{})
+		reconnectTimer      <-chan time.Time
+		resetReconnectTimer = func() {}
+	)
 	go func() {
 		defer close(done)
-		reconnectTimer := time.NewTimer(reconnectThreshold)
-		defer reconnectTimer.Stop()
+		if reconnectThreshold > 0 {
+			timer := time.NewTimer(reconnectThreshold)
+			defer timer.Stop()
+			reconnectTimer, resetReconnectTimer = timer.C, func() {
+				if !timer.Stop() {
+					<-timer.C
+				}
+				timer.Reset(reconnectThreshold)
+			}
+		}
 		for {
 			select {
 			case <-ctx.Done():
@@ -181,17 +190,14 @@ func newReconnectingConsumer(ctx context.Context, streamName string, connect con
 				}
 			case msg := <-innerMsgChan:
 				outerMsgChan <- msg
-			case <-reconnectTimer.C:
+			case <-reconnectTimer:
 				glog.V(5).Infof("Reconnecting after %v without any messages. consumer=%q, stream=%q", reconnectThreshold, consumer.GetName(), streamName)
 				if err := consumer.Close(); err != nil {
 					glog.Errorf("Error closing stream consumer. consumer=%q, stream=%q, err=%q", consumer.GetName(), streamName, err)
 				}
 				// Nothing to do here. The NotifyClose() event above wil be triggered.
 			}
-			if !reconnectTimer.Stop() {
-				<-reconnectTimer.C
-			}
-			reconnectTimer.Reset(reconnectThreshold)
+			resetReconnectTimer()
 		}
 	}()
 	return done, nil
