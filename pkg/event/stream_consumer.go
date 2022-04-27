@@ -159,9 +159,13 @@ func newReconnectingConsumer(ctx context.Context, streamName string, connect con
 	}
 
 	var (
+		reconnect = func() (*stream.Consumer, bool) {
+			return ensureConnect(ctx, streamName, connect, stream.ConsumerContext{Consumer: consumer}, msgHandler)
+		}
 		done                = make(chan struct{})
 		reconnectTimer      <-chan time.Time
 		resetReconnectTimer = func() {}
+		ok                  bool
 	)
 	go func() {
 		defer close(done)
@@ -184,8 +188,7 @@ func newReconnectingConsumer(ctx context.Context, streamName string, connect con
 				return
 			case ev := <-consumer.NotifyClose():
 				glog.Errorf("Stream consumer closed, reconnecting. consumer=%q, stream=%q, reason=%q", ev.Name, ev.StreamName, ev.Reason)
-				consumer = ensureConnect(ctx, streamName, connect, stream.ConsumerContext{Consumer: consumer}, msgHandler)
-				if consumer == nil {
+				if consumer, ok = reconnect(); !ok {
 					return
 				}
 			case msg := <-innerMsgChan:
@@ -195,7 +198,9 @@ func newReconnectingConsumer(ctx context.Context, streamName string, connect con
 				if err := consumer.Close(); err != nil {
 					glog.Errorf("Error closing stream consumer. consumer=%q, stream=%q, err=%q", consumer.GetName(), streamName, err)
 				}
-				// Nothing to do here. The NotifyClose() event above wil be triggered.
+				if consumer, ok = reconnect(); !ok {
+					return
+				}
 			}
 			resetReconnectTimer()
 		}
@@ -203,18 +208,18 @@ func newReconnectingConsumer(ctx context.Context, streamName string, connect con
 	return done, nil
 }
 
-func ensureConnect(ctx context.Context, streamName string, connect connectConsumerFunc, prevConsumer stream.ConsumerContext, msgHandler stream.MessagesHandler) *stream.Consumer {
+func ensureConnect(ctx context.Context, streamName string, connect connectConsumerFunc, prevConsumer stream.ConsumerContext, msgHandler stream.MessagesHandler) (*stream.Consumer, bool) {
 	for {
 		consumer, err := connect(prevConsumer, msgHandler)
 		if err == nil {
-			return consumer
+			return consumer, true
 		}
 		glog.Errorf("Stream consumer reconnection failure. stream=%q, error=%q", streamName, err)
 		select {
 		case <-time.After(3 * time.Second):
 			glog.Infof("Retrying stream consumer reconnection. stream=%q", streamName)
 		case <-ctx.Done():
-			return nil
+			return nil, false
 		}
 	}
 }
