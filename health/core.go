@@ -54,7 +54,7 @@ type StreamingOptions struct {
 	event.RawStreamOptions
 
 	// EventFlowSilenceTolerance determines the amount of time to tolerate zero
-	// messages in the stream before crashing the process to force a full reset.
+	// messages in the stream before giving an error on the service healthcheck.
 	// This is a workaround for a bug in the rabbitmq streams client in which it
 	// freezes when the stream has leader election issues in a clustered setup.
 	EventFlowSilenceTolerance time.Duration

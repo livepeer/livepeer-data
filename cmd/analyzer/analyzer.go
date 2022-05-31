@@ -68,7 +68,7 @@ func parseFlags(version string) cliFlags {
 	fs.StringVar(&cli.streamingOpts.MaxLengthBytes, "stream-max-length", "50gb", "When creating a new stream, config for max total storage size")
 	fs.StringVar(&cli.streamingOpts.MaxSegmentSizeBytes, "stream-max-segment-size", "500mb", "When creating a new stream, config for max stream segment size in storage")
 	fs.DurationVar(&cli.streamingOpts.MaxAge, "stream-max-age", 30*24*time.Hour, `When creating a new stream, config for max age of stored events`)
-	fs.DurationVar(&cli.streamingOpts.EventFlowSilenceTolerance, "event-flow-silence-tolerance", 10*time.Minute, "The time to tolerate getting zero messages in the stream before crashing the process to force a full reset")
+	fs.DurationVar(&cli.streamingOpts.EventFlowSilenceTolerance, "event-flow-silence-tolerance", 10*time.Minute, "The time to tolerate getting zero messages in the stream before giving an error on the service healthcheck")
 	fs.DurationVar(&cli.memoryRecordsTtl, "memory-records-ttl", 24*time.Hour, `How long to keep data records in memory about inactive streams`)
 
 	flag.Set("logtostderr", "true")
