@@ -74,8 +74,8 @@ type Core struct {
 	reducer        Reducer
 	conditionTypes []data.ConditionType
 
-	storage              RecordStorage
-	lastEventReceiveTime time.Time
+	storage     RecordStorage
+	lastEventTs time.Time
 }
 
 func NewCore(opts CoreOptions, consumer event.StreamConsumer, reducer Reducer) *Core {
@@ -93,8 +93,8 @@ func (c *Core) IsHealthy() bool {
 		glog.Warningf("Health core is unhealthy. reason=consumerErr consumerErr=%q", err)
 		return false
 	}
-	if tol := c.opts.Streaming.EventFlowSilenceTolerance; tol > 0 && time.Since(c.lastEventReceiveTime) > tol {
-		glog.Warningf("Health core is unhealthy. reason=noEvents lastEventReceiveTime=%s, tolerance=%s", c.lastEventReceiveTime, tol)
+	if tol := c.opts.Streaming.EventFlowSilenceTolerance; tol > 0 && time.Since(c.lastEventTs) > tol {
+		glog.Warningf("Health core is unhealthy. reason=noEvents lastEventTs=%s, tolerance=%s", c.lastEventTs, tol)
 		return false
 	}
 	return true
@@ -146,9 +146,8 @@ func (c *Core) HandleMessage(msg event.StreamMessage) {
 }
 
 func (c *Core) handleSingleEvent(evt data.Event) {
-	c.lastEventReceiveTime = time.Now()
-
 	streamID, ts := evt.StreamID(), evt.Timestamp()
+	c.lastEventTs = ts
 	record := c.storage.GetOrCreate(streamID, c.conditionTypes)
 
 	record.RLock()
