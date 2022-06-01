@@ -52,6 +52,12 @@ type StreamingOptions struct {
 	Stream, ConsumerName string
 
 	event.RawStreamOptions
+
+	// EventFlowSilenceTolerance determines the amount of time to tolerate zero
+	// messages in the stream before giving an error on the service healthcheck.
+	// This is a workaround for a bug in the rabbitmq streams client in which it
+	// freezes when the stream has leader election issues in a clustered setup.
+	EventFlowSilenceTolerance time.Duration
 }
 
 type CoreOptions struct {
@@ -68,7 +74,8 @@ type Core struct {
 	reducer        Reducer
 	conditionTypes []data.ConditionType
 
-	storage RecordStorage
+	storage     RecordStorage
+	lastEventTs time.Time
 }
 
 func NewCore(opts CoreOptions, consumer event.StreamConsumer, reducer Reducer) *Core {
@@ -83,7 +90,11 @@ func NewCore(opts CoreOptions, consumer event.StreamConsumer, reducer Reducer) *
 func (c *Core) IsHealthy() bool {
 	err := c.consumer.CheckConnection()
 	if err != nil {
-		glog.Warningf("Health core is unhealthy. consumerErr=%q", err)
+		glog.Warningf("Health core is unhealthy. reason=consumerErr consumerErr=%q", err)
+		return false
+	}
+	if tol := c.opts.Streaming.EventFlowSilenceTolerance; tol > 0 && time.Since(c.lastEventTs) > tol {
+		glog.Warningf("Health core is unhealthy. reason=noEvents lastEventTs=%s, tolerance=%s", c.lastEventTs, tol)
 		return false
 	}
 	return true
@@ -136,6 +147,7 @@ func (c *Core) HandleMessage(msg event.StreamMessage) {
 
 func (c *Core) handleSingleEvent(evt data.Event) {
 	streamID, ts := evt.StreamID(), evt.Timestamp()
+	c.lastEventTs = ts
 	record := c.storage.GetOrCreate(streamID, c.conditionTypes)
 
 	record.RLock()

@@ -24,6 +24,8 @@ type (
 		Stream string
 		*StreamOptions
 		*stream.ConsumerOptions
+		// Whether to memorize the message offset in the stream and use it on
+		// re-connections to continue from the last read message.
 		MemorizeOffset bool
 	}
 
