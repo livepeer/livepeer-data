@@ -17,7 +17,9 @@ type TaskTriggerEvent struct {
 }
 
 type TaskInfo struct {
-	ID       string          `json:"id"`
-	Type     string          `json:"type"`
-	Snapshot json.RawMessage `json:"snapshot"`
+	ID        string          `json:"id"`
+	Type      string          `json:"type"`
+	Snapshot  json.RawMessage `json:"snapshot"`
+	Step      string          `json:"step"`
+	StepInput json.RawMessage `json:"stepInput"`
 }
