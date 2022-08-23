@@ -42,7 +42,14 @@ func NewHandler(serverCtx context.Context, opts APIHandlerOptions, healthcore *h
 	if opts.Prometheus {
 		router.Handler("GET", "/metrics", promhttp.Handler())
 	}
+	addStreamHealthHandlers(router, handler)
 
+	globalMiddlewares := []middleware{cors(opts.ServerName)}
+	return prepareHandler("", false, router, globalMiddlewares...)
+}
+
+func addStreamHealthHandlers(router *httprouter.Router, handler *apiHandler) {
+	healthcore, opts := handler.core, handler.opts
 	middlewares := []middleware{
 		streamStatus(healthcore, "streamId"),
 		regionProxy(opts.RegionalHostFormat, opts.OwnRegion),
@@ -57,9 +64,6 @@ func NewHandler(serverCtx context.Context, opts APIHandlerOptions, healthcore *h
 	}
 	addApiHandler("/health", "get_stream_health", handler.getStreamHealth)
 	addApiHandler("/events", "stream_health_events", handler.subscribeEvents)
-
-	globalMiddlewares := []middleware{cors(opts.ServerName)}
-	return prepareHandler("", false, router, globalMiddlewares...)
 }
 
 func cors(server string) middleware {
