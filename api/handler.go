@@ -13,6 +13,7 @@ import (
 	"github.com/livepeer/livepeer-data/health"
 	"github.com/livepeer/livepeer-data/pkg/data"
 	"github.com/livepeer/livepeer-data/pkg/jsse"
+	"github.com/livepeer/livepeer-data/views"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
@@ -32,10 +33,11 @@ type apiHandler struct {
 	opts      APIHandlerOptions
 	serverCtx context.Context
 	core      *health.Core
+	views     *views.Client
 }
 
-func NewHandler(serverCtx context.Context, opts APIHandlerOptions, healthcore *health.Core) http.Handler {
-	handler := &apiHandler{opts, serverCtx, healthcore}
+func NewHandler(serverCtx context.Context, opts APIHandlerOptions, healthcore *health.Core, views *views.Client) http.Handler {
+	handler := &apiHandler{opts, serverCtx, healthcore, views}
 
 	router := httprouter.New()
 	router.HandlerFunc("GET", "/_healthz", handler.healthcheck)
@@ -66,6 +68,17 @@ func addStreamHealthHandlers(router *httprouter.Router, handler *apiHandler) {
 	addApiHandler("/events", "stream_health_events", handler.subscribeEvents)
 }
 
+func addViewershipHandlers(router *httprouter.Router, handler *apiHandler) {
+	opts := handler.opts
+	// TODO: Add authorization to views API
+	addApiHandler := func(apiPath, name string, handler http.HandlerFunc) {
+		fullPath := path.Join(opts.APIRoot, "/views/:assetId", apiPath)
+		fullHandler := prepareHandlerFunc(name, opts.Prometheus, handler)
+		router.Handler("GET", fullPath, fullHandler)
+	}
+	addApiHandler("/total", "get_total_views", handler.getTotalViews)
+}
+
 func (h *apiHandler) cors() middleware {
 	return inlineMiddleware(func(rw http.ResponseWriter, r *http.Request, next http.Handler) {
 		if h.opts.ServerName != "" {
@@ -83,6 +96,15 @@ func (h *apiHandler) healthcheck(rw http.ResponseWriter, r *http.Request) {
 		status = http.StatusServiceUnavailable
 	}
 	rw.WriteHeader(status)
+}
+
+func (h *apiHandler) getTotalViews(rw http.ResponseWriter, r *http.Request) {
+	views, err := h.views.GetTotalViews(r.Context(), apiParam(r, "assetId"))
+	if err != nil {
+		respondError(rw, http.StatusInternalServerError, err)
+		return
+	}
+	respondJson(rw, http.StatusOK, views)
 }
 
 func (h *apiHandler) getStreamHealth(rw http.ResponseWriter, r *http.Request) {
