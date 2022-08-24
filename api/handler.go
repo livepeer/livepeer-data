@@ -44,7 +44,7 @@ func NewHandler(serverCtx context.Context, opts APIHandlerOptions, healthcore *h
 	}
 	addStreamHealthHandlers(router, handler)
 
-	globalMiddlewares := []middleware{cors(opts.ServerName)}
+	globalMiddlewares := []middleware{handler.cors()}
 	return prepareHandler("", false, router, globalMiddlewares...)
 }
 
@@ -66,10 +66,10 @@ func addStreamHealthHandlers(router *httprouter.Router, handler *apiHandler) {
 	addApiHandler("/events", "stream_health_events", handler.subscribeEvents)
 }
 
-func cors(server string) middleware {
+func (h *apiHandler) cors() middleware {
 	return inlineMiddleware(func(rw http.ResponseWriter, r *http.Request, next http.Handler) {
-		if server != "" {
-			rw.Header().Set("Server", server)
+		if h.opts.ServerName != "" {
+			rw.Header().Set("Server", h.opts.ServerName)
 		}
 		rw.Header().Set("Access-Control-Allow-Origin", "*")
 		rw.Header().Set("Access-Control-Allow-Headers", "*")
