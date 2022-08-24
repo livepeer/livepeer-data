@@ -8,6 +8,7 @@ import (
 
 	"github.com/golang/glog"
 	livepeer "github.com/livepeer/go-api-client"
+	promClient "github.com/prometheus/client_golang/api"
 	prometheus "github.com/prometheus/client_golang/api/prometheus/v1"
 	"github.com/prometheus/common/model"
 )
@@ -17,9 +18,24 @@ type TotalViews struct {
 	Start int64  `json:"start"`
 }
 
+type ClientOptions struct {
+	Prometheus promClient.Config
+	Livepeer   livepeer.ClientOptions
+}
+
 type Client struct {
 	prom prometheus.API
-	lp   livepeer.Client
+	lp   *livepeer.Client
+}
+
+func NewClient(opts ClientOptions) (*Client, error) {
+	client, err := promClient.NewClient(opts.Prometheus)
+	if err != nil {
+		return nil, fmt.Errorf("error creating prometheus client: %w", err)
+	}
+	prom := prometheus.NewAPI(client)
+	lp := livepeer.NewAPIClient(opts.Livepeer)
+	return &Client{prom, lp}, nil
 }
 
 func (c *Client) GetTotalViews(ctx context.Context, id string) ([]TotalViews, error) {
