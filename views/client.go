@@ -14,8 +14,8 @@ import (
 )
 
 type TotalViews struct {
-	ID    string `json:"id"`
-	Start int64  `json:"start"`
+	ID         string `json:"id"`
+	StartViews int64  `json:"startViews"`
 }
 
 type ClientOptions struct {
@@ -56,13 +56,19 @@ func (c *Client) GetTotalViews(ctx context.Context, id string) ([]TotalViews, er
 	if err != nil {
 		return nil, fmt.Errorf("query error: %w", err)
 	}
-	if value.Type() != model.ValScalar {
+	if value.Type() != model.ValVector {
 		return nil, fmt.Errorf("unexpected value type: %s", value.Type())
 	}
-
+	startViews := int64(0)
+	vec := value.(model.Vector)
+	if len(vec) > 1 {
+		return nil, fmt.Errorf("unexpected vector length: %d", len(vec))
+	} else if len(vec) == 1 {
+		startViews = int64(vec[0].Value)
+	}
 	return []TotalViews{{
-		ID:    asset.PlaybackID,
-		Start: int64(value.(*model.Scalar).Value),
+		ID:         asset.PlaybackID,
+		StartViews: startViews,
 	}}, nil
 }
 
