@@ -49,27 +49,35 @@ func (c *Client) GetTotalViews(ctx context.Context, id string) ([]TotalViews, er
 		return nil, fmt.Errorf("error getting asset: %w", err)
 	}
 
+	startViews, err := c.doQueryStartViews(ctx, asset)
+	if err != nil {
+		return nil, fmt.Errorf("error querying start views: %w", err)
+	}
+
+	return []TotalViews{{
+		ID:         asset.PlaybackID,
+		StartViews: startViews,
+	}}, nil
+}
+
+func (c *Client) doQueryStartViews(ctx context.Context, asset *livepeer.Asset) (int64, error) {
 	value, warn, err := c.prom.Query(ctx, startViewsQuery(asset), time.Time{})
 	if len(warn) > 0 {
 		glog.Warningf("Prometheus query warnings: %q", warn)
 	}
 	if err != nil {
-		return nil, fmt.Errorf("query error: %w", err)
+		return -1, fmt.Errorf("query error: %w", err)
 	}
 	if value.Type() != model.ValVector {
-		return nil, fmt.Errorf("unexpected value type: %s", value.Type())
+		return -1, fmt.Errorf("unexpected value type: %s", value.Type())
 	}
-	startViews := int64(0)
 	vec := value.(model.Vector)
 	if len(vec) > 1 {
-		return nil, fmt.Errorf("unexpected vector length: %d", len(vec))
-	} else if len(vec) == 1 {
-		startViews = int64(vec[0].Value)
+		return -1, fmt.Errorf("unexpected result count: %d", len(vec))
+	} else if len(vec) == 0 {
+		return 0, nil
 	}
-	return []TotalViews{{
-		ID:         asset.PlaybackID,
-		StartViews: startViews,
-	}}, nil
+	return int64(vec[0].Value), nil
 }
 
 func startViewsQuery(asset *livepeer.Asset) string {
