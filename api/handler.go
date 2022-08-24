@@ -45,6 +45,7 @@ func NewHandler(serverCtx context.Context, opts APIHandlerOptions, healthcore *h
 		router.Handler("GET", "/metrics", promhttp.Handler())
 	}
 	addStreamHealthHandlers(router, handler)
+	addViewershipHandlers(router, handler)
 
 	globalMiddlewares := []middleware{handler.cors()}
 	return prepareHandler("", false, router, globalMiddlewares...)
