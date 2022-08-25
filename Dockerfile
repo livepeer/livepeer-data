@@ -1,24 +1,25 @@
-FROM golang:1.16-alpine as builder
+FROM	golang:1.16-alpine	as	builder
 
-RUN apk add --update make
+RUN	apk add --no-cache --update make
 
-WORKDIR /app
+WORKDIR	/app
 
-ENV GOFLAGS "-mod=readonly"
+ENV	GOFLAGS	"-mod=readonly"
 
-COPY go.mod go.sum ./
+COPY	go.mod	go.sum	./
 
-RUN go mod download
+RUN	go mod download
 
-ARG version
-RUN echo $version
+ARG	version
 
-COPY . .
+RUN	echo $version
 
-RUN make "version=$version"
+COPY	.	.
 
-FROM alpine
+RUN	make "version=$version"
 
-WORKDIR /app
+FROM	alpine:latest
 
-COPY --from=builder /app/build/* .
+WORKDIR	/app
+
+COPY --from=builder	/app/build/*	/usr/local/bin/
