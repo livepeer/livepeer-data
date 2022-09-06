@@ -44,9 +44,7 @@ func (c *Client) GetTotalViews(ctx context.Context, id string) ([]TotalViews, er
 		asset, err = c.lp.GetAssetByPlaybackID(id, false)
 	}
 	if errors.Is(err, livepeer.ErrNotExists) {
-		// TODO: Remove this testing hack, only allow the query for existing assets
-		// return nil, errors.New("asset not found")
-		asset = &livepeer.Asset{PlaybackID: id}
+		return nil, errors.New("asset not found")
 	} else if err != nil {
 		return nil, fmt.Errorf("error getting asset: %w", err)
 	}
