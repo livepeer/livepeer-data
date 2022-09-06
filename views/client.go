@@ -84,7 +84,7 @@ func (c *Client) doQueryStartViews(ctx context.Context, playbackID string) (int6
 
 func startViewsQuery(playbackID string) string {
 	return fmt.Sprintf(
-		`sum(increase(mist_viewcount{stream=~"video(rec)?\\+%s"} [1y]))`,
+		`sum(increase(mist_playux_count{strm=~"video(rec)?\\+%s"} [1y]))`,
 		playbackID,
 	)
 }
