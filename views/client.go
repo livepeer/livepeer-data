@@ -51,7 +51,7 @@ func (c *Client) GetTotalViews(ctx context.Context, id string) ([]TotalViews, er
 		return nil, fmt.Errorf("error getting asset: %w", err)
 	}
 
-	startViews, err := c.doQueryStartViews(ctx, asset.PlaybackID)
+	startViews, err := c.doQueryStartViews(ctx, asset)
 	if err != nil {
 		return nil, fmt.Errorf("error querying start views: %w", err)
 	}
@@ -62,8 +62,9 @@ func (c *Client) GetTotalViews(ctx context.Context, id string) ([]TotalViews, er
 	}}, nil
 }
 
-func (c *Client) doQueryStartViews(ctx context.Context, playbackID string) (int64, error) {
-	value, warn, err := c.prom.Query(ctx, startViewsQuery(playbackID), time.Time{})
+func (c *Client) doQueryStartViews(ctx context.Context, asset *livepeer.Asset) (int64, error) {
+	query := startViewsQuery(asset.PlaybackID, asset.PlaybackRecordingID)
+	value, warn, err := c.prom.Query(ctx, query, time.Time{})
 	if len(warn) > 0 {
 		glog.Warningf("Prometheus query warnings: %q", warn)
 	}
@@ -82,9 +83,13 @@ func (c *Client) doQueryStartViews(ctx context.Context, playbackID string) (int6
 	return int64(vec[0].Value), nil
 }
 
-func startViewsQuery(playbackID string) string {
+func startViewsQuery(playbackID, playbackRecordingID string) string {
+	queryID := playbackID
+	if playbackRecordingID != "" {
+		queryID = fmt.Sprintf("(%s|%s)", playbackID, playbackRecordingID)
+	}
 	return fmt.Sprintf(
 		`sum(increase(mist_playux_count{strm=~"video(rec)?\\+%s"} [1y]))`,
-		playbackID,
+		queryID,
 	)
 }
