@@ -16,6 +16,7 @@ import (
 	"github.com/livepeer/livepeer-data/health/reducers"
 	"github.com/livepeer/livepeer-data/pkg/event"
 	"github.com/livepeer/livepeer-data/pkg/mistconnector"
+	"github.com/livepeer/livepeer-data/views"
 	"github.com/peterbourgon/ff"
 )
 
@@ -37,6 +38,8 @@ type cliFlags struct {
 	serverOpts       api.ServerOptions
 	streamingOpts    health.StreamingOptions
 	memoryRecordsTtl time.Duration
+
+	viewsOpts views.ClientOptions
 }
 
 func parseFlags(version string) cliFlags {
@@ -70,6 +73,11 @@ func parseFlags(version string) cliFlags {
 	fs.DurationVar(&cli.streamingOpts.MaxAge, "stream-max-age", 30*24*time.Hour, `When creating a new stream, config for max age of stored events`)
 	fs.DurationVar(&cli.streamingOpts.EventFlowSilenceTolerance, "event-flow-silence-tolerance", 10*time.Minute, "The time to tolerate getting zero messages in the stream before giving an error on the service healthcheck")
 	fs.DurationVar(&cli.memoryRecordsTtl, "memory-records-ttl", 24*time.Hour, `How long to keep data records in memory about inactive streams`)
+
+	// Views client options
+	fs.StringVar(&cli.viewsOpts.Livepeer.Server, "livepeer-api-server", "localhost:3004", "Base URL for the Livepeer API")
+	fs.StringVar(&cli.viewsOpts.Livepeer.AccessToken, "livepeer-access-token", "", "Access token for Livepeer API")
+	fs.StringVar(&cli.viewsOpts.Prometheus.Address, "prometheus-address", "", "Address of the Prometheus API")
 
 	flag.Set("logtostderr", "true")
 	glogVFlag := flag.Lookup("v")
@@ -133,8 +141,13 @@ func Run(build BuildFlags) {
 		glog.Fatalf("Error starting health core. err=%q", err)
 	}
 
+	views, err := views.NewClient(cli.viewsOpts)
+	if err != nil {
+		glog.Fatalf("Error creating views client. err=%q", err)
+	}
+
 	glog.Info("Starting server...")
-	err = api.ListenAndServe(ctx, cli.serverOpts, healthcore)
+	err = api.ListenAndServe(ctx, cli.serverOpts, healthcore, views)
 	if err != nil {
 		glog.Fatalf("Error starting api server. err=%q", err)
 	}

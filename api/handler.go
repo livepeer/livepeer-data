@@ -13,6 +13,7 @@ import (
 	"github.com/livepeer/livepeer-data/health"
 	"github.com/livepeer/livepeer-data/pkg/data"
 	"github.com/livepeer/livepeer-data/pkg/jsse"
+	"github.com/livepeer/livepeer-data/views"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
@@ -32,17 +33,26 @@ type apiHandler struct {
 	opts      APIHandlerOptions
 	serverCtx context.Context
 	core      *health.Core
+	views     *views.Client
 }
 
-func NewHandler(serverCtx context.Context, opts APIHandlerOptions, healthcore *health.Core) http.Handler {
-	handler := &apiHandler{opts, serverCtx, healthcore}
+func NewHandler(serverCtx context.Context, opts APIHandlerOptions, healthcore *health.Core, views *views.Client) http.Handler {
+	handler := &apiHandler{opts, serverCtx, healthcore, views}
 
 	router := httprouter.New()
 	router.HandlerFunc("GET", "/_healthz", handler.healthcheck)
 	if opts.Prometheus {
 		router.Handler("GET", "/metrics", promhttp.Handler())
 	}
+	addStreamHealthHandlers(router, handler)
+	addViewershipHandlers(router, handler)
 
+	globalMiddlewares := []middleware{handler.cors()}
+	return prepareHandler("", false, router, globalMiddlewares...)
+}
+
+func addStreamHealthHandlers(router *httprouter.Router, handler *apiHandler) {
+	healthcore, opts := handler.core, handler.opts
 	middlewares := []middleware{
 		streamStatus(healthcore, "streamId"),
 		regionProxy(opts.RegionalHostFormat, opts.OwnRegion),
@@ -57,15 +67,23 @@ func NewHandler(serverCtx context.Context, opts APIHandlerOptions, healthcore *h
 	}
 	addApiHandler("/health", "get_stream_health", handler.getStreamHealth)
 	addApiHandler("/events", "stream_health_events", handler.subscribeEvents)
-
-	globalMiddlewares := []middleware{cors(opts.ServerName)}
-	return prepareHandler("", false, router, globalMiddlewares...)
 }
 
-func cors(server string) middleware {
+func addViewershipHandlers(router *httprouter.Router, handler *apiHandler) {
+	opts := handler.opts
+	// TODO: Add authorization to views API
+	addApiHandler := func(apiPath, name string, handler http.HandlerFunc) {
+		fullPath := path.Join(opts.APIRoot, "/views/:assetId", apiPath)
+		fullHandler := prepareHandlerFunc(name, opts.Prometheus, handler)
+		router.Handler("GET", fullPath, fullHandler)
+	}
+	addApiHandler("/total", "get_total_views", handler.getTotalViews)
+}
+
+func (h *apiHandler) cors() middleware {
 	return inlineMiddleware(func(rw http.ResponseWriter, r *http.Request, next http.Handler) {
-		if server != "" {
-			rw.Header().Set("Server", server)
+		if h.opts.ServerName != "" {
+			rw.Header().Set("Server", h.opts.ServerName)
 		}
 		rw.Header().Set("Access-Control-Allow-Origin", "*")
 		rw.Header().Set("Access-Control-Allow-Headers", "*")
@@ -79,6 +97,15 @@ func (h *apiHandler) healthcheck(rw http.ResponseWriter, r *http.Request) {
 		status = http.StatusServiceUnavailable
 	}
 	rw.WriteHeader(status)
+}
+
+func (h *apiHandler) getTotalViews(rw http.ResponseWriter, r *http.Request) {
+	views, err := h.views.GetTotalViews(r.Context(), apiParam(r, "assetId"))
+	if err != nil {
+		respondError(rw, http.StatusInternalServerError, err)
+		return
+	}
+	respondJson(rw, http.StatusOK, views)
 }
 
 func (h *apiHandler) getStreamHealth(rw http.ResponseWriter, r *http.Request) {

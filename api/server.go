@@ -9,6 +9,7 @@ import (
 
 	"github.com/golang/glog"
 	"github.com/livepeer/livepeer-data/health"
+	"github.com/livepeer/livepeer-data/views"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -19,10 +20,10 @@ type ServerOptions struct {
 	APIHandlerOptions
 }
 
-func ListenAndServe(ctx context.Context, opts ServerOptions, healthcore *health.Core) error {
+func ListenAndServe(ctx context.Context, opts ServerOptions, healthcore *health.Core, views *views.Client) error {
 	srv := &http.Server{
 		Addr:    fmt.Sprintf("%s:%d", opts.Host, opts.Port),
-		Handler: NewHandler(ctx, opts.APIHandlerOptions, healthcore),
+		Handler: NewHandler(ctx, opts.APIHandlerOptions, healthcore, views),
 	}
 	eg, ctx := errgroup.WithContext(ctx)
 	eg.Go(func() error {
