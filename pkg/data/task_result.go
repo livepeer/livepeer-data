@@ -24,16 +24,17 @@ type ErrorInfo struct {
 }
 
 type TaskOutput struct {
-	Import    *ImportTaskOutput    `json:"import,omitempty"`
+	Upload    *UploadTaskOutput    `json:"upload,omitempty"`
+	Import    *UploadTaskOutput    `json:"import,omitempty"`
 	Export    *ExportTaskOutput    `json:"export,omitempty"`
 	Transcode *TranscodeTaskOutput `json:"transcode,omitempty"`
 }
 
 type TranscodeTaskOutput struct {
-	Asset ImportTaskOutput `json:"asset,omitempty"`
+	Asset UploadTaskOutput `json:"asset,omitempty"`
 }
 
-type ImportTaskOutput struct {
+type UploadTaskOutput struct {
 	VideoFilePath    string `json:"videoFilePath"`
 	MetadataFilePath string `json:"metadataFilePath"`
 	// This is livepeerAPI.AssetSpec but we don't want to depend on the whole pkg
