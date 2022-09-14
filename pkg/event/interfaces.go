@@ -34,6 +34,23 @@ type (
 		*streamAmqp.Message
 	}
 
+	AMQPMessage struct {
+		// Exchange and Key of message in the AMQP protocol.
+		Exchange, Key string
+		// Body is the payload of the message.
+		Body interface{}
+		// Persistent means whether this message should be persisted in durable
+		// storage not to be lost on broker restarts.
+		Persistent bool
+		// ResultChan receives the result message from the publish operation. Used
+		// to guarantee delivery of messages to the broker through confirmation.
+		ResultChan chan<- PublishResult
+		// WaitResult simplifies waiting for the result of a publish operation. If
+		// true, `Publish` will only return after confirmation has been received for
+		// the specific message. Cannot be specified together with a `ResultChan`.
+		WaitResult bool
+	}
+
 	Handler interface {
 		HandleMessage(msg StreamMessage)
 	}

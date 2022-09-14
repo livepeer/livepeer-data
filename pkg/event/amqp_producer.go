@@ -82,28 +82,33 @@ type PublishResult struct {
 	Error   error
 }
 
-type AMQPMessage struct {
-	Exchange, Key string
-	Body          interface{}
-	Persistent    bool
-	ResultChan    chan<- PublishResult
-}
-
 func (p *amqpProducer) Publish(ctx context.Context, msg AMQPMessage) error {
 	if p.isShutdownDone() {
 		return ErrProducerClosed
 	} else if p.isShuttingDown() {
 		return ErrProducerShuttingDown
 	}
-	bodyRaw, err := json.Marshal(msg.Body)
+	publish, waitResult, err := p.newPublishMessage(msg)
 	if err != nil {
-		return fmt.Errorf("failed to marshal body to json: %w", err)
+		return err
 	}
 	select {
-	case p.publishQ <- p.newPublishMessage(msg, bodyRaw):
+	case p.publishQ <- publish:
 		return nil
 	case <-ctx.Done():
 		return ctx.Err()
+	case <-p.shutdownStart:
+		return ErrProducerShuttingDown
+	}
+
+	if waitResult == nil {
+		return nil
+	}
+	select {
+	case result := <-waitResult:
+		return result.Error
+	case <-ctx.Done():
+		return fmt.Errorf("waiting for publish confirmation: %w", ctx.Err())
 	case <-p.shutdownStart:
 		return ErrProducerShuttingDown
 	}
@@ -122,12 +127,23 @@ func (m *publishMessage) sendResult(err error) {
 	}
 }
 
-func (p *amqpProducer) newPublishMessage(msg AMQPMessage, bodyRaw []byte) *publishMessage {
+func (p *amqpProducer) newPublishMessage(msg AMQPMessage) (pm *publishMessage, waitResult chan PublishResult, err error) {
+	if msg.WaitResult {
+		if msg.ResultChan != nil {
+			return nil, nil, errors.New("must specify only one of WaitResult or ResultChan")
+		}
+		waitResult = make(chan PublishResult, 1)
+		msg.ResultChan = waitResult
+	}
+	bodyRaw, err := json.Marshal(msg.Body)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to marshal body to json: %w", err)
+	}
 	deliveryMode := amqp.Transient
 	if msg.Persistent {
 		deliveryMode = amqp.Persistent
 	}
-	return &publishMessage{
+	pm = &publishMessage{
 		AMQPMessage: msg,
 		Publishing: amqp.Publishing{
 			Headers:         amqp.Table{},
@@ -138,6 +154,7 @@ func (p *amqpProducer) newPublishMessage(msg AMQPMessage, bodyRaw []byte) *publi
 			Priority:        1,
 		},
 	}
+	return pm, waitResult, nil
 }
 
 func (p *amqpProducer) mainLoop() {
