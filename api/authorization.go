@@ -34,14 +34,17 @@ func authorization(authUrl string) middleware {
 		ctx, cancel := context.WithTimeout(r.Context(), authTimeout)
 		defer cancel()
 
-		status := getStreamStatus(r)
 		req, err := http.NewRequestWithContext(ctx, r.Method, authUrl, nil)
 		if err != nil {
 			respondError(rw, http.StatusInternalServerError, err)
 			return
 		}
 		req.Header.Set("X-Original-Uri", req.URL.String())
-		req.Header.Set("X-Livepeer-Stream-Id", status.ID)
+		if streamID := apiParam(r, streamIDParam); streamID != "" {
+			req.Header.Set("X-Livepeer-Stream-Id", streamID)
+		} else if assetID := apiParam(r, assetIDParam); assetID != "" {
+			req.Header.Set("X-Livepeer-Asset-Id", assetID)
+		}
 		for _, header := range authorizationHeaders {
 			req.Header[header] = r.Header[header]
 		}
