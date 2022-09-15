@@ -43,9 +43,6 @@ func NewClient(opts ClientOptions) (*Client, error) {
 func (c *Client) GetTotalViews(ctx context.Context, id string) ([]TotalViews, error) {
 	asset, err := c.lp.GetAsset(id)
 	if errors.Is(err, livepeer.ErrNotExists) {
-		asset, err = c.lp.GetAssetByPlaybackID(id, false)
-	}
-	if errors.Is(err, livepeer.ErrNotExists) {
 		return nil, ErrAssetNotFound
 	} else if err != nil {
 		return nil, fmt.Errorf("error getting asset: %w", err)
