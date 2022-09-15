@@ -14,7 +14,7 @@ const (
 	streamStatusKey contextKey = iota
 )
 
-func streamStatus(healthcore *health.Core, streamIDParam string) middleware {
+func streamStatus(healthcore *health.Core) middleware {
 	return inlineMiddleware(func(rw http.ResponseWriter, r *http.Request, next http.Handler) {
 		streamID := apiParam(r, streamIDParam)
 		if streamID == "" {

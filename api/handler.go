@@ -21,6 +21,9 @@ const (
 	sseRetryBackoff = 10 * time.Second
 	ssePingDelay    = 20 * time.Second
 	sseBufferSize   = 128
+
+	streamIDParam = "streamId"
+	assetIDParam  = "assetId"
 )
 
 type APIHandlerOptions struct {
@@ -54,14 +57,14 @@ func NewHandler(serverCtx context.Context, opts APIHandlerOptions, healthcore *h
 func addStreamHealthHandlers(router *httprouter.Router, handler *apiHandler) {
 	healthcore, opts := handler.core, handler.opts
 	middlewares := []middleware{
-		streamStatus(healthcore, "streamId"),
+		streamStatus(healthcore),
 		regionProxy(opts.RegionalHostFormat, opts.OwnRegion),
 	}
 	if opts.AuthURL != "" {
 		middlewares = append(middlewares, authorization(opts.AuthURL))
 	}
 	addApiHandler := func(apiPath, name string, handler http.HandlerFunc) {
-		fullPath := path.Join(opts.APIRoot, "/stream/:streamId", apiPath)
+		fullPath := path.Join(opts.APIRoot, "/stream/:"+streamIDParam, apiPath)
 		fullHandler := prepareHandlerFunc(name, opts.Prometheus, handler, middlewares...)
 		router.Handler("GET", fullPath, fullHandler)
 	}
@@ -73,7 +76,7 @@ func addViewershipHandlers(router *httprouter.Router, handler *apiHandler) {
 	opts := handler.opts
 	// TODO: Add authorization to views API
 	addApiHandler := func(apiPath, name string, handler http.HandlerFunc) {
-		fullPath := path.Join(opts.APIRoot, "/views/:assetId", apiPath)
+		fullPath := path.Join(opts.APIRoot, "/views/:"+assetIDParam, apiPath)
 		fullHandler := prepareHandlerFunc(name, opts.Prometheus, handler)
 		router.Handler("GET", fullPath, fullHandler)
 	}
@@ -100,7 +103,7 @@ func (h *apiHandler) healthcheck(rw http.ResponseWriter, r *http.Request) {
 }
 
 func (h *apiHandler) getTotalViews(rw http.ResponseWriter, r *http.Request) {
-	views, err := h.views.GetTotalViews(r.Context(), apiParam(r, "assetId"))
+	views, err := h.views.GetTotalViews(r.Context(), apiParam(r, assetIDParam))
 	if err != nil {
 		respondError(rw, http.StatusInternalServerError, err)
 		return
