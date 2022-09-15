@@ -7,6 +7,7 @@ import (
 
 	"github.com/golang/glog"
 	"github.com/livepeer/livepeer-data/health"
+	"github.com/livepeer/livepeer-data/views"
 )
 
 type errorResponse struct {
@@ -18,7 +19,9 @@ func respondError(rw http.ResponseWriter, defaultStatus int, errs ...error) {
 	response := errorResponse{}
 	for _, err := range errs {
 		response.Errors = append(response.Errors, err.Error())
-		if errors.Is(err, health.ErrStreamNotFound) || errors.Is(err, health.ErrEventNotFound) {
+		if errors.Is(err, health.ErrStreamNotFound) ||
+			errors.Is(err, health.ErrEventNotFound) ||
+			errors.Is(err, views.ErrAssetNotFound) {
 			status = http.StatusNotFound
 		}
 	}

@@ -13,6 +13,8 @@ import (
 	"github.com/prometheus/common/model"
 )
 
+var ErrAssetNotFound = errors.New("asset not found")
+
 type TotalViews struct {
 	ID         string `json:"id"`
 	StartViews int64  `json:"startViews"`
@@ -44,7 +46,7 @@ func (c *Client) GetTotalViews(ctx context.Context, id string) ([]TotalViews, er
 		asset, err = c.lp.GetAssetByPlaybackID(id, false)
 	}
 	if errors.Is(err, livepeer.ErrNotExists) {
-		return nil, errors.New("asset not found")
+		return nil, ErrAssetNotFound
 	} else if err != nil {
 		return nil, fmt.Errorf("error getting asset: %w", err)
 	}
