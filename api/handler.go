@@ -74,10 +74,13 @@ func addStreamHealthHandlers(router *httprouter.Router, handler *apiHandler) {
 
 func addViewershipHandlers(router *httprouter.Router, handler *apiHandler) {
 	opts := handler.opts
-	// TODO: Add authorization to views API
+	middlewares := []middleware{}
+	if opts.AuthURL != "" {
+		middlewares = append(middlewares, authorization(opts.AuthURL))
+	}
 	addApiHandler := func(apiPath, name string, handler http.HandlerFunc) {
 		fullPath := path.Join(opts.APIRoot, "/views/:"+assetIDParam, apiPath)
-		fullHandler := prepareHandlerFunc(name, opts.Prometheus, handler)
+		fullHandler := prepareHandlerFunc(name, opts.Prometheus, handler, middlewares...)
 		router.Handler("GET", fullPath, fullHandler)
 	}
 	addApiHandler("/total", "get_total_views", handler.getTotalViews)
