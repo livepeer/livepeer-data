@@ -15,7 +15,16 @@ import (
 
 var (
 	authorizationHeaders = []string{"Authorization", "Cookie", "Origin"}
-	authTimeout          = 3 * time.Second
+	// the response headers proxied from the auth request are basically cors headers
+	proxiedResponseHeaders = []string{
+		"Access-Control-Allow-Origin",
+		"Access-Control-Allow-Credentials",
+		"Access-Control-Allow-Methods",
+		"Access-Control-Allow-Headers",
+		"Access-Control-Expose-Headers",
+		"Access-Control-Max-Age",
+	}
+	authTimeout = 3 * time.Second
 
 	authRequestDuration = metrics.Factory.NewSummaryVec(
 		prometheus.SummaryOpts{
@@ -45,14 +54,13 @@ func authorization(authUrl string) middleware {
 		} else if assetID := apiParam(r, assetIDParam); assetID != "" {
 			req.Header.Set("X-Livepeer-Asset-Id", assetID)
 		}
-		for _, header := range authorizationHeaders {
-			req.Header[header] = r.Header[header]
-		}
+		copyHeaders(authorizationHeaders, r.Header, req.Header)
 		res, err := httpClient.Do(req)
 		if err != nil {
 			respondError(rw, http.StatusInternalServerError, fmt.Errorf("error authorizing request: %w", err))
 			return
 		}
+		copyHeaders(proxiedResponseHeaders, res.Header, rw.Header())
 
 		if res.StatusCode != http.StatusOK && res.StatusCode != http.StatusNoContent {
 			if contentType := res.Header.Get("Content-Type"); contentType != "" {
@@ -66,4 +74,12 @@ func authorization(authUrl string) middleware {
 		}
 		next.ServeHTTP(rw, r)
 	})
+}
+
+func copyHeaders(headers []string, src, dest http.Header) {
+	for _, header := range headers {
+		if vals := src[header]; len(vals) > 0 {
+			dest[header] = vals
+		}
+	}
 }
