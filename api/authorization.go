@@ -14,7 +14,7 @@ import (
 )
 
 var (
-	authorizationHeaders = []string{"Authorization", "Cookie"}
+	authorizationHeaders = []string{"Authorization", "Cookie", "Origin"}
 	authTimeout          = 3 * time.Second
 
 	authRequestDuration = metrics.Factory.NewSummaryVec(
