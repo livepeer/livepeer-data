@@ -43,32 +43,32 @@ func authorization(authUrl string) middleware {
 		ctx, cancel := context.WithTimeout(r.Context(), authTimeout)
 		defer cancel()
 
-		req, err := http.NewRequestWithContext(ctx, r.Method, authUrl, nil)
+		authReq, err := http.NewRequestWithContext(ctx, r.Method, authUrl, nil)
 		if err != nil {
 			respondError(rw, http.StatusInternalServerError, err)
 			return
 		}
-		req.Header.Set("X-Original-Uri", r.URL.String())
+		authReq.Header.Set("X-Original-Uri", r.URL.String())
 		if streamID := apiParam(r, streamIDParam); streamID != "" {
-			req.Header.Set("X-Livepeer-Stream-Id", streamID)
+			authReq.Header.Set("X-Livepeer-Stream-Id", streamID)
 		} else if assetID := apiParam(r, assetIDParam); assetID != "" {
-			req.Header.Set("X-Livepeer-Asset-Id", assetID)
+			authReq.Header.Set("X-Livepeer-Asset-Id", assetID)
 		}
-		copyHeaders(authorizationHeaders, r.Header, req.Header)
-		res, err := httpClient.Do(req)
+		copyHeaders(authorizationHeaders, r.Header, authReq.Header)
+		authRes, err := httpClient.Do(authReq)
 		if err != nil {
 			respondError(rw, http.StatusInternalServerError, fmt.Errorf("error authorizing request: %w", err))
 			return
 		}
-		copyHeaders(proxiedResponseHeaders, res.Header, rw.Header())
+		copyHeaders(proxiedResponseHeaders, authRes.Header, rw.Header())
 
-		if res.StatusCode != http.StatusOK && res.StatusCode != http.StatusNoContent {
-			if contentType := res.Header.Get("Content-Type"); contentType != "" {
+		if authRes.StatusCode != http.StatusOK && authRes.StatusCode != http.StatusNoContent {
+			if contentType := authRes.Header.Get("Content-Type"); contentType != "" {
 				rw.Header().Set("Content-Type", contentType)
 			}
-			rw.WriteHeader(res.StatusCode)
-			if _, err := io.Copy(rw, res.Body); err != nil {
-				glog.Errorf("Error writing auth error response. err=%q, status=%d, headers=%+v", err, res.StatusCode, res.Header)
+			rw.WriteHeader(authRes.StatusCode)
+			if _, err := io.Copy(rw, authRes.Body); err != nil {
+				glog.Errorf("Error writing auth error response. err=%q, status=%d, headers=%+v", err, authRes.StatusCode, authRes.Header)
 			}
 			return
 		}
