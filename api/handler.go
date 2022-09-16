@@ -93,6 +93,10 @@ func (h *apiHandler) cors() middleware {
 		}
 		rw.Header().Set("Access-Control-Allow-Origin", "*")
 		rw.Header().Set("Access-Control-Allow-Headers", "*")
+		if origin := r.Header.Get("Origin"); origin != "" {
+			rw.Header().Set("Access-Control-Allow-Origin", origin)
+			rw.Header().Set("Access-Control-Allow-Credentials", "true")
+		}
 		next.ServeHTTP(rw, r)
 	})
 }
