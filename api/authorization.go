@@ -2,7 +2,6 @@ package api
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -56,12 +55,6 @@ func authorization(authUrl string) middleware {
 			authReq.Header.Set("X-Livepeer-Asset-Id", assetID)
 		}
 		copyHeaders(authorizationHeaders, r.Header, authReq.Header)
-
-		hs, _ := json.Marshal(authReq.Header)
-		glog.Infof("Performing auth request: %s %s headers=%s", authReq.Method, authReq.URL, hs)
-		inHs, _ := json.Marshal(r.Header)
-		glog.Infof("auth: From request: %s %s headers=%s", r.Method, r.URL, inHs)
-
 		authRes, err := httpClient.Do(authReq)
 		if err != nil {
 			respondError(rw, http.StatusInternalServerError, fmt.Errorf("error authorizing request: %w", err))
