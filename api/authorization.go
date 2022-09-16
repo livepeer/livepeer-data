@@ -49,7 +49,7 @@ func authorization(authUrl string) middleware {
 			respondError(rw, http.StatusInternalServerError, err)
 			return
 		}
-		authReq.Header.Set("X-Original-Uri", r.URL.String())
+		authReq.Header.Set("X-Original-Uri", originalReqUri(r))
 		if streamID := apiParam(r, streamIDParam); streamID != "" {
 			authReq.Header.Set("X-Livepeer-Stream-Id", streamID)
 		} else if assetID := apiParam(r, assetIDParam); assetID != "" {
@@ -81,6 +81,17 @@ func authorization(authUrl string) middleware {
 		}
 		next.ServeHTTP(rw, r)
 	})
+}
+
+func originalReqUri(r *http.Request) string {
+	proto := "http"
+	if r.TLS != nil {
+		proto = "https"
+	}
+	if fwdProto := r.Header.Get("X-Forwarded-Proto"); fwdProto != "" {
+		proto = fwdProto
+	}
+	return fmt.Sprintf("%s://%s%s", proto, r.Host, r.URL.RequestURI())
 }
 
 func copyHeaders(headers []string, src, dest http.Header) {
