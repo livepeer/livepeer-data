@@ -48,7 +48,7 @@ func authorization(authUrl string) middleware {
 			respondError(rw, http.StatusInternalServerError, err)
 			return
 		}
-		req.Header.Set("X-Original-Uri", req.URL.String())
+		req.Header.Set("X-Original-Uri", r.URL.String())
 		if streamID := apiParam(r, streamIDParam); streamID != "" {
 			req.Header.Set("X-Livepeer-Stream-Id", streamID)
 		} else if assetID := apiParam(r, assetIDParam); assetID != "" {
