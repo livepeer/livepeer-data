@@ -14,8 +14,17 @@ import (
 )
 
 var (
-	authorizationHeaders = []string{"Authorization", "Cookie"}
-	authTimeout          = 3 * time.Second
+	authorizationHeaders = []string{"Authorization", "Cookie", "Origin"}
+	// the response headers proxied from the auth request are basically cors headers
+	proxiedResponseHeaders = []string{
+		"Access-Control-Allow-Origin",
+		"Access-Control-Allow-Credentials",
+		"Access-Control-Allow-Methods",
+		"Access-Control-Allow-Headers",
+		"Access-Control-Expose-Headers",
+		"Access-Control-Max-Age",
+	}
+	authTimeout = 3 * time.Second
 
 	authRequestDuration = metrics.Factory.NewSummaryVec(
 		prometheus.SummaryOpts{
@@ -34,33 +43,54 @@ func authorization(authUrl string) middleware {
 		ctx, cancel := context.WithTimeout(r.Context(), authTimeout)
 		defer cancel()
 
-		status := getStreamStatus(r)
-		req, err := http.NewRequestWithContext(ctx, r.Method, authUrl, nil)
+		authReq, err := http.NewRequestWithContext(ctx, r.Method, authUrl, nil)
 		if err != nil {
 			respondError(rw, http.StatusInternalServerError, err)
 			return
 		}
-		req.Header.Set("X-Original-Uri", req.URL.String())
-		req.Header.Set("X-Livepeer-Stream-Id", status.ID)
-		for _, header := range authorizationHeaders {
-			req.Header[header] = r.Header[header]
+		authReq.Header.Set("X-Original-Uri", originalReqUri(r))
+		if streamID := apiParam(r, streamIDParam); streamID != "" {
+			authReq.Header.Set("X-Livepeer-Stream-Id", streamID)
+		} else if assetID := apiParam(r, assetIDParam); assetID != "" {
+			authReq.Header.Set("X-Livepeer-Asset-Id", assetID)
 		}
-		res, err := httpClient.Do(req)
+		copyHeaders(authorizationHeaders, r.Header, authReq.Header)
+		authRes, err := httpClient.Do(authReq)
 		if err != nil {
 			respondError(rw, http.StatusInternalServerError, fmt.Errorf("error authorizing request: %w", err))
 			return
 		}
+		copyHeaders(proxiedResponseHeaders, authRes.Header, rw.Header())
 
-		if res.StatusCode != http.StatusOK && res.StatusCode != http.StatusNoContent {
-			if contentType := res.Header.Get("Content-Type"); contentType != "" {
+		if authRes.StatusCode != http.StatusOK && authRes.StatusCode != http.StatusNoContent {
+			if contentType := authRes.Header.Get("Content-Type"); contentType != "" {
 				rw.Header().Set("Content-Type", contentType)
 			}
-			rw.WriteHeader(res.StatusCode)
-			if _, err := io.Copy(rw, res.Body); err != nil {
-				glog.Errorf("Error writing auth error response. err=%q, status=%d, headers=%+v", err, res.StatusCode, res.Header)
+			rw.WriteHeader(authRes.StatusCode)
+			if _, err := io.Copy(rw, authRes.Body); err != nil {
+				glog.Errorf("Error writing auth error response. err=%q, status=%d, headers=%+v", err, authRes.StatusCode, authRes.Header)
 			}
 			return
 		}
 		next.ServeHTTP(rw, r)
 	})
+}
+
+func originalReqUri(r *http.Request) string {
+	proto := "http"
+	if r.TLS != nil {
+		proto = "https"
+	}
+	if fwdProto := r.Header.Get("X-Forwarded-Proto"); fwdProto != "" {
+		proto = fwdProto
+	}
+	return fmt.Sprintf("%s://%s%s", proto, r.Host, r.URL.RequestURI())
+}
+
+func copyHeaders(headers []string, src, dest http.Header) {
+	for _, header := range headers {
+		if vals := src[header]; len(vals) > 0 {
+			dest[header] = vals
+		}
+	}
 }
