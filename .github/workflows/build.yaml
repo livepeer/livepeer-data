@@ -41,7 +41,7 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
-          cache-dependecy-path: go.sum
+          cache-dependency-path: go.sum
 
       - name: Export OS and platform env
         run: |
