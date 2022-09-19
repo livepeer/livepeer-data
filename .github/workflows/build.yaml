@@ -72,7 +72,7 @@ jobs:
           developer-certificate-password: ${{ secrets.CI_MACOS_CERTIFICATE_PASSWORD }}
           app-notarization-email: ${{ secrets.CI_MACOS_NOTARIZATION_USER }}
           app-notarization-password: ${{ secrets.CI_MACOS_NOTARIZATION_PASSWORD }}
-          binary-path: "build/livepeer-analyzer"
+          binary-path: "build/analyzer"
           app-bundle-id: "org.livepeer.analyzer"
 
       - name: Archive binaries for windows
