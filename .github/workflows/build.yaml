@@ -44,7 +44,7 @@ jobs:
 
       - name: Export OS and platform env
         run: |
-          echo "GOOS=${{ matrix.platform }}" >> $GITHUB_ENV
+          echo "GOOS=${{ matrix.platform.name }}" >> $GITHUB_ENV
           echo "GOARCH=${{ matrix.arch }}" >> $GITHUB_ENV
 
       - name: Download dependencies
@@ -75,14 +75,14 @@ jobs:
           app-bundle-id: "org.livepeer.analyzer"
 
       - name: Archive binaries for windows
-        if: matrix.platform == 'windows'
+        if: matrix.platform.name == 'windows'
         run: |
           cd build/
           mv analyzer.exe livepeer-analyzer.exe
           zip -9q "../releases/livepeer-analyzer-${GOOS}-${GOARCH}.zip" livepeer-analyzer.exe
 
       - name: Archive binaries for not windows
-        if: matrix.platform != 'windows'
+        if: matrix.platform.name != 'windows'
         run: |
           cd build/
           mv analyzer livepeer-analyzer
