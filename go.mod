@@ -7,7 +7,7 @@ require (
 	github.com/google/uuid v1.3.0
 	github.com/julienschmidt/httprouter v1.3.0
 	github.com/livepeer/go-api-client v0.2.8
-	github.com/peterbourgon/ff v1.7.0
+	github.com/peterbourgon/ff v1.7.1
 	github.com/prometheus/client_golang v1.13.0
 	github.com/prometheus/common v0.37.0
 	github.com/rabbitmq/amqp091-go v1.5.0
