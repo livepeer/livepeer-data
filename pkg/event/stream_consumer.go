@@ -2,7 +2,6 @@ package event
 
 import (
 	"context"
-	"crypto/tls"
 	"errors"
 	"fmt"
 	"net/url"
@@ -39,10 +38,7 @@ func NewStreamConsumer(streamUriStr, amqpUriStr string) (StreamConsumer, error) 
 	glog.Infof("Connecting to RabbitMQ. streamUri=%q, amqpUri=%q", streamUri.Redacted(), amqpUri.Redacted())
 	opts := stream.NewEnvironmentOptions().
 		SetMaxConsumersPerClient(5).
-		SetUri(streamUri.String()).SetTLSConfig(
-		&tls.Config{
-			ServerName: streamUri.Host,
-		})
+		SetUri(streamUri.String())
 	env, err := stream.NewEnvironment(opts)
 	if err != nil {
 		return nil, err
