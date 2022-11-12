@@ -271,9 +271,6 @@ func coalesceUri(value *url.URL, fallback url.URL) *url.URL {
 	if result.Scheme == "" {
 		result.Scheme = fallback.Scheme
 	}
-	if result.Port() == "" && fallback.Port() != "" {
-		result.Host += ":" + fallback.Port()
-	}
 	if u := result.User; u == nil || u.String() == "" {
 		result.User = fallback.User
 		if u := result.User; u == nil || u.String() == "" {
