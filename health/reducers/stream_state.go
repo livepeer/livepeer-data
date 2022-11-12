@@ -9,7 +9,6 @@ import (
 )
 
 const (
-	globalExchange        = "lp_global_replication"
 	streamStateBindingKey = "stream.state.#"
 
 	ConditionActive data.ConditionType = "Active"
@@ -20,10 +19,12 @@ type ActiveConditionExtraData struct {
 	Region string `json:"region"`
 }
 
-type StreamStateReducer struct{}
+type StreamStateReducer struct {
+	exchange string
+}
 
 func (t StreamStateReducer) Bindings() []event.BindingArgs {
-	return []event.BindingArgs{{Exchange: globalExchange, Key: streamStateBindingKey}}
+	return []event.BindingArgs{{Exchange: t.exchange, Key: streamStateBindingKey}}
 }
 
 func (t StreamStateReducer) Conditions() []data.ConditionType {

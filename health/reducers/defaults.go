@@ -11,15 +11,18 @@ var (
 	maxStatsWindow = statsWindows[len(statsWindows)-1]
 )
 
-func Default(golpExchange string, shardPrefixes []string) health.Reducer {
-	return Pipeline{
-		StreamStateReducer{},
+func Default(golpExchange string, shardPrefixes []string, streamStateExchange string) health.Reducer {
+	p := Pipeline{}
+	if streamStateExchange != "" {
+		p = append(p, StreamStateReducer{streamStateExchange})
+	}
+	return append(p, Pipeline{
 		TranscodeReducer{golpExchange, shardPrefixes},
 		MultistreamReducer{},
 		MediaServerMetrics{},
 		HealthReducer,
 		StatsReducer(statsWindows),
-	}
+	})
 }
 
 func DefaultStarTimeOffset() time.Duration {
