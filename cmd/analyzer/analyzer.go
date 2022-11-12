@@ -54,7 +54,7 @@ func parseFlags(version string) cliFlags {
 
 	fs.StringVar(&cli.golivepeerExchange, "golivepeer-exchange", "lp_golivepeer_metadata", "Name of RabbitMQ exchange to bind the stream to on creation")
 	fs.StringVar(&cli.shardPrefixesFlag, "shard-prefixes", "", "Comma-separated list of prefixes of manifest IDs to process events from")
-	fs.StringVar(&cli.streamStateExchange, "stream-state-exchange", "lp_global_replication", "Name of RabbitMQ exchange where to receive stream state events")
+	fs.StringVar(&cli.streamStateExchange, "stream-state-exchange", "lp_mist_api_connector", "Name of RabbitMQ exchange where to receive stream state events")
 
 	// Server options
 	fs.StringVar(&cli.serverOpts.Host, "host", "localhost", "Hostname to bind to")
