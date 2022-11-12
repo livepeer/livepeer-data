@@ -41,7 +41,7 @@ func NewStreamConsumer(streamUriStr, amqpUriStr string) (StreamConsumer, error) 
 		SetMaxConsumersPerClient(5).
 		SetUri(streamUri.String()).SetTLSConfig(
 		&tls.Config{
-			ServerName: streamUri.Host,
+			ServerName: streamUri.Hostname(),
 		})
 	env, err := stream.NewEnvironment(opts)
 	if err != nil {
