@@ -37,12 +37,7 @@ func NewStreamConsumer(streamUriStr, amqpUriStr string) (StreamConsumer, error) 
 		return nil, err
 	}
 	glog.Infof("Connecting to RabbitMQ. streamUri=%q, amqpUri=%q", streamUri.Redacted(), amqpUri.Redacted())
-	opts := stream.NewEnvironmentOptions().
-		SetMaxConsumersPerClient(5).
-		SetUri(streamUri.String()).SetTLSConfig(
-		&tls.Config{
-			ServerName: streamUri.Hostname(),
-		})
+	opts := baseEnvOpts(streamUri).SetMaxConsumersPerClient(5)
 	env, err := stream.NewEnvironment(opts)
 	if err != nil {
 		return nil, err
@@ -57,8 +52,7 @@ func (c *strmConsumer) Close() error {
 
 func (c *strmConsumer) CheckConnection() error {
 	// create separate env for test to avoid infinite connect retry from lib
-	env, err := stream.NewEnvironment(
-		stream.NewEnvironmentOptions().SetUri(c.streamUri.String()))
+	env, err := stream.NewEnvironment(baseEnvOpts(c.streamUri))
 	if err != nil {
 		return err
 	}
@@ -68,6 +62,14 @@ func (c *strmConsumer) CheckConnection() error {
 		return err
 	}
 	return env.Close()
+}
+
+func baseEnvOpts(uri *url.URL) *stream.EnvironmentOptions {
+	return stream.NewEnvironmentOptions().
+		SetUri(uri.String()).
+		SetTLSConfig(&tls.Config{
+			ServerName: uri.Hostname(),
+		})
 }
 
 func (c *strmConsumer) ConsumeChan(ctx context.Context, opts ConsumeOptions) (<-chan StreamMessage, error) {
