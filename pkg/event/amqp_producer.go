@@ -94,7 +94,7 @@ func (p *amqpProducer) Publish(ctx context.Context, msg AMQPMessage) error {
 	}
 	select {
 	case p.publishQ <- publish:
-		return nil
+		break // continue below
 	case <-ctx.Done():
 		return ctx.Err()
 	case <-p.shutdownStart:
