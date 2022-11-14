@@ -12,17 +12,14 @@ var (
 )
 
 func Default(golpExchange string, shardPrefixes []string, streamStateExchange string) health.Reducer {
-	p := Pipeline{}
-	if streamStateExchange != "" {
-		p = append(p, StreamStateReducer{streamStateExchange})
-	}
-	return append(p, Pipeline{
+	return Pipeline{
+		StreamStateReducer{streamStateExchange},
 		TranscodeReducer{golpExchange, shardPrefixes},
 		MultistreamReducer{},
 		MediaServerMetrics{},
 		HealthReducer,
 		StatsReducer(statsWindows),
-	})
+	}
 }
 
 func DefaultStarTimeOffset() time.Duration {
