@@ -11,9 +11,9 @@ var (
 	maxStatsWindow = statsWindows[len(statsWindows)-1]
 )
 
-func Default(golpExchange string, shardPrefixes []string) health.Reducer {
+func Default(golpExchange string, shardPrefixes []string, streamStateExchange string) health.Reducer {
 	return Pipeline{
-		StreamStateReducer{},
+		StreamStateReducer{streamStateExchange},
 		TranscodeReducer{golpExchange, shardPrefixes},
 		MultistreamReducer{},
 		MediaServerMetrics{},

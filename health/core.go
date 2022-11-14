@@ -88,11 +88,6 @@ func NewCore(opts CoreOptions, consumer event.StreamConsumer, reducer Reducer) *
 }
 
 func (c *Core) IsHealthy() bool {
-	err := c.consumer.CheckConnection()
-	if err != nil {
-		glog.Warningf("Health core is unhealthy. reason=consumerErr consumerErr=%q", err)
-		return false
-	}
 	if tol := c.opts.Streaming.EventFlowSilenceTolerance; tol > 0 && time.Since(c.lastEventTs) > tol {
 		glog.Warningf("Health core is unhealthy. reason=noEvents lastEventTs=%s, tolerance=%s", c.lastEventTs, tol)
 		return false

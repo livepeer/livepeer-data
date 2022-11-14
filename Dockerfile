@@ -18,7 +18,9 @@ COPY	.	.
 
 RUN	make "version=$version"
 
-FROM	alpine:latest
+FROM	alpine:3.16
+
+RUN	apk add --no-cache ca-certificates
 
 WORKDIR	/app
 
