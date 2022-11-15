@@ -7,7 +7,7 @@ import (
 )
 
 var (
-	statsWindows   = []time.Duration{1 * time.Minute, 10 * time.Minute, 1 * time.Hour}
+	statsWindows   = []time.Duration{1 * time.Minute, 10 * time.Minute}
 	maxStatsWindow = statsWindows[len(statsWindows)-1]
 )
 
