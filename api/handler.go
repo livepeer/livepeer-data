@@ -84,6 +84,7 @@ func addViewershipHandlers(router *httprouter.Router, handler *apiHandler) {
 		router.Handler("GET", fullPath, fullHandler)
 	}
 	addApiHandler("/total", "get_total_views", handler.getTotalViews)
+	addApiHandler("/realtime", "get_realtime_views", handler.getRealTimeViews)
 }
 
 func (h *apiHandler) cors() middleware {
@@ -111,6 +112,15 @@ func (h *apiHandler) healthcheck(rw http.ResponseWriter, r *http.Request) {
 
 func (h *apiHandler) getTotalViews(rw http.ResponseWriter, r *http.Request) {
 	views, err := h.views.GetTotalViews(r.Context(), apiParam(r, assetIDParam))
+	if err != nil {
+		respondError(rw, http.StatusInternalServerError, err)
+		return
+	}
+	respondJson(rw, http.StatusOK, views)
+}
+
+func (h *apiHandler) getRealTimeViews(rw http.ResponseWriter, r *http.Request) {
+	views, err := h.views.GetRealTimeViews(r.Context(), apiParam(r, assetIDParam))
 	if err != nil {
 		respondError(rw, http.StatusInternalServerError, err)
 		return
