@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httputil"
+	"strings"
 	"time"
 
 	"github.com/golang/glog"
@@ -43,13 +44,17 @@ func regionProxyDirector(hostFormat string) func(req *http.Request) {
 		glog.V(8).Infof("Proxying request url=%s headers=%+v", req.URL, req.Header)
 		status := getStreamStatus(req)
 		streamRegion := reducers.GetLastActiveData(status).Region
+		host := hostFormat
+		if strings.Contains(hostFormat, "%%s") {
+			host = fmt.Sprintf(hostFormat, streamRegion)
+		}
 
 		req.URL.Scheme = "http"
 		if fwdProto := req.Header.Get("X-Forwarded-Proto"); fwdProto != "" {
 			req.URL.Scheme = fwdProto
 		}
-		req.URL.Host = fmt.Sprintf(hostFormat, streamRegion)
-		req.Host = req.URL.Host
+		req.URL.Host = host
+		req.Host = host
 
 		req.Header.Set(proxyLoopHeader, "analyzer")
 		if _, ok := req.Header["User-Agent"]; !ok {
