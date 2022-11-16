@@ -38,7 +38,7 @@ var (
 	}
 )
 
-func authorization(authUrl string) middleware {
+func authorization(authUrl string, isStream bool) middleware {
 	return inlineMiddleware(func(rw http.ResponseWriter, r *http.Request, next http.Handler) {
 		ctx, cancel := context.WithTimeout(r.Context(), authTimeout)
 		defer cancel()
@@ -49,11 +49,13 @@ func authorization(authUrl string) middleware {
 			return
 		}
 		authReq.Header.Set("X-Original-Uri", originalReqUri(r))
-		if streamID := apiParam(r, streamIDParam); streamID != "" {
-			authReq.Header.Set("X-Livepeer-Stream-Id", streamID)
-		} else if assetID := apiParam(r, assetIDParam); assetID != "" {
-			authReq.Header.Set("X-Livepeer-Asset-Id", assetID)
+
+		if isStream {
+			authReq.Header.Set("X-Livepeer-Stream-Id", apiParam(r, streamIDParam))
+		} else {
+			authReq.Header.Set("X-Livepeer-Asset-Id", apiParam(r, assetIDParam))
 		}
+
 		copyHeaders(authorizationHeaders, r.Header, authReq.Header)
 		authRes, err := httpClient.Do(authReq)
 		if err != nil {

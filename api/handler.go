@@ -61,7 +61,7 @@ func addStreamHealthHandlers(router *httprouter.Router, handler *apiHandler) {
 		regionProxy(opts.RegionalHostFormat, opts.OwnRegion),
 	}
 	if opts.AuthURL != "" {
-		middlewares = append(middlewares, authorization(opts.AuthURL))
+		middlewares = append(middlewares, authorization(opts.AuthURL, true))
 	}
 	addApiHandler := func(apiPath, name string, handler http.HandlerFunc) {
 		fullPath := path.Join(opts.APIRoot, "/stream/:"+streamIDParam, apiPath)
@@ -74,11 +74,11 @@ func addStreamHealthHandlers(router *httprouter.Router, handler *apiHandler) {
 
 func addViewershipHandlers(router *httprouter.Router, handler *apiHandler) {
 	opts := handler.opts
-	middlewares := []middleware{}
-	if opts.AuthURL != "" {
-		middlewares = append(middlewares, authorization(opts.AuthURL))
-	}
 	addApiHandler := func(apiPath, name, param string, handler http.HandlerFunc) {
+		middlewares := []middleware{}
+		if opts.AuthURL != "" {
+			middlewares = append(middlewares, authorization(opts.AuthURL, param == streamIDParam))
+		}
 		fullPath := path.Join(opts.APIRoot, "/views/:"+param, apiPath)
 		fullHandler := prepareHandlerFunc(name, opts.Prometheus, handler, middlewares...)
 		router.Handler("GET", fullPath, fullHandler)
