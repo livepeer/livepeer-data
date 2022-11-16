@@ -139,7 +139,7 @@ func startViewsQuery(playbackID, playbackRecordingID string) string {
 
 func realTimeViewsQuery(playbackID string) string {
 	return fmt.Sprintf(
-		`sum(mist_sessions{catalyst="true", sessType="viewers", stream=~"video+%s"}[1m] )`,
+		`sum(mist_sessions{catalyst="true", sessType="viewers", stream="video+%s"})`,
 		playbackID,
 	)
 }

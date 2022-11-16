@@ -84,7 +84,7 @@ func addViewershipHandlers(router *httprouter.Router, handler *apiHandler) {
 		router.Handler("GET", fullPath, fullHandler)
 	}
 	addApiHandler("/total", "get_total_views", handler.getTotalViews)
-	addApiHandler("/realtime", "get_realtime_views", handler.getRealTimeViews)
+	addApiHandler("/concurrent", "get_realtime_concurrent_views", handler.getRealTimeViews)
 }
 
 func (h *apiHandler) cors() middleware {
