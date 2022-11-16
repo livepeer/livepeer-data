@@ -78,13 +78,13 @@ func addViewershipHandlers(router *httprouter.Router, handler *apiHandler) {
 	if opts.AuthURL != "" {
 		middlewares = append(middlewares, authorization(opts.AuthURL))
 	}
-	addApiHandler := func(apiPath, name string, handler http.HandlerFunc) {
-		fullPath := path.Join(opts.APIRoot, "/views/:"+assetIDParam, apiPath)
+	addApiHandler := func(apiPath, name, param string, handler http.HandlerFunc) {
+		fullPath := path.Join(opts.APIRoot, "/views/:"+param, apiPath)
 		fullHandler := prepareHandlerFunc(name, opts.Prometheus, handler, middlewares...)
 		router.Handler("GET", fullPath, fullHandler)
 	}
-	addApiHandler("/total", "get_total_views", handler.getTotalViews)
-	addApiHandler("/concurrent", "get_realtime_concurrent_views", handler.getRealTimeViews)
+	addApiHandler("/total", "get_total_views", assetIDParam, handler.getTotalViews)
+	addApiHandler("/concurrent", "get_realtime_concurrent_views", streamIDParam, handler.getRealTimeViews)
 }
 
 func (h *apiHandler) cors() middleware {
@@ -120,7 +120,7 @@ func (h *apiHandler) getTotalViews(rw http.ResponseWriter, r *http.Request) {
 }
 
 func (h *apiHandler) getRealTimeViews(rw http.ResponseWriter, r *http.Request) {
-	views, err := h.views.GetRealTimeViews(r.Context(), apiParam(r, assetIDParam))
+	views, err := h.views.GetRealTimeViews(r.Context(), apiParam(r, streamIDParam))
 	if err != nil {
 		respondError(rw, http.StatusInternalServerError, err)
 		return
