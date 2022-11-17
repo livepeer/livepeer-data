@@ -16,7 +16,7 @@ const (
 
 func streamStatus(healthcore *health.Core) middleware {
 	return inlineMiddleware(func(rw http.ResponseWriter, r *http.Request, next http.Handler) {
-		streamID := apiParam(r, streamIDParam)
+		streamID := apiParam(r, contentIDParam)
 		if streamID == "" {
 			next.ServeHTTP(rw, r)
 			return
