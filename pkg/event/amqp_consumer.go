@@ -91,7 +91,7 @@ func (c *amqpConsumer) Consume(queue string, concurrency int, handler AMQPMessag
 	c.lock.Lock()
 	defer c.lock.Unlock()
 	sub := &subscription{queue, handler, concurrency}
-	err := doConsume(c.currCtx, c.consumersGroup, c.currChannel, sub)
+	err := doConsume(c.currCtx, &c.consumersGroup, c.currChannel, sub)
 	if err != nil {
 		return err
 	}
@@ -129,7 +129,7 @@ func (c *amqpConsumer) connect() error {
 		return err
 	}
 	for _, sub := range c.subscriptions {
-		if err := doConsume(ctx, c.consumersGroup, channel, sub); err != nil {
+		if err := doConsume(ctx, &c.consumersGroup, channel, sub); err != nil {
 			cancel()
 			return fmt.Errorf("error consuming queue %q: %v", sub.queue, err)
 		}
@@ -147,7 +147,7 @@ func (c *amqpConsumer) connect() error {
 	return nil
 }
 
-func doConsume(ctx context.Context, wg sync.WaitGroup, amqpch AMQPChanOps, sub *subscription) error {
+func doConsume(ctx context.Context, wg *sync.WaitGroup, amqpch AMQPChanOps, sub *subscription) error {
 	// TODO: Create custom consumer names to be able to cancel them.
 	subs, err := amqpch.Consume(sub.queue, "", false, false, false, false, nil)
 	if err != nil {
