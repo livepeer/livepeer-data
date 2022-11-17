@@ -51,9 +51,9 @@ func authorization(authUrl string, isStream bool) middleware {
 		authReq.Header.Set("X-Original-Uri", originalReqUri(r))
 
 		if isStream {
-			authReq.Header.Set("X-Livepeer-Stream-Id", apiParam(r, streamIDParam))
+			authReq.Header.Set("X-Livepeer-Stream-Id", apiParam(r, contentIDParam))
 		} else {
-			authReq.Header.Set("X-Livepeer-Asset-Id", apiParam(r, assetIDParam))
+			authReq.Header.Set("X-Livepeer-Asset-Id", apiParam(r, contentIDParam))
 		}
 
 		copyHeaders(authorizationHeaders, r.Header, authReq.Header)

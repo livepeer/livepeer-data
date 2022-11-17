@@ -22,8 +22,7 @@ const (
 	ssePingDelay    = 20 * time.Second
 	sseBufferSize   = 128
 
-	streamIDParam = "streamId"
-	assetIDParam  = "assetId"
+	contentIDParam = "contentId"
 )
 
 type APIHandlerOptions struct {
@@ -64,7 +63,7 @@ func addStreamHealthHandlers(router *httprouter.Router, handler *apiHandler) {
 		middlewares = append(middlewares, authorization(opts.AuthURL, true))
 	}
 	addApiHandler := func(apiPath, name string, handler http.HandlerFunc) {
-		fullPath := path.Join(opts.APIRoot, "/stream/:"+streamIDParam, apiPath)
+		fullPath := path.Join(opts.APIRoot, "/stream/:"+contentIDParam, apiPath)
 		fullHandler := prepareHandlerFunc(name, opts.Prometheus, handler, middlewares...)
 		router.Handler("GET", fullPath, fullHandler)
 	}
@@ -74,17 +73,17 @@ func addStreamHealthHandlers(router *httprouter.Router, handler *apiHandler) {
 
 func addViewershipHandlers(router *httprouter.Router, handler *apiHandler) {
 	opts := handler.opts
-	addApiHandler := func(apiPath, name, param string, handler http.HandlerFunc) {
+	addApiHandler := func(apiPath, name string, isStream bool, handler http.HandlerFunc) {
 		middlewares := []middleware{}
 		if opts.AuthURL != "" {
-			middlewares = append(middlewares, authorization(opts.AuthURL, param == streamIDParam))
+			middlewares = append(middlewares, authorization(opts.AuthURL, isStream))
 		}
-		fullPath := path.Join(opts.APIRoot, "/views/:"+param, apiPath)
+		fullPath := path.Join(opts.APIRoot, "/views/:"+contentIDParam, apiPath)
 		fullHandler := prepareHandlerFunc(name, opts.Prometheus, handler, middlewares...)
 		router.Handler("GET", fullPath, fullHandler)
 	}
-	addApiHandler("/total", "get_total_views", assetIDParam, handler.getTotalViews)
-	addApiHandler("/concurrent", "get_realtime_concurrent_views", streamIDParam, handler.getRealTimeViews)
+	addApiHandler("/total", "get_total_views", false, handler.getTotalViews)
+	addApiHandler("/concurrent", "get_realtime_concurrent_views", true, handler.getRealTimeViews)
 }
 
 func (h *apiHandler) cors() middleware {
@@ -111,7 +110,7 @@ func (h *apiHandler) healthcheck(rw http.ResponseWriter, r *http.Request) {
 }
 
 func (h *apiHandler) getTotalViews(rw http.ResponseWriter, r *http.Request) {
-	views, err := h.views.GetTotalViews(r.Context(), apiParam(r, assetIDParam))
+	views, err := h.views.GetTotalViews(r.Context(), apiParam(r, contentIDParam))
 	if err != nil {
 		respondError(rw, http.StatusInternalServerError, err)
 		return
@@ -120,7 +119,7 @@ func (h *apiHandler) getTotalViews(rw http.ResponseWriter, r *http.Request) {
 }
 
 func (h *apiHandler) getRealTimeViews(rw http.ResponseWriter, r *http.Request) {
-	views, err := h.views.GetRealTimeViews(r.Context(), apiParam(r, streamIDParam))
+	views, err := h.views.GetRealTimeViews(r.Context(), apiParam(r, contentIDParam))
 	if err != nil {
 		respondError(rw, http.StatusInternalServerError, err)
 		return
