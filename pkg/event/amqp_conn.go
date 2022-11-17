@@ -24,7 +24,7 @@ type AMQPChanSetup interface {
 	QueueDelete(name string, ifUnused, ifEmpty, noWait bool) (int, error)
 	QueueInspect(name string) (amqp.Queue, error)
 	QueueUnbind(name, key, exchange string, args amqp.Table) error
-	Qos(prefetchCount, prefetchSize int, global bool)
+	Qos(prefetchCount, prefetchSize int, global bool) error
 }
 
 type AMQPConnectFunc func(ctx context.Context, uri string, confirms chan amqp.Confirmation, closed chan *amqp.Error) (AMQPChanOps, error)
