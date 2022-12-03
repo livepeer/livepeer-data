@@ -162,6 +162,8 @@ func doConsume(ctx context.Context, wg *sync.WaitGroup, amqpch AMQPChanOps, sub 
 					glog.Errorf("Panic in background AMQP consumer: value=%q stack:\n%s", rec, string(debug.Stack()))
 				}
 			}()
+			defer drain(subs)
+
 			for {
 				select {
 				case msg, ok := <-subs:
@@ -192,4 +194,10 @@ func doConsume(ctx context.Context, wg *sync.WaitGroup, amqpch AMQPChanOps, sub 
 		}()
 	}
 	return nil
+}
+
+func drain(ch <-chan amqp.Delivery) {
+	for msg := range ch {
+		msg.Nack(false, true)
+	}
 }
