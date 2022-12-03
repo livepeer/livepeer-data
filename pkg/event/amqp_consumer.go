@@ -170,14 +170,17 @@ func doConsume(ctx context.Context, wg *sync.WaitGroup, amqpch AMQPChanOps, sub 
 					err := sub.handler(msg)
 					msg.Acknowledger = acker
 					if err == nil {
-						if err := msg.Ack(false); err != nil {
-							glog.Errorf("Error ack-ing message exchange=%q, routingKey=%q, err=%q", msg.Exchange, msg.RoutingKey, err)
+						err = msg.Ack(false)
+						if err == nil {
+							continue
 						}
-						continue
+						// the error likely means the msg was already requeued (e.g. conn
+						// reset), but let it fallthrough below and try a nack just in case.
+						err = fmt.Errorf("error ack-ing message: %w", err)
 					}
-					glog.Errorf("Nacking message due to error exchange=%q, routingKey=%q, err=%q", msg.Exchange, msg.RoutingKey, err)
+					glog.Errorf("Nacking message due to error exchange=%q routingKey=%q err=%q", msg.Exchange, msg.RoutingKey, err)
 					if err := msg.Nack(false, true); err != nil {
-						glog.Errorf("Error nack-ing message exchange=%q, routingKey=%q, err=%q", msg.Exchange, msg.RoutingKey, err)
+						glog.Errorf("Error nack-ing message exchange=%q routingKey=%q err=%q", msg.Exchange, msg.RoutingKey, err)
 					}
 				case <-ctx.Done():
 					return
