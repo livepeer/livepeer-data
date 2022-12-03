@@ -164,7 +164,10 @@ func doConsume(ctx context.Context, wg *sync.WaitGroup, amqpch AMQPChanOps, sub 
 			}()
 			for {
 				select {
-				case msg := <-subs:
+				case msg, ok := <-subs:
+					if !ok {
+						return
+					}
 					acker := msg.Acknowledger
 					msg.Acknowledger = nil // prevent handler from manually acking/nacking
 					err := sub.handler(msg)
