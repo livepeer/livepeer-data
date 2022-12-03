@@ -170,10 +170,7 @@ func doConsume(ctx context.Context, wg *sync.WaitGroup, amqpch AMQPChanOps, sub 
 					if !ok {
 						return
 					}
-					acker := msg.Acknowledger
-					msg.Acknowledger = nil // prevent handler from manually acking/nacking
-					err := sub.handler(msg)
-					msg.Acknowledger = acker
+					err := runHandlerRecv(sub, msg)
 					if err == nil {
 						err = msg.Ack(false)
 						if err == nil {
@@ -194,6 +191,24 @@ func doConsume(ctx context.Context, wg *sync.WaitGroup, amqpch AMQPChanOps, sub 
 		}()
 	}
 	return nil
+}
+
+func runHandlerRecv(sub *subscription, msg amqp.Delivery) (err error) {
+	defer func() {
+		if rec := recover(); rec != nil {
+			glog.Errorf("Panic in AMQP handler: value=%q stack:\n%s", rec, string(debug.Stack()))
+			err = fmt.Errorf("panic: %v", rec)
+		}
+	}()
+
+	// Set acknowledger to nil to prevent handler from manually acking/nacking. We
+	// have a copy of the msg so no need to undo the patch, but it's future-proof
+	// to do so anyway in case amqp.Delivery type becomes a reference in the lib.
+	prevAcker := msg.Acknowledger
+	defer func() { msg.Acknowledger = prevAcker }()
+	msg.Acknowledger = nil
+
+	return sub.handler(msg)
 }
 
 func drain(ch <-chan amqp.Delivery) {
