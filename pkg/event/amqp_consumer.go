@@ -14,6 +14,26 @@ import (
 
 var ErrConsumerClosed = errors.New("amqp: consumer closed")
 
+// This is a special error wrappper to indicate to the consumer that a message
+// should not be re-queued. This is useful for messages that are malformed or
+// otherwise invalid and should not be retried. If a dead letter exchange is
+// configured, the broker will route the message to it.
+type unprocessableMessageErr struct{ error }
+
+// If error is not nil, wraps it in an unprocessable message error so the
+// consumer does not requeue the message.
+func UnprocessableIfErr(err error) error {
+	if err == nil {
+		return nil
+	}
+	return unprocessableMessageErr{err}
+}
+
+func IsUnprocessableMessageErr(err error) bool {
+	return errors.As(err, &unprocessableMessageErr{})
+}
+
+// AMQPMessageHandler is a function that will be called for each message received.
 type AMQPMessageHandler func(amqp.Delivery) error
 
 type subscription struct {
@@ -170,7 +190,7 @@ func doConsume(ctx context.Context, wg *sync.WaitGroup, amqpch AMQPChanOps, sub 
 					if !ok {
 						return
 					}
-					err := runHandlerRecv(sub, msg)
+					err := runHandlerRecovered(sub, msg)
 					if err == nil {
 						err = msg.Ack(false)
 						if err == nil {
@@ -181,7 +201,8 @@ func doConsume(ctx context.Context, wg *sync.WaitGroup, amqpch AMQPChanOps, sub 
 						err = fmt.Errorf("error acking message: %w", err)
 					}
 					glog.Errorf("Nacking message due to error exchange=%q queue=%q routingKey=%q err=%q", msg.Exchange, sub.queue, msg.RoutingKey, err)
-					if err := msg.Nack(false, true); err != nil {
+					requeue := !IsUnprocessableMessageErr(err)
+					if err := msg.Nack(false, requeue); err != nil {
 						glog.Errorf("Error nacking message exchange=%q queue=%q routingKey=%q err=%q", msg.Exchange, sub.queue, msg.RoutingKey, err)
 					}
 				case <-ctx.Done():
@@ -193,11 +214,11 @@ func doConsume(ctx context.Context, wg *sync.WaitGroup, amqpch AMQPChanOps, sub 
 	return nil
 }
 
-func runHandlerRecv(sub *subscription, msg amqp.Delivery) (err error) {
+func runHandlerRecovered(sub *subscription, msg amqp.Delivery) (err error) {
 	defer func() {
 		if rec := recover(); rec != nil {
 			glog.Errorf("Panic in AMQP handler: value=%q stack:\n%s", rec, string(debug.Stack()))
-			err = fmt.Errorf("panic: %v", rec)
+			err = UnprocessableIfErr(fmt.Errorf("panic: %v", rec))
 		}
 	}()
 
