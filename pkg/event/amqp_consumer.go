@@ -22,7 +22,7 @@ type unprocessableMessageErr struct{ error }
 
 // If error is not nil, wraps it in an unprocessable message error so the
 // consumer does not requeue the message.
-func UnprocessableIfErr(err error) error {
+func UnprocessableError(err error) error {
 	if err == nil {
 		return nil
 	}
@@ -218,7 +218,7 @@ func runHandlerRecovered(sub *subscription, msg amqp.Delivery) (err error) {
 	defer func() {
 		if rec := recover(); rec != nil {
 			glog.Errorf("Panic in AMQP handler: value=%q stack:\n%s", rec, string(debug.Stack()))
-			err = UnprocessableIfErr(fmt.Errorf("panic: %v", rec))
+			err = UnprocessableError(fmt.Errorf("panic: %v", rec))
 		}
 	}()
 
