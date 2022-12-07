@@ -14,6 +14,26 @@ import (
 
 var ErrConsumerClosed = errors.New("amqp: consumer closed")
 
+// This is a special error wrappper to indicate to the consumer that a message
+// should not be re-queued. This is useful for messages that are malformed or
+// otherwise invalid and should not be retried. If a dead letter exchange is
+// configured, the broker will route the message to it.
+type unprocessableMessageErr struct{ error }
+
+// If error is not nil, wraps it in an unprocessable message error so the
+// consumer does not requeue the message.
+func UnprocessableError(err error) error {
+	if err == nil {
+		return nil
+	}
+	return unprocessableMessageErr{err}
+}
+
+func IsUnprocessableMessageErr(err error) bool {
+	return errors.As(err, &unprocessableMessageErr{})
+}
+
+// AMQPMessageHandler is a function that will be called for each message received.
 type AMQPMessageHandler func(amqp.Delivery) error
 
 type subscription struct {
@@ -162,22 +182,28 @@ func doConsume(ctx context.Context, wg *sync.WaitGroup, amqpch AMQPChanOps, sub 
 					glog.Errorf("Panic in background AMQP consumer: value=%q stack:\n%s", rec, string(debug.Stack()))
 				}
 			}()
+			defer drain(subs)
+
 			for {
 				select {
-				case msg := <-subs:
-					acker := msg.Acknowledger
-					msg.Acknowledger = nil // prevent handler from manually acking/nacking
-					err := sub.handler(msg)
-					msg.Acknowledger = acker
-					if err == nil {
-						if err := msg.Ack(false); err != nil {
-							glog.Errorf("Error ack-ing message exchange=%q, routingKey=%q, err=%q", msg.Exchange, msg.RoutingKey, err)
-						}
-						continue
+				case msg, ok := <-subs:
+					if !ok {
+						return
 					}
-					glog.Errorf("Nacking message due to error exchange=%q, routingKey=%q, err=%q", msg.Exchange, msg.RoutingKey, err)
-					if err := msg.Nack(false, true); err != nil {
-						glog.Errorf("Error nack-ing message exchange=%q, routingKey=%q, err=%q", msg.Exchange, msg.RoutingKey, err)
+					err := runHandlerRecovered(sub, msg)
+					if err == nil {
+						err = msg.Ack(false)
+						if err == nil {
+							continue
+						}
+						// the error likely means the msg was already requeued (e.g. conn
+						// reset), but let it fallthrough below and try a nack just in case.
+						err = fmt.Errorf("error acking message: %w", err)
+					}
+					glog.Errorf("Nacking message due to error exchange=%q queue=%q routingKey=%q err=%q", msg.Exchange, sub.queue, msg.RoutingKey, err)
+					requeue := !IsUnprocessableMessageErr(err)
+					if err := msg.Nack(false, requeue); err != nil {
+						glog.Errorf("Error nacking message exchange=%q queue=%q routingKey=%q err=%q", msg.Exchange, sub.queue, msg.RoutingKey, err)
 					}
 				case <-ctx.Done():
 					return
@@ -186,4 +212,28 @@ func doConsume(ctx context.Context, wg *sync.WaitGroup, amqpch AMQPChanOps, sub 
 		}()
 	}
 	return nil
+}
+
+func runHandlerRecovered(sub *subscription, msg amqp.Delivery) (err error) {
+	defer func() {
+		if rec := recover(); rec != nil {
+			glog.Errorf("Panic in AMQP handler: value=%q stack:\n%s", rec, string(debug.Stack()))
+			err = UnprocessableError(fmt.Errorf("panic: %v", rec))
+		}
+	}()
+
+	// Set acknowledger to nil to prevent handler from manually acking/nacking. We
+	// have a copy of the msg so no need to undo the patch, but it's future-proof
+	// to do so anyway in case amqp.Delivery type becomes a reference in the lib.
+	prevAcker := msg.Acknowledger
+	defer func() { msg.Acknowledger = prevAcker }()
+	msg.Acknowledger = nil
+
+	return sub.handler(msg)
+}
+
+func drain(ch <-chan amqp.Delivery) {
+	for msg := range ch {
+		msg.Nack(false, true)
+	}
 }
