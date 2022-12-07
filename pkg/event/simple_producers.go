@@ -26,7 +26,7 @@ func NewAMQPExchangeProducer(ctx context.Context, uri, exchange, keyNs string) (
 		if keyNs != "" {
 			key = keyNs + "." + key
 		}
-		return producer.Publish(ctx, AMQPMessage{exchange, key, body, persistent, nil, true})
+		return producer.Publish(ctx, AMQPMessage{exchange, key, body, persistent, false, nil, true})
 	}), nil
 }
 
@@ -50,7 +50,7 @@ func NewAMQPQueueProducer(ctx context.Context, uri, queue string) (SimpleProduce
 		if key != "" {
 			return errors.New("when sending directly to a queue, key must always be empty")
 		}
-		return producer.Publish(ctx, AMQPMessage{"", queue, body, persistent, nil, true})
+		return producer.Publish(ctx, AMQPMessage{"", queue, body, persistent, false, nil, true})
 	}), nil
 }
 
