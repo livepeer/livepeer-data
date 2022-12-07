@@ -204,8 +204,8 @@ func (p *amqpProducer) connectAndLoopPublish() error {
 		case err := <-closed:
 			return fmt.Errorf("channel or connection closed: %w", err)
 		case msg := <-p.publishQ:
-			mandatory, immediate := false, false
-			err := channel.Publish(msg.Exchange, msg.Key, mandatory, immediate, msg.Publishing)
+			immediate := false
+			err := channel.Publish(msg.Exchange, msg.Key, msg.Mandatory, immediate, msg.Publishing)
 			if err != nil {
 				glog.Errorf("Error publishing message: exchange=%q, key=%q, error=%q, body=%q", msg.Exchange, msg.Key, err, msg.Publishing.Body)
 				p.retryMsg(msg)

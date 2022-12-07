@@ -42,6 +42,11 @@ type (
 		// Persistent means whether this message should be persisted in durable
 		// storage not to be lost on broker restarts.
 		Persistent bool
+		// Mandatory means that if the message cannot be routed to a queue, the
+		// broker should return it to the sender. In other words, the broker will
+		// try to put the message in at least one queue, and if there's no queue
+		// bound to receive the message it will fail the publishing.
+		Mandatory bool
 		// ResultChan receives the result message from the publish operation. Used
 		// to guarantee delivery of messages to the broker through confirmation.
 		ResultChan chan<- PublishResult
