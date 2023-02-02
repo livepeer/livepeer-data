@@ -24,14 +24,19 @@ type ErrorInfo struct {
 }
 
 type TaskOutput struct {
-	Upload    *UploadTaskOutput    `json:"upload,omitempty"`
-	Import    *UploadTaskOutput    `json:"import,omitempty"`
-	Export    *ExportTaskOutput    `json:"export,omitempty"`
-	Transcode *TranscodeTaskOutput `json:"transcode,omitempty"`
+	Upload        *UploadTaskOutput        `json:"upload,omitempty"`
+	Import        *UploadTaskOutput        `json:"import,omitempty"`
+	Export        *ExportTaskOutput        `json:"export,omitempty"`
+	Transcode     *TranscodeTaskOutput     `json:"transcode,omitempty"`
+	TranscodeFile *TranscodeFileTaskOutput `json:"transcodeFile,omitempty"`
 }
 
 type TranscodeTaskOutput struct {
 	Asset UploadTaskOutput `json:"asset,omitempty"`
+}
+
+type TranscodeFileTaskOutput struct {
+	VideoFilePath string `json:"videoFilePath"`
 }
 
 type UploadTaskOutput struct {
