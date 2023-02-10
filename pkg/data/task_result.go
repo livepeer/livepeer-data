@@ -45,8 +45,8 @@ type TranscodeFileTaskOutputPath struct {
 
 type TranscodeFileTaskOutput struct {
 	BaseUrl string                      `json:"baseUrl,omitempty"`
-	Hls     TranscodeFileTaskOutputPath `json:"hls,omitempty"`
-	Mp4     TranscodeFileTaskOutputMp4  `json:"mp4,omitempty"`
+	Hls     *TranscodeFileTaskOutputPath `json:"hls,omitempty"`
+	Mp4     *TranscodeFileTaskOutputMp4  `json:"mp4,omitempty"`
 }
 
 type UploadTaskOutput struct {
