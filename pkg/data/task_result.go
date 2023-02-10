@@ -35,18 +35,14 @@ type TranscodeTaskOutput struct {
 	Asset UploadTaskOutput `json:"asset,omitempty"`
 }
 
-type TranscodeFileTaskOutputMp4 struct {
-	Renditions []TranscodeFileTaskOutputPath `json:"renditions,omitempty"`
-}
-
 type TranscodeFileTaskOutputPath struct {
 	Path string `json:"path,omitempty"`
 }
 
 type TranscodeFileTaskOutput struct {
-	BaseUrl string                      `json:"baseUrl,omitempty"`
-	Hls     *TranscodeFileTaskOutputPath `json:"hls,omitempty"`
-	Mp4     *TranscodeFileTaskOutputMp4  `json:"mp4,omitempty"`
+	BaseUrl string                        `json:"baseUrl,omitempty"`
+	Hls     *TranscodeFileTaskOutputPath  `json:"hls,omitempty"`
+	Mp4     []TranscodeFileTaskOutputPath `json:"mp4,omitempty"`
 }
 
 type UploadTaskOutput struct {
