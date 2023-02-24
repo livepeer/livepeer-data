@@ -12,7 +12,7 @@ require (
 	github.com/prometheus/common v0.39.0
 	github.com/rabbitmq/amqp091-go v1.6.0
 	github.com/rabbitmq/rabbitmq-stream-go-client v1.0.2
-	golang.org/x/sync v0.0.0-20220601150217-0de741cfad7f
+	golang.org/x/sync v0.1.0
 )
 
 require (
