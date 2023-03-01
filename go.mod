@@ -9,7 +9,7 @@ require (
 	github.com/livepeer/go-api-client v0.3.1
 	github.com/peterbourgon/ff v1.7.1
 	github.com/prometheus/client_golang v1.14.0
-	github.com/prometheus/common v0.39.0
+	github.com/prometheus/common v0.41.0
 	github.com/rabbitmq/amqp091-go v1.6.0
 	github.com/rabbitmq/rabbitmq-stream-go-client v1.0.2
 	golang.org/x/sync v0.0.0-20220601150217-0de741cfad7f
@@ -31,6 +31,6 @@ require (
 	github.com/prometheus/client_model v0.3.0 // indirect
 	github.com/prometheus/procfs v0.8.0 // indirect
 	github.com/tomnomnom/linkheader v0.0.0-20180905144013-02ca5825eb80 // indirect
-	golang.org/x/sys v0.3.0 // indirect
+	golang.org/x/sys v0.5.0 // indirect
 	google.golang.org/protobuf v1.28.1 // indirect
 )
