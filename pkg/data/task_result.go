@@ -39,10 +39,17 @@ type TranscodeFileTaskOutputPath struct {
 	Path string `json:"path,omitempty"`
 }
 
+type InputVideo struct {
+	Duration  float64 `json:"duration,omitempty"`
+	SizeBytes int64   `json:"size,omitempty"`
+}
+
 type TranscodeFileTaskOutput struct {
-	BaseUrl string                        `json:"baseUrl,omitempty"`
-	Hls     *TranscodeFileTaskOutputPath  `json:"hls,omitempty"`
-	Mp4     []TranscodeFileTaskOutputPath `json:"mp4,omitempty"`
+	BaseUrl    string                        `json:"baseUrl,omitempty"`
+	Hls        *TranscodeFileTaskOutputPath  `json:"hls,omitempty"`
+	Mp4        []TranscodeFileTaskOutputPath `json:"mp4,omitempty"`
+	RequestID  string                        `json:"request_id,omitempty"`
+	InputVideo *InputVideo                   `json:"input_video,omitempty"`
 }
 
 type UploadTaskOutput struct {
