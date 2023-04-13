@@ -10,7 +10,7 @@ require (
 	github.com/peterbourgon/ff v1.7.1
 	github.com/prometheus/client_golang v1.14.0
 	github.com/prometheus/common v0.42.0
-	github.com/rabbitmq/amqp091-go v1.6.0
+	github.com/rabbitmq/amqp091-go v1.8.0
 	github.com/rabbitmq/rabbitmq-stream-go-client v1.1.1
 	golang.org/x/sync v0.1.0
 )
