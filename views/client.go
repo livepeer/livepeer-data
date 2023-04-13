@@ -41,7 +41,7 @@ func NewClient(opts ClientOptions) (*Client, error) {
 }
 
 func (c *Client) GetTotalViews(ctx context.Context, id string) ([]TotalViews, error) {
-	asset, err := c.lp.GetAsset(id)
+	asset, err := c.lp.GetAsset(id, false)
 	if errors.Is(err, livepeer.ErrNotExists) {
 		return nil, ErrAssetNotFound
 	} else if err != nil {
