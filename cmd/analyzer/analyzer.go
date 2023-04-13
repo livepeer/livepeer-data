@@ -80,6 +80,7 @@ func parseFlags(version string) cliFlags {
 	fs.StringVar(&cli.viewsOpts.Livepeer.Server, "livepeer-api-server", "localhost:3004", "Base URL for the Livepeer API")
 	fs.StringVar(&cli.viewsOpts.Livepeer.AccessToken, "livepeer-access-token", "", "Access token for Livepeer API")
 	fs.StringVar(&cli.viewsOpts.Prometheus.Address, "prometheus-address", "", "Address of the Prometheus API")
+	fs.StringVar(&cli.viewsOpts.BigQueryCredentialsJSON, "bigquery-credentials-json", "", "Google Cloud service account credentials JSON with access to BigQuery")
 
 	flag.Set("logtostderr", "true")
 	glogVFlag := flag.Lookup("v")
