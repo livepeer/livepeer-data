@@ -26,9 +26,9 @@ type TotalViews struct {
 }
 
 type ClientOptions struct {
-	Prometheus      promClient.Config
-	Livepeer        livepeer.ClientOptions
-	GoogleProjectID string
+	Prometheus              promClient.Config
+	Livepeer                livepeer.ClientOptions
+	BigQueryCredentialsJSON string
 }
 
 type Client struct {
@@ -45,8 +45,9 @@ func NewClient(opts ClientOptions) (*Client, error) {
 	prom := prometheus.NewAPI(client)
 	lp := livepeer.NewAPIClient(opts.Livepeer)
 
-	ctx := context.Background()
-	bigquery, err := bigquery.NewClient(ctx, opts.GoogleProjectID)
+	bigquery, err := bigquery.NewClient(context.Background(),
+		bigquery.DetectProjectID,
+		option.WithCredentialsJSON([]byte(opts.BigQueryCredentialsJSON)))
 	if err != nil {
 		return nil, fmt.Errorf("error creating bigquery client: %w", err)
 	}
@@ -146,9 +147,7 @@ func (c *Client) doStartViewsBigQuery(ctx context.Context, playbackID string) (v
 }
 
 func doBigQuery[RowT any](c *Client, ctx context.Context, squerry squirrel.SelectBuilder) ([]RowT, error) {
-	sql, args, err := squerry.
-		PlaceholderFormat(squirrel.Dollar).
-		ToSql()
+	sql, args, err := squerry.ToSql()
 	if err != nil {
 		return nil, fmt.Errorf("error building query: %w", err)
 	}
@@ -176,7 +175,7 @@ func toTypedValues[RowT any](it *bigquery.RowIterator) ([]RowT, error) {
 	var values []RowT
 	for {
 		var row RowT
-		err := it.Next(row)
+		err := it.Next(&row)
 		if err == iterator.Done {
 			break
 		} else if err != nil {
