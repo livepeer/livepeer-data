@@ -45,8 +45,6 @@ func NewBigQuery(opts BigQueryOptions) (*BigQuery, error) {
 
 type QueryFilter struct {
 	PlaybackID string
-	AssetID    string
-	StreamID   string
 	CreatorID  string
 	UserID     string
 }
@@ -115,9 +113,6 @@ func buildViewsEventsQuery(table string, spec QuerySpec) (string, []interface{},
 			"avg(if(exit_before_start, 1, 0)) as exits_before_start")
 	}
 
-	if spec.Filter.AssetID != "" {
-		return "", nil, fmt.Errorf("asset ID filter not supported in the query. translate to playback ID first")
-	}
 	if creatorId := spec.Filter.CreatorID; creatorId != "" {
 		query = query.Where("creator_id_type = ?", "unverified")
 		query = query.Where("creator_id = ?", creatorId)

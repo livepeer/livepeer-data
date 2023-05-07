@@ -194,7 +194,7 @@ func (h *apiHandler) queryTotalViewership(rw http.ResponseWriter, r *http.Reques
 	playbackID := apiParam(r, playbackIDParam)
 
 	query := views.QuerySpec{Filter: views.QueryFilter{PlaybackID: playbackID}}
-	metrics, err := h.views.Query(r.Context(), query)
+	metrics, err := h.views.Query(r.Context(), query, "", "")
 	if err != nil {
 		respondError(rw, http.StatusInternalServerError, err)
 		return
@@ -242,14 +242,13 @@ func (h *apiHandler) queryViewership(detailed bool) http.HandlerFunc {
 		}
 
 		qs := r.URL.Query()
+		assetID, streamID := qs.Get("assetId"), qs.Get("streamId")
 		query := views.QuerySpec{
 			From:     from,
 			To:       to,
 			TimeStep: qs.Get("timeStep"),
 			Filter: views.QueryFilter{
 				UserID:     userId,
-				AssetID:    qs.Get("assetId"),
-				StreamID:   qs.Get("streamId"),
 				PlaybackID: qs.Get("playbackId"),
 				CreatorID:  qs.Get("creatorId"),
 			},
@@ -257,7 +256,7 @@ func (h *apiHandler) queryViewership(detailed bool) http.HandlerFunc {
 			Detailed:    detailed,
 		}
 
-		metrics, err := h.views.Query(r.Context(), query)
+		metrics, err := h.views.Query(r.Context(), query, assetID, streamID)
 		if err != nil {
 			respondError(rw, http.StatusInternalServerError, err)
 			return
@@ -276,8 +275,7 @@ func (h *apiHandler) getTotalViews(rw http.ResponseWriter, r *http.Request) {
 	}
 	oldStartViews := totalViews[0].StartViews
 
-	query := views.QuerySpec{Filter: views.QueryFilter{AssetID: assetID}}
-	metrics, err := h.views.Query(r.Context(), query)
+	metrics, err := h.views.Query(r.Context(), views.QuerySpec{}, assetID, "")
 	if err != nil {
 		respondError(rw, http.StatusInternalServerError, err)
 		return

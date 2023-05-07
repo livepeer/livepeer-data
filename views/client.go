@@ -91,28 +91,21 @@ func (c *Client) Deprecated_GetTotalViews(ctx context.Context, id string) ([]Tot
 	}}, nil
 }
 
-func (c *Client) Query(ctx context.Context, spec QuerySpec) ([]Metric, error) {
+func (c *Client) Query(ctx context.Context, spec QuerySpec, assetID, streamID string) ([]Metric, error) {
 	var err error
-	if spec.Filter.PlaybackID != "" {
-		_, err = c.lp.GetAssetByPlaybackID(spec.Filter.PlaybackID, false)
-
-		// TODO: remove this hack once we have staging data to test
-		if errors.Is(err, livepeer.ErrNotExists) {
-			err = nil
-		}
-	} else if spec.Filter.AssetID != "" {
+	if assetID != "" {
 		var asset *livepeer.Asset
 
-		asset, err = c.lp.GetAsset(spec.Filter.AssetID, false)
+		asset, err = c.lp.GetAsset(assetID, false)
 		if asset != nil {
-			spec.Filter.AssetID, spec.Filter.PlaybackID = "", asset.PlaybackID
+			spec.Filter.PlaybackID = asset.PlaybackID
 		}
-	} else if spec.Filter.StreamID != "" {
+	} else if streamID != "" {
 		var stream *livepeer.Stream
 
-		stream, err = c.lp.GetStream(spec.Filter.StreamID, false)
+		stream, err = c.lp.GetStream(streamID, false)
 		if stream != nil {
-			spec.Filter.AssetID, spec.Filter.PlaybackID = "", stream.PlaybackID
+			spec.Filter.PlaybackID = stream.PlaybackID
 		}
 	}
 
