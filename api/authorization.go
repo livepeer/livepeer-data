@@ -36,6 +36,8 @@ var (
 	httpClient = &http.Client{
 		Transport: promhttp.InstrumentRoundTripperDuration(authRequestDuration, http.DefaultTransport),
 	}
+
+	userIdContextKey = &struct{}{}
 )
 
 func authorization(authUrl string) middleware {
@@ -48,12 +50,22 @@ func authorization(authUrl string) middleware {
 			respondError(rw, http.StatusInternalServerError, err)
 			return
 		}
+
 		authReq.Header.Set("X-Original-Uri", originalReqUri(r))
 		if streamID := apiParam(r, streamIDParam); streamID != "" {
 			authReq.Header.Set("X-Livepeer-Stream-Id", streamID)
-		} else if assetID := apiParam(r, assetIDParam); assetID != "" {
+		}
+		if assetID := apiParam(r, assetIDParam); assetID != "" {
 			authReq.Header.Set("X-Livepeer-Asset-Id", assetID)
 		}
+		playbackID := apiParam(r, playbackIDParam)
+		if playbackID == "" {
+			playbackID = r.URL.Query().Get(playbackIDParam)
+		}
+		if playbackID != "" {
+			authReq.Header.Set("X-Livepeer-Playback-Id", playbackID)
+		}
+
 		copyHeaders(authorizationHeaders, r.Header, authReq.Header)
 		authRes, err := httpClient.Do(authReq)
 		if err != nil {
@@ -72,6 +84,12 @@ func authorization(authUrl string) middleware {
 			}
 			return
 		}
+
+		if userID := authRes.Header.Get("X-Livepeer-User-Id"); userID != "" {
+			ctx := context.WithValue(r.Context(), userIdContextKey, userID)
+			r = r.WithContext(ctx)
+		}
+
 		next.ServeHTTP(rw, r)
 	})
 }

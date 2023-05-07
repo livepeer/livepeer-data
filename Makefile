@@ -12,7 +12,7 @@ all: $(allCmds)
 $(allCmds):
 	$(MAKE) -C ./cmd/$@
 
-run: check_local_rabbit deps_start
+run:
 	$(MAKE) -C ./cmd/$(cmd) run
 
 docker:

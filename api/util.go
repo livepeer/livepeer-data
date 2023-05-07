@@ -32,11 +32,12 @@ func parseInputTimestamp(str string) (*time.Time, error) {
 	if rfcErr == nil {
 		return &t, nil
 	}
+
 	ts, unixErr := strconv.ParseInt(str, 10, 64)
 	if unixErr != nil {
 		return nil, fmt.Errorf("bad time %q. must be in RFC3339 or Unix Timestamp (millisecond) formats. rfcErr: %s; unixErr: %s", str, rfcErr, unixErr)
 	}
-	t = data.NewUnixMillisTime(ts).Time
+	t = time.UnixMilli(ts)
 	return &t, nil
 }
 
