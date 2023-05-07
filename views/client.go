@@ -124,8 +124,8 @@ func (c *Client) Query(ctx context.Context, spec QuerySpec) ([]Metric, error) {
 	}
 
 	var metrics []Metric
-	if spec.IsSummaryQuery() {
-		summary, err := c.bigquery.QueryViewsSummary(ctx, spec.Filter.PlaybackID)
+	if pid, ok := spec.GetSummaryQueryArgs(); ok {
+		summary, err := c.bigquery.QueryViewsSummary(ctx, pid)
 		if err != nil {
 			return nil, err
 		}
