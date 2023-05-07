@@ -19,18 +19,18 @@ type Metric struct {
 
 	// breakdown fields
 
-	Device     string `json:"device,omitempty"`
-	DeviceType string `json:"deviceType,omitempty"`
-	CPU        string `json:"cpu,omitempty"`
+	Device     *string `json:"device,omitempty"`
+	DeviceType *string `json:"deviceType,omitempty"`
+	CPU        *string `json:"cpu,omitempty"`
 
-	OS            string `json:"os,omitempty"`
-	Browser       string `json:"browser,omitempty"`
-	BrowserEngine string `json:"browserEngine,omitempty"`
+	OS            *string `json:"os,omitempty"`
+	Browser       *string `json:"browser,omitempty"`
+	BrowserEngine *string `json:"browserEngine,omitempty"`
 
-	Continent   string `json:"continent,omitempty"`
-	Country     string `json:"country,omitempty"`
-	Subdivision string `json:"subdivision,omitempty"`
-	TimeZone    string `json:"timezone,omitempty"`
+	Continent   *string `json:"continent,omitempty"`
+	Country     *string `json:"country,omitempty"`
+	Subdivision *string `json:"subdivision,omitempty"`
+	TimeZone    *string `json:"timezone,omitempty"`
 
 	// metric data
 
@@ -141,13 +141,13 @@ func viewershipEventsToMetrics(rows []ViewershipEventRow) []Metric {
 		m := Metric{
 			PlaybackID:        row.PlaybackID,
 			DStorageURL:       row.DStorageURL,
-			Device:            row.Device,
-			OS:                row.OS,
-			Browser:           row.Browser,
-			Continent:         row.Continent,
-			Country:           row.Country,
-			Subdivision:       row.Subdivision,
-			TimeZone:          row.TimeZone,
+			Device:            toStringPtr(row.Device),
+			OS:                toStringPtr(row.OS),
+			Browser:           toStringPtr(row.Browser),
+			Continent:         toStringPtr(row.Continent),
+			Country:           toStringPtr(row.Country),
+			Subdivision:       toStringPtr(row.Subdivision),
+			TimeZone:          toStringPtr(row.TimeZone),
 			ViewCount:         row.ViewCount,
 			PlaytimeMins:      row.PlaytimeMins,
 			TtffMs:            toFloat64Ptr(row.TtffMs),
@@ -169,6 +169,14 @@ func viewershipEventsToMetrics(rows []ViewershipEventRow) []Metric {
 func toFloat64Ptr(bqFloat bigquery.NullFloat64) *float64 {
 	if bqFloat.Valid {
 		f := bqFloat.Float64
+		return &f
+	}
+	return nil
+}
+
+func toStringPtr(bqFloat bigquery.NullString) *string {
+	if bqFloat.Valid {
+		f := bqFloat.StringVal
 		return &f
 	}
 	return nil

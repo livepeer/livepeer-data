@@ -159,18 +159,18 @@ type ViewershipEventRow struct {
 
 	// breakdown fields
 
-	DeviceType string `bigquery:"device_type"`
-	Device     string `bigquery:"device"`
-	CPU        string `bigquery:"cpu"`
+	DeviceType bigquery.NullString `bigquery:"device_type"`
+	Device     bigquery.NullString `bigquery:"device"`
+	CPU        bigquery.NullString `bigquery:"cpu"`
 
-	OS            string `bigquery:"os"`
-	Browser       string `bigquery:"browser"`
-	BrowserEngine string `bigquery:"browser_engine"`
+	OS            bigquery.NullString `bigquery:"os"`
+	Browser       bigquery.NullString `bigquery:"browser"`
+	BrowserEngine bigquery.NullString `bigquery:"browser_engine"`
 
-	Continent   string `bigquery:"playback_continent_name"`
-	Country     string `bigquery:"playback_country_name"`
-	Subdivision string `bigquery:"playback_subdivisions_name"`
-	TimeZone    string `bigquery:"playback_timezone"`
+	Continent   bigquery.NullString `bigquery:"playback_continent_name"`
+	Country     bigquery.NullString `bigquery:"playback_country_name"`
+	Subdivision bigquery.NullString `bigquery:"playback_subdivisions_name"`
+	TimeZone    bigquery.NullString `bigquery:"playback_timezone"`
 
 	// metric data
 
