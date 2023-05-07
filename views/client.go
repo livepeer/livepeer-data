@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
 
 	"cloud.google.com/go/bigquery"
 	livepeer "github.com/livepeer/go-api-client"
@@ -14,9 +13,9 @@ import (
 var ErrAssetNotFound = errors.New("asset not found")
 
 type Metric struct {
-	PlaybackID  string     `json:"playbackId,omitempty"`
-	DStorageURL string     `json:"dStorageUrl,omitempty"`
-	Time        *time.Time `json:"time,omitempty"`
+	PlaybackID  string `json:"playbackId,omitempty"`
+	DStorageURL string `json:"dStorageUrl,omitempty"`
+	Timestamp   *int64 `json:"timestamp,omitempty"`
 
 	// breakdown fields
 
@@ -165,7 +164,8 @@ func viewershipEventsToMetrics(rows []ViewershipEventRow) []Metric {
 		}
 
 		if !row.TimeInterval.IsZero() {
-			m.Time = &row.TimeInterval
+			timestamp := row.TimeInterval.UnixMilli()
+			m.Timestamp = &timestamp
 		}
 
 		metrics[i] = m
