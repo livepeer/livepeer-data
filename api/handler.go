@@ -266,7 +266,7 @@ func (h *apiHandler) queryViewership(detailed bool) http.HandlerFunc {
 func (h *apiHandler) getTotalViews(rw http.ResponseWriter, r *http.Request) {
 	assetID := apiParam(r, assetIDParam)
 
-	totalViews, err := h.views.GetTotalViews(r.Context(), assetID)
+	totalViews, err := h.views.Deprecated_GetTotalViews(r.Context(), assetID)
 	if err != nil {
 		respondError(rw, http.StatusInternalServerError, err)
 		return
