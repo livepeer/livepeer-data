@@ -7,7 +7,7 @@ import (
 	"github.com/ipfs/go-cid"
 )
 
-func toDStorageURL(playbackID string) string {
+func ToDStorageURL(playbackID string) string {
 	if isValidArweaveTxID(playbackID) {
 		return "ar://" + playbackID
 	} else if isValidIPFSCID(playbackID) {

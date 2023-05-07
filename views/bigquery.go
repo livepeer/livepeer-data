@@ -255,7 +255,7 @@ func (bq *BigQuery) QueryViewsSummary(ctx context.Context, playbackID string) (*
 func withPlaybackIdFilter(query squirrel.SelectBuilder, playbackID string) squirrel.SelectBuilder {
 	if playbackID == "" {
 		query = query.Column("playback_id").GroupBy("playback_id")
-	} else if dStorageURL := toDStorageURL(playbackID); dStorageURL != "" {
+	} else if dStorageURL := ToDStorageURL(playbackID); dStorageURL != "" {
 		query = query.Columns("d_storage_url").
 			Where("d_storage_url = ?", dStorageURL).
 			GroupBy("d_storage_url")

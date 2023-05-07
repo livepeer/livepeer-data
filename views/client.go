@@ -183,7 +183,7 @@ func toFloat64Ptr(bqFloat bigquery.NullFloat64) *float64 {
 
 func viewershipSummaryToMetric(filter QueryFilter, summary *ViewSummaryRow) []Metric {
 	if summary == nil {
-		if dStorageURL := toDStorageURL(filter.PlaybackID); dStorageURL != "" {
+		if dStorageURL := ToDStorageURL(filter.PlaybackID); dStorageURL != "" {
 			return []Metric{{DStorageURL: dStorageURL}}
 		}
 		return []Metric{{PlaybackID: filter.PlaybackID}}

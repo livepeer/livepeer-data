@@ -201,6 +201,9 @@ func (h *apiHandler) queryTotalViewership(rw http.ResponseWriter, r *http.Reques
 	}
 	if len(metrics) == 0 {
 		metrics = []views.Metric{{PlaybackID: playbackID}}
+		if dStorageURL := views.ToDStorageURL(playbackID); dStorageURL != "" {
+			metrics = []views.Metric{{DStorageURL: dStorageURL}}
+		}
 	}
 	respondJson(rw, http.StatusOK, metrics[0])
 }
