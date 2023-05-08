@@ -109,7 +109,7 @@ func buildViewsEventsQuery(table string, spec QuerySpec) (string, []interface{},
 		query = query.Columns(
 			"avg(ttff_ms) as ttff_ms",
 			"avg(rebuffer_ratio) as rebuffer_ratio",
-			"avg(error_count) as error_rate",
+			"avg(if(error_count > 0, 1, 0)) as error_rate",
 			"avg(if(exit_before_start, 1, 0)) as exits_before_start")
 	}
 
@@ -179,7 +179,7 @@ type ViewershipEventRow struct {
 	TtffMs            bigquery.NullFloat64 `bigquery:"ttff_ms"`
 	RebufferRatio     bigquery.NullFloat64 `bigquery:"rebuffer_ratio"`
 	ErrorRate         bigquery.NullFloat64 `bigquery:"error_rate"`
-	ExistsBeforeStart bigquery.NullFloat64 `bigquery:"exists_before_start"`
+	ExistsBeforeStart bigquery.NullFloat64 `bigquery:"exits_before_start"`
 }
 
 func (bq *BigQuery) QueryViewsEvents(ctx context.Context, spec QuerySpec) ([]ViewershipEventRow, error) {
