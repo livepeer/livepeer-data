@@ -215,8 +215,9 @@ func ensureIsCreatorQuery(next http.Handler) http.Handler {
 		qs.Del("playbackId")
 		r.URL.RawQuery = qs.Encode()
 
-		if qs.Get("assetId") == "" && qs.Get("streamId") == "" {
-			respondError(rw, http.StatusBadRequest, errors.New("assetId or streamId must be provided as creator"))
+		hasAsset, hasStream := qs.Get("assetId") != "", qs.Get("streamId") != ""
+		if hasAsset == hasStream {
+			respondError(rw, http.StatusBadRequest, errors.New("must provide exactly 1 of assetId or streamId for creator query"))
 			return
 		}
 

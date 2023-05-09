@@ -11,37 +11,7 @@ import (
 	"google.golang.org/api/option"
 )
 
-const maxBigQueryRows = 10000
-
-type BigQueryOptions struct {
-	BigQueryCredentialsJSON   string
-	ViewershipEventsTable     string
-	ViewershipSummaryTable    string
-	MaxBytesBilledPerBigQuery int64
-}
-
-// interface from *bigquery.Client to allow mocking
-type bigqueryClient interface {
-	Query(q string) *bigquery.Query
-}
-
-type BigQuery struct {
-	opts   BigQueryOptions
-	client bigqueryClient
-}
-
-func NewBigQuery(opts BigQueryOptions) (*BigQuery, error) {
-	bigquery, err := bigquery.NewClient(context.Background(),
-		bigquery.DetectProjectID,
-		option.WithCredentialsJSON([]byte(opts.BigQueryCredentialsJSON)))
-	if err != nil {
-		return nil, fmt.Errorf("error creating bigquery client: %w", err)
-	}
-
-	return &BigQuery{opts, bigquery}, nil
-}
-
-// viewership events query
+const maxBigQueryResultRows = 10000
 
 type QueryFilter struct {
 	PlaybackID string
@@ -96,13 +66,102 @@ var allowedTimeSteps = map[string]bool{
 	"year":  true,
 }
 
+type ViewershipEventRow struct {
+	TimeInterval time.Time `bigquery:"time_interval"`
+	PlaybackID   string    `bigquery:"playback_id"`
+	DStorageURL  string    `bigquery:"d_storage_url"`
+
+	// breakdown fields
+
+	DeviceType bigquery.NullString `bigquery:"device_type"`
+	Device     bigquery.NullString `bigquery:"device"`
+	CPU        bigquery.NullString `bigquery:"cpu"`
+
+	OS            bigquery.NullString `bigquery:"os"`
+	Browser       bigquery.NullString `bigquery:"browser"`
+	BrowserEngine bigquery.NullString `bigquery:"browser_engine"`
+
+	Continent   bigquery.NullString `bigquery:"playback_continent_name"`
+	Country     bigquery.NullString `bigquery:"playback_country_name"`
+	Subdivision bigquery.NullString `bigquery:"playback_subdivisions_name"`
+	TimeZone    bigquery.NullString `bigquery:"playback_timezone"`
+
+	// metric data
+
+	ViewCount         int64                `bigquery:"view_count"`
+	PlaytimeMins      float64              `bigquery:"playtime_mins"`
+	TtffMs            bigquery.NullFloat64 `bigquery:"ttff_ms"`
+	RebufferRatio     bigquery.NullFloat64 `bigquery:"rebuffer_ratio"`
+	ErrorRate         bigquery.NullFloat64 `bigquery:"error_rate"`
+	ExistsBeforeStart bigquery.NullFloat64 `bigquery:"exits_before_start"`
+}
+
+type ViewSummaryRow struct {
+	PlaybackID  string `bigquery:"playback_id"`
+	DStorageURL string `bigquery:"d_storage_url"`
+
+	ViewCount    int64   `bigquery:"view_count"`
+	PlaytimeMins float64 `bigquery:"playtime_mins"`
+}
+
+type BigQuery interface {
+	QueryViewsEvents(ctx context.Context, spec QuerySpec) ([]ViewershipEventRow, error)
+	QueryViewsSummary(ctx context.Context, playbackID string) (*ViewSummaryRow, error)
+}
+
+type BigQueryOptions struct {
+	BigQueryCredentialsJSON   string
+	ViewershipEventsTable     string
+	ViewershipSummaryTable    string
+	MaxBytesBilledPerBigQuery int64
+}
+
+func NewBigQuery(opts BigQueryOptions) (BigQuery, error) {
+	bigquery, err := bigquery.NewClient(context.Background(),
+		bigquery.DetectProjectID,
+		option.WithCredentialsJSON([]byte(opts.BigQueryCredentialsJSON)))
+	if err != nil {
+		return nil, fmt.Errorf("error creating bigquery client: %w", err)
+	}
+
+	return &bigqueryHandler{opts, bigquery}, nil
+}
+
+// interface from *bigquery.Client to allow mocking
+type bigqueryClient interface {
+	Query(q string) *bigquery.Query
+}
+
+type bigqueryHandler struct {
+	opts   BigQueryOptions
+	client bigqueryClient
+}
+
+// viewership events query
+
+func (bq *bigqueryHandler) QueryViewsEvents(ctx context.Context, spec QuerySpec) ([]ViewershipEventRow, error) {
+	sql, args, err := buildViewsEventsQuery(bq.opts.ViewershipEventsTable, spec)
+	if err != nil {
+		return nil, fmt.Errorf("error building viewership events query: %w", err)
+	}
+
+	bqRows, err := doBigQuery[ViewershipEventRow](bq, ctx, sql, args)
+	if err != nil {
+		return nil, fmt.Errorf("bigquery error: %w", err)
+	} else if len(bqRows) > maxBigQueryResultRows {
+		return nil, fmt.Errorf("query must return less than %d datapoints. consider decreasing your timeframe or increasing the time step", maxBigQueryResultRows)
+	}
+
+	return bqRows, nil
+}
+
 func buildViewsEventsQuery(table string, spec QuerySpec) (string, []interface{}, error) {
 	query := squirrel.Select(
 		"countif(play_intent) as view_count",
 		"sum(playtime_ms) / 60000.0 as playtime_mins").
 		From(table).
 		Where("account_id = ?", spec.Filter.UserID).
-		Limit(maxBigQueryRows + 1)
+		Limit(maxBigQueryResultRows + 1)
 	query = withPlaybackIdFilter(query, spec.Filter.PlaybackID)
 
 	if spec.Detailed {
@@ -152,53 +211,26 @@ func buildViewsEventsQuery(table string, spec QuerySpec) (string, []interface{},
 	return sql, args, nil
 }
 
-type ViewershipEventRow struct {
-	TimeInterval time.Time `bigquery:"time_interval"`
-	PlaybackID   string    `bigquery:"playback_id"`
-	DStorageURL  string    `bigquery:"d_storage_url"`
+// viewership summary query
 
-	// breakdown fields
-
-	DeviceType bigquery.NullString `bigquery:"device_type"`
-	Device     bigquery.NullString `bigquery:"device"`
-	CPU        bigquery.NullString `bigquery:"cpu"`
-
-	OS            bigquery.NullString `bigquery:"os"`
-	Browser       bigquery.NullString `bigquery:"browser"`
-	BrowserEngine bigquery.NullString `bigquery:"browser_engine"`
-
-	Continent   bigquery.NullString `bigquery:"playback_continent_name"`
-	Country     bigquery.NullString `bigquery:"playback_country_name"`
-	Subdivision bigquery.NullString `bigquery:"playback_subdivisions_name"`
-	TimeZone    bigquery.NullString `bigquery:"playback_timezone"`
-
-	// metric data
-
-	ViewCount         int64                `bigquery:"view_count"`
-	PlaytimeMins      float64              `bigquery:"playtime_mins"`
-	TtffMs            bigquery.NullFloat64 `bigquery:"ttff_ms"`
-	RebufferRatio     bigquery.NullFloat64 `bigquery:"rebuffer_ratio"`
-	ErrorRate         bigquery.NullFloat64 `bigquery:"error_rate"`
-	ExistsBeforeStart bigquery.NullFloat64 `bigquery:"exits_before_start"`
-}
-
-func (bq *BigQuery) QueryViewsEvents(ctx context.Context, spec QuerySpec) ([]ViewershipEventRow, error) {
-	sql, args, err := buildViewsEventsQuery(bq.opts.ViewershipEventsTable, spec)
+func (bq *bigqueryHandler) QueryViewsSummary(ctx context.Context, playbackID string) (*ViewSummaryRow, error) {
+	sql, args, err := buildViewsSummaryQuery(bq.opts.ViewershipSummaryTable, playbackID)
 	if err != nil {
-		return nil, fmt.Errorf("error building viewership events query: %w", err)
+		return nil, fmt.Errorf("error building viewership summary query: %w", err)
 	}
 
-	bqRows, err := doBigQuery[ViewershipEventRow](bq, ctx, sql, args)
+	bqRows, err := doBigQuery[ViewSummaryRow](bq, ctx, sql, args)
 	if err != nil {
 		return nil, fmt.Errorf("bigquery error: %w", err)
-	} else if len(bqRows) > maxBigQueryRows {
-		return nil, fmt.Errorf("query must return less than %d datapoints. consider decreasing your timeframe or increasing the time step", maxBigQueryRows)
+	} else if len(bqRows) > 1 {
+		return nil, fmt.Errorf("internal error, query returned %d rows", len(bqRows))
 	}
 
-	return bqRows, nil
+	if len(bqRows) == 0 {
+		return nil, nil
+	}
+	return &bqRows[0], nil
 }
-
-// viewership summary query
 
 func buildViewsSummaryQuery(table string, playbackID string) (string, []interface{}, error) {
 	if playbackID == "" {
@@ -220,32 +252,7 @@ func buildViewsSummaryQuery(table string, playbackID string) (string, []interfac
 	return sql, args, nil
 }
 
-type ViewSummaryRow struct {
-	PlaybackID  string `bigquery:"playback_id"`
-	DStorageURL string `bigquery:"d_storage_url"`
-
-	ViewCount    int64   `bigquery:"view_count"`
-	PlaytimeMins float64 `bigquery:"playtime_mins"`
-}
-
-func (bq *BigQuery) QueryViewsSummary(ctx context.Context, playbackID string) (*ViewSummaryRow, error) {
-	sql, args, err := buildViewsSummaryQuery(bq.opts.ViewershipSummaryTable, playbackID)
-	if err != nil {
-		return nil, fmt.Errorf("error building viewership summary query: %w", err)
-	}
-
-	bqRows, err := doBigQuery[ViewSummaryRow](bq, ctx, sql, args)
-	if err != nil {
-		return nil, fmt.Errorf("bigquery error: %w", err)
-	} else if len(bqRows) > 1 {
-		return nil, fmt.Errorf("internal error, query returned %d rows", len(bqRows))
-	}
-
-	if len(bqRows) == 0 {
-		return nil, nil
-	}
-	return &bqRows[0], nil
-}
+// query helpers
 
 func withPlaybackIdFilter(query squirrel.SelectBuilder, playbackID string) squirrel.SelectBuilder {
 	if playbackID == "" {
@@ -262,7 +269,7 @@ func withPlaybackIdFilter(query squirrel.SelectBuilder, playbackID string) squir
 	return query
 }
 
-func doBigQuery[RowT any](bq *BigQuery, ctx context.Context, sql string, args []interface{}) ([]RowT, error) {
+func doBigQuery[RowT any](bq *bigqueryHandler, ctx context.Context, sql string, args []interface{}) ([]RowT, error) {
 	query := bq.client.Query(sql)
 	query.Parameters = toBigQueryParameters(args)
 	query.MaxBytesBilled = bq.opts.MaxBytesBilledPerBigQuery

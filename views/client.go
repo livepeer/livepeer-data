@@ -53,7 +53,7 @@ type Client struct {
 	opts     ClientOptions
 	lp       *livepeer.Client
 	prom     *Prometheus
-	bigquery *BigQuery
+	bigquery BigQuery
 }
 
 func NewClient(opts ClientOptions) (*Client, error) {

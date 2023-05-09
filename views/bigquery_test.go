@@ -18,7 +18,7 @@ func TestCallsBigQueryClient(t *testing.T) {
 			return &bigquery.Query{QueryConfig: bigquery.QueryConfig{DryRun: true}}
 		},
 	}
-	bq := &BigQuery{client: stub, opts: BigQueryOptions{ViewershipEventsTable: "bq_events"}}
+	bq := &bigqueryHandler{client: stub, opts: BigQueryOptions{ViewershipEventsTable: "bq_events"}}
 
 	_, err := bq.QueryViewsEvents(context.Background(), QuerySpec{})
 	require.ErrorContains(err, "dry-run")
