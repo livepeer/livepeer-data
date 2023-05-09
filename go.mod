@@ -11,7 +11,7 @@ require (
 	github.com/ipfs/go-cid v0.4.1
 	github.com/livepeer/go-api-client v0.4.6
 	github.com/peterbourgon/ff v1.7.1
-	github.com/prometheus/client_golang v1.14.0
+	github.com/prometheus/client_golang v1.15.1
 	github.com/prometheus/common v0.42.0
 	github.com/rabbitmq/amqp091-go v1.8.0
 	github.com/rabbitmq/rabbitmq-stream-go-client v1.1.1
@@ -65,7 +65,7 @@ require (
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/prometheus/client_model v0.3.0 // indirect
-	github.com/prometheus/procfs v0.8.0 // indirect
+	github.com/prometheus/procfs v0.9.0 // indirect
 	github.com/tomnomnom/linkheader v0.0.0-20180905144013-02ca5825eb80 // indirect
 	github.com/zeebo/xxh3 v1.0.2 // indirect
 	go.opencensus.io v0.24.0 // indirect
