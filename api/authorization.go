@@ -62,7 +62,15 @@ func authorization(authUrl string) middleware {
 			respondError(rw, http.StatusInternalServerError, fmt.Errorf("error authorizing request: %w", err))
 			return
 		}
+		defer authRes.Body.Close()
+
 		copyHeaders(proxiedResponseHeaders, authRes.Header, rw.Header())
+
+		// if this is an OPTIONS request, we just proxy the CORS logic from the auth server
+		if r.Method == http.MethodOptions && authRes.StatusCode == http.StatusNoContent {
+			rw.WriteHeader(http.StatusNoContent)
+			return
+		}
 
 		if authRes.StatusCode != http.StatusOK && authRes.StatusCode != http.StatusNoContent {
 			if contentType := authRes.Header.Get("Content-Type"); contentType != "" {
