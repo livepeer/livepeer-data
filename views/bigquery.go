@@ -45,17 +45,17 @@ func (s QuerySpec) GetSummaryQueryArgs() (playbackID string, ok bool) {
 }
 
 var viewershipBreakdownFields = map[string]string{
-	"device_type":    "device_type",
-	"device":         "device",
-	"cpu":            "cpu",
-	"os":             "os",
-	"browser":        "browser",
-	"browser_engine": "browser_engine",
-	"continent":      "playback_continent_name",
-	"country":        "playback_country_name",
-	"subdivision":    "playback_subdivisions_name",
-	"timezone":       "playback_timezone",
-	"viewer_id":      "viewer_id",
+	"deviceType":    "device_type",
+	"device":        "device",
+	"cpu":           "cpu",
+	"os":            "os",
+	"browser":       "browser",
+	"browserEngine": "browser_engine",
+	"continent":     "playback_continent_name",
+	"country":       "playback_country_name",
+	"subdivision":   "playback_subdivisions_name",
+	"timezone":      "playback_timezone",
+	"viewerId":      "viewer_id",
 }
 
 var allowedTimeSteps = map[string]bool{
