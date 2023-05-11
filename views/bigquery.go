@@ -100,8 +100,9 @@ type ViewSummaryRow struct {
 	PlaybackID  string `bigquery:"playback_id"`
 	DStorageURL string `bigquery:"d_storage_url"`
 
-	ViewCount    int64   `bigquery:"view_count"`
-	PlaytimeMins float64 `bigquery:"playtime_mins"`
+	ViewCount       int64   `bigquery:"view_count"`
+	LegacyViewCount int64   `bigquery:"legacy_view_count"`
+	PlaytimeMins    float64 `bigquery:"playtime_mins"`
 }
 
 type BigQuery interface {
@@ -239,6 +240,7 @@ func buildViewsSummaryQuery(table string, playbackID string) (string, []interfac
 
 	query := squirrel.Select(
 		"cast(sum(view_count) as INT64) as view_count",
+		"cast(sum(old_view_count) as INT64) as legacy_view_count",
 		"coalesce(cast(sum(playtime_hrs) as FLOAT64), 0) * 60.0 as playtime_mins").
 		From(table).
 		Limit(2)

@@ -40,6 +40,10 @@ type Metric struct {
 	RebufferRatio     *float64 `json:"rebufferRatio,omitempty"`
 	ErrorRate         *float64 `json:"errorRate,omitempty"`
 	ExistsBeforeStart *float64 `json:"existsBeforeStart,omitempty"`
+	// Present only on the summary queries. These were imported from the
+	// prometheus data we had on the first version of this API and are not
+	// shown in the detailed metrics queries (non-/total).
+	LegacyViewCount int64 `json:"legacyViewCount,omitempty"`
 }
 
 type ClientOptions struct {
@@ -191,9 +195,10 @@ func viewershipSummaryToMetric(filter QueryFilter, summary *ViewSummaryRow) []Me
 	}
 
 	return []Metric{{
-		PlaybackID:   summary.PlaybackID,
-		DStorageURL:  summary.DStorageURL,
-		ViewCount:    summary.ViewCount,
-		PlaytimeMins: summary.PlaytimeMins,
+		PlaybackID:      summary.PlaybackID,
+		DStorageURL:     summary.DStorageURL,
+		ViewCount:       summary.ViewCount,
+		LegacyViewCount: summary.LegacyViewCount,
+		PlaytimeMins:    summary.PlaytimeMins,
 	}}
 }
