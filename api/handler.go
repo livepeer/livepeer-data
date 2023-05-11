@@ -193,19 +193,20 @@ func (h *apiHandler) healthcheck(rw http.ResponseWriter, r *http.Request) {
 func (h *apiHandler) queryTotalViewership(rw http.ResponseWriter, r *http.Request) {
 	playbackID := apiParam(r, playbackIDParam)
 
-	query := views.QuerySpec{Filter: views.QueryFilter{PlaybackID: playbackID}}
-	metrics, err := h.views.Query(r.Context(), query, "", "")
+	metric, err := h.views.QuerySummary(r.Context(), playbackID)
 	if err != nil {
 		respondError(rw, http.StatusInternalServerError, err)
 		return
 	}
-	if len(metrics) == 0 {
-		metrics = []views.Metric{{PlaybackID: playbackID}}
+
+	if metric == nil {
+		metric = &views.Metric{PlaybackID: playbackID}
 		if dStorageURL := views.ToDStorageURL(playbackID); dStorageURL != "" {
-			metrics = []views.Metric{{DStorageURL: dStorageURL}}
+			metric = &views.Metric{DStorageURL: dStorageURL}
 		}
 	}
-	respondJson(rw, http.StatusOK, metrics[0])
+
+	respondJson(rw, http.StatusOK, metric)
 }
 
 func ensureIsCreatorQuery(next http.Handler) http.Handler {
@@ -257,7 +258,7 @@ func (h *apiHandler) queryViewership(detailed bool) http.HandlerFunc {
 			Detailed:    detailed,
 		}
 
-		metrics, err := h.views.Query(r.Context(), query, assetID, streamID)
+		metrics, err := h.views.QueryEvents(r.Context(), query, assetID, streamID)
 		if err != nil {
 			respondError(rw, http.StatusInternalServerError, err)
 			return
@@ -274,18 +275,23 @@ func (h *apiHandler) getTotalViews(rw http.ResponseWriter, r *http.Request) {
 		respondError(rw, http.StatusInternalServerError, err)
 		return
 	}
-	oldStartViews := totalViews[0].StartViews
 
-	metrics, err := h.views.Query(r.Context(), views.QuerySpec{}, assetID, "")
+	playbackID, oldStartViews := totalViews[0].ID, totalViews[0].StartViews
+	if playbackID == "" {
+		respondError(rw, http.StatusInternalServerError, errors.New("playbackId is empty"))
+		return
+	}
+
+	metric, err := h.views.QuerySummary(r.Context(), playbackID)
 	if err != nil {
 		respondError(rw, http.StatusInternalServerError, err)
 		return
 	}
 
-	if len(metrics) > 0 {
+	if metric != nil {
 		totalViews = []views.TotalViews{{
 			ID:         totalViews[0].ID,
-			StartViews: metrics[0].ViewCount,
+			StartViews: metric.ViewCount,
 		}}
 	}
 

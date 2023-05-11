@@ -27,23 +27,6 @@ type QuerySpec struct {
 	Detailed    bool
 }
 
-// GetSummaryQueryArgs returns the args to be used for a views summary query if
-// the provided query can be replaced by a summary query.
-// i.e. it is querying for the aggregate metrics of a single playback ID.
-func (s QuerySpec) GetSummaryQueryArgs() (playbackID string, ok bool) {
-	playbackID = s.Filter.PlaybackID
-	pidFilter := QueryFilter{PlaybackID: playbackID, UserID: s.Filter.UserID}
-
-	ok = playbackID != "" && !s.Detailed && s.Filter == pidFilter &&
-		s.From == nil && s.To == nil && s.TimeStep == "" &&
-		len(s.BreakdownBy) == 0
-
-	if !ok {
-		playbackID = ""
-	}
-	return
-}
-
 var viewershipBreakdownFields = map[string]string{
 	"deviceType":    "device_type",
 	"device":        "device",

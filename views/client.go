@@ -95,7 +95,31 @@ func (c *Client) Deprecated_GetTotalViews(ctx context.Context, id string) ([]Tot
 	}}, nil
 }
 
-func (c *Client) Query(ctx context.Context, spec QuerySpec, assetID, streamID string) ([]Metric, error) {
+func (c *Client) QuerySummary(ctx context.Context, playbackID string) (*Metric, error) {
+	summary, err := c.bigquery.QueryViewsSummary(ctx, playbackID)
+	if err != nil {
+		return nil, err
+	}
+
+	metrics := viewershipSummaryToMetric(playbackID, summary)
+	return metrics, nil
+}
+
+func viewershipSummaryToMetric(playbackID string, summary *ViewSummaryRow) *Metric {
+	if summary == nil {
+		return nil
+	}
+
+	return &Metric{
+		PlaybackID:      summary.PlaybackID,
+		DStorageURL:     summary.DStorageURL,
+		ViewCount:       summary.ViewCount,
+		LegacyViewCount: summary.LegacyViewCount,
+		PlaytimeMins:    summary.PlaytimeMins,
+	}
+}
+
+func (c *Client) QueryEvents(ctx context.Context, spec QuerySpec, assetID, streamID string) ([]Metric, error) {
 	var err error
 	if assetID != "" {
 		var asset *livepeer.Asset
@@ -119,23 +143,12 @@ func (c *Client) Query(ctx context.Context, spec QuerySpec, assetID, streamID st
 		return nil, fmt.Errorf("error getting asset or stream: %w", err)
 	}
 
-	var metrics []Metric
-	if pid, ok := spec.GetSummaryQueryArgs(); ok {
-		summary, err := c.bigquery.QueryViewsSummary(ctx, pid)
-		if err != nil {
-			return nil, err
-		}
-
-		metrics = viewershipSummaryToMetric(spec.Filter, summary)
-	} else {
-		rows, err := c.bigquery.QueryViewsEvents(ctx, spec)
-		if err != nil {
-			return nil, err
-		}
-
-		metrics = viewershipEventsToMetrics(rows)
+	rows, err := c.bigquery.QueryViewsEvents(ctx, spec)
+	if err != nil {
+		return nil, err
 	}
 
+	metrics := viewershipEventsToMetrics(rows)
 	return metrics, nil
 }
 
@@ -184,21 +197,4 @@ func toStringPtr(bqFloat bigquery.NullString) *string {
 		return &f
 	}
 	return nil
-}
-
-func viewershipSummaryToMetric(filter QueryFilter, summary *ViewSummaryRow) []Metric {
-	if summary == nil {
-		if dStorageURL := ToDStorageURL(filter.PlaybackID); dStorageURL != "" {
-			return []Metric{{DStorageURL: dStorageURL}}
-		}
-		return []Metric{{PlaybackID: filter.PlaybackID}}
-	}
-
-	return []Metric{{
-		PlaybackID:      summary.PlaybackID,
-		DStorageURL:     summary.DStorageURL,
-		ViewCount:       summary.ViewCount,
-		LegacyViewCount: summary.LegacyViewCount,
-		PlaytimeMins:    summary.PlaytimeMins,
-	}}
 }
