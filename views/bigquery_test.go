@@ -38,7 +38,7 @@ func TestBuildViewsEventsQuery(t *testing.T) {
 			CreatorID:  "c1",
 		},
 		TimeStep:    "day",
-		BreakdownBy: []string{"device_type", "continent"},
+		BreakdownBy: []string{"deviceType", "continent"},
 	}
 
 	sql, args, err := buildViewsEventsQuery(table, spec)
