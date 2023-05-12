@@ -92,12 +92,12 @@ func (h *apiHandler) streamHealthHandler() chi.Router {
 	healthcore, opts := h.core, h.opts
 
 	router := chi.NewRouter()
-	router.Use(
-		streamStatus(healthcore),
-		regionProxy(opts.RegionalHostFormat, opts.OwnRegion))
 	if opts.AuthURL != "" {
 		router.Use(authorization(opts.AuthURL))
 	}
+	router.Use(
+		streamStatus(healthcore),
+		regionProxy(opts.RegionalHostFormat, opts.OwnRegion))
 
 	h.withMetrics(router, "get_stream_health").
 		MethodFunc("GET", "/health", h.getStreamHealth)
