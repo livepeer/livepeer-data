@@ -43,7 +43,7 @@ type Metric struct {
 	// Present only on the summary queries. These were imported from the
 	// prometheus data we had on the first version of this API and are not
 	// shown in the detailed metrics queries (non-/total).
-	LegacyViewCount int64 `json:"legacyViewCount,omitempty"`
+	LegacyViewCount *int64 `json:"legacyViewCount,omitempty"`
 }
 
 type ClientOptions struct {
@@ -114,7 +114,7 @@ func viewershipSummaryToMetric(playbackID string, summary *ViewSummaryRow) *Metr
 		PlaybackID:      summary.PlaybackID,
 		DStorageURL:     summary.DStorageURL,
 		ViewCount:       summary.ViewCount,
-		LegacyViewCount: summary.LegacyViewCount,
+		LegacyViewCount: toInt64Ptr(summary.LegacyViewCount),
 		PlaytimeMins:    summary.PlaytimeMins,
 	}
 }
@@ -181,6 +181,14 @@ func viewershipEventsToMetrics(rows []ViewershipEventRow) []Metric {
 		metrics[i] = m
 	}
 	return metrics
+}
+
+func toInt64Ptr(bqFloat bigquery.NullInt64) *int64 {
+	if bqFloat.Valid {
+		i := bqFloat.Int64
+		return &i
+	}
+	return nil
 }
 
 func toFloat64Ptr(bqFloat bigquery.NullFloat64) *float64 {

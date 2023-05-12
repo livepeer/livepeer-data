@@ -83,9 +83,9 @@ type ViewSummaryRow struct {
 	PlaybackID  string `bigquery:"playback_id"`
 	DStorageURL string `bigquery:"d_storage_url"`
 
-	ViewCount       int64   `bigquery:"view_count"`
-	LegacyViewCount int64   `bigquery:"legacy_view_count"`
-	PlaytimeMins    float64 `bigquery:"playtime_mins"`
+	ViewCount       int64              `bigquery:"view_count"`
+	LegacyViewCount bigquery.NullInt64 `bigquery:"legacy_view_count"`
+	PlaytimeMins    float64            `bigquery:"playtime_mins"`
 }
 
 type BigQuery interface {
