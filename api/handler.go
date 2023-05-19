@@ -15,6 +15,7 @@ import (
 	"github.com/livepeer/livepeer-data/metrics"
 	"github.com/livepeer/livepeer-data/pkg/data"
 	"github.com/livepeer/livepeer-data/pkg/jsse"
+	"github.com/livepeer/livepeer-data/usage"
 	"github.com/livepeer/livepeer-data/views"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	cache "github.com/victorspringer/http-cache"
@@ -62,10 +63,11 @@ type apiHandler struct {
 	serverCtx context.Context
 	core      *health.Core
 	views     *views.Client
+	usage     *usage.Client
 }
 
-func NewHandler(serverCtx context.Context, opts APIHandlerOptions, healthcore *health.Core, views *views.Client) http.Handler {
-	handler := &apiHandler{opts, serverCtx, healthcore, views}
+func NewHandler(serverCtx context.Context, opts APIHandlerOptions, healthcore *health.Core, views *views.Client, usage *usage.Client) http.Handler {
+	handler := &apiHandler{opts, serverCtx, healthcore, views, usage}
 
 	router := chi.NewRouter()
 
@@ -133,6 +135,10 @@ func (h *apiHandler) viewershipHandler() chi.Router {
 	h.withMetrics(router, "query_application_viewership").
 		With(h.cache(true)).
 		MethodFunc("GET", `/query`, h.queryViewership(true))
+	// usage API, gets access to hourly usage by userID and creatorID
+	h.withMetrics(router, "query_usage").
+		With(h.cache(true)).
+		MethodFunc("GET", `/usage`, h.queryUsage())
 
 	return router
 }
@@ -264,6 +270,46 @@ func (h *apiHandler) queryViewership(detailed bool) http.HandlerFunc {
 			return
 		}
 		respondJson(rw, http.StatusOK, metrics)
+	}
+}
+
+func (h *apiHandler) queryUsage() http.HandlerFunc {
+	return func(rw http.ResponseWriter, r *http.Request) {
+		var (
+			from, err1 = parseInputTimestamp(r.URL.Query().Get("from"))
+			to, err2   = parseInputTimestamp(r.URL.Query().Get("to"))
+		)
+		if errs := nonNilErrs(err1, err2); len(errs) > 0 {
+			respondError(rw, http.StatusBadRequest, errs...)
+			return
+		}
+		userId, ok := r.Context().Value(userIdContextKey).(string)
+
+		if !ok {
+			respondError(rw, http.StatusInternalServerError, errors.New("request not authenticated"))
+			return
+		}
+
+		qs := r.URL.Query()
+		creatorId := qs.Get("creatorId")
+		query := usage.QuerySpec{
+			From: from,
+			To:   to,
+			Filter: usage.QueryFilter{
+				UserID:     userId,
+				PlaybackID: qs.Get("playbackId"),
+				CreatorID:  qs.Get("creatorId"),
+			},
+		}
+
+		usage, err := h.usage.QuerySummary(r.Context(), userId, creatorId, query)
+
+		if err != nil {
+			respondError(rw, http.StatusInternalServerError, err)
+			return
+		}
+
+		respondJson(rw, http.StatusOK, usage)
 	}
 }
 
