@@ -290,13 +290,17 @@ func (h *apiHandler) queryUsage() http.HandlerFunc {
 			return
 		}
 
+		// TODO allow only admin to call this endpoint
+
 		qs := r.URL.Query()
 		creatorId := qs.Get("creatorId")
+		paramUserId := qs.Get("userId")
+
 		query := usage.QuerySpec{
 			From: from,
 			To:   to,
 			Filter: usage.QueryFilter{
-				UserID:     userId,
+				UserID:     paramUserId,
 				PlaybackID: qs.Get("playbackId"),
 				CreatorID:  qs.Get("creatorId"),
 			},
