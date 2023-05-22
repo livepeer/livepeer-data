@@ -296,6 +296,11 @@ func (h *apiHandler) queryUsage() http.HandlerFunc {
 		creatorId := qs.Get("creatorId")
 		paramUserId := qs.Get("userId")
 
+		if paramUserId == "" {
+			respondError(rw, http.StatusBadRequest, errors.New("userId is required"))
+			return
+		}
+
 		query := usage.QuerySpec{
 			From: from,
 			To:   to,
