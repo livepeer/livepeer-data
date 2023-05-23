@@ -295,29 +295,21 @@ func (h *apiHandler) queryUsage() http.HandlerFunc {
 			respondError(rw, http.StatusBadRequest, errs...)
 			return
 		}
-		userId, ok := r.Context().Value(userIdContextKey).(string)
 
+		userId, ok := r.Context().Value(userIdContextKey).(string)
 		if !ok {
 			respondError(rw, http.StatusInternalServerError, errors.New("request not authenticated"))
 			return
 		}
 
-		// TODO allow only admin to call this endpoint
-
 		qs := r.URL.Query()
 		creatorId := qs.Get("creatorId")
-		paramUserId := qs.Get("userId")
-
-		if paramUserId == "" {
-			respondError(rw, http.StatusBadRequest, errors.New("userId is required"))
-			return
-		}
 
 		query := usage.QuerySpec{
 			From: from,
 			To:   to,
 			Filter: usage.QueryFilter{
-				UserID:    paramUserId,
+				UserID:    userId,
 				CreatorID: qs.Get("creatorId"),
 			},
 		}
