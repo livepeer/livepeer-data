@@ -84,6 +84,7 @@ func NewHandler(serverCtx context.Context, opts APIHandlerOptions, healthcore *h
 
 		router.Mount(`/stream/{`+streamIDParam+`}`, handler.streamHealthHandler())
 		router.Mount("/views", handler.viewershipHandler())
+		router.Mount("/usage", handler.usageHandler())
 	})
 
 	return router
@@ -135,10 +136,21 @@ func (h *apiHandler) viewershipHandler() chi.Router {
 	h.withMetrics(router, "query_application_viewership").
 		With(h.cache(true)).
 		MethodFunc("GET", `/query`, h.queryViewership(true))
-	// usage API, gets access to hourly usage by userID and creatorID
+
+	return router
+}
+
+func (h *apiHandler) usageHandler() chi.Router {
+	opts := h.opts
+
+	router := chi.NewRouter()
+	if opts.AuthURL != "" {
+		router.Use(authorization(opts.AuthURL))
+	}
+
 	h.withMetrics(router, "query_usage").
 		With(h.cache(true)).
-		MethodFunc("GET", `/usage`, h.queryUsage())
+		MethodFunc("GET", `/query`, h.queryUsage())
 
 	return router
 }
@@ -305,9 +317,8 @@ func (h *apiHandler) queryUsage() http.HandlerFunc {
 			From: from,
 			To:   to,
 			Filter: usage.QueryFilter{
-				UserID:     paramUserId,
-				PlaybackID: qs.Get("playbackId"),
-				CreatorID:  qs.Get("creatorId"),
+				UserID:    paramUserId,
+				CreatorID: qs.Get("creatorId"),
 			},
 		}
 
