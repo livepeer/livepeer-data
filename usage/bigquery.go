@@ -25,9 +25,9 @@ type UsageSummaryRow struct {
 	UserID    string `bigquery:"user_id"`
 	CreatorID string `bigquery:"creator_id"`
 
-	ViewCount       int64              `bigquery:"view_count"`
-	LegacyViewCount bigquery.NullInt64 `bigquery:"legacy_view_count"`
-	PlaytimeMins    float64            `bigquery:"playtime_mins"`
+	DeliveryUsageGbs float64 `bigquery:"delivery_usage_gbs"`
+	TotalUsageMins   float64 `bigquery:"transcode_total_usage_mins"`
+	StorageUsageMins float64 `bigquery:"storage_usage_mins"`
 }
 
 type BigQuery interface {
