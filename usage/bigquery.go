@@ -90,13 +90,20 @@ func buildUsageSummaryQuery(table string, userID string, creatorID string, spec 
 	query := squirrel.Select(
 		"cast(sum(transcode_total_usage_minutes) as FLOAT64) as transcode_total_usage_minutes",
 		"cast(sum(delivery_usage_gbs) as FLOAT64) as delivery_usage_gbs",
-		"cast(avg(storage_usage_gbs) as FLOAT64) as storage_usage_gbs").
+		"cast(avg(storage_usage_mins) as FLOAT64) as storage_usage_mins").
 		From(table).
 		Limit(2)
 
 	if creatorId := spec.Filter.CreatorID; creatorId != "" {
 		query = query.Where("creator_id_type = ?", "unverified")
 		query = query.Where("creator_id = ?", creatorID)
+	}
+
+	if from := spec.From; from != nil {
+		query = query.Where("time >= timestamp_millis(?)", from.UnixMilli())
+	}
+	if to := spec.To; to != nil {
+		query = query.Where("time < timestamp_millis(?)", to.UnixMilli())
 	}
 
 	query = withUserIdFilter(query, userID)
