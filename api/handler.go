@@ -305,9 +305,8 @@ func (h *apiHandler) queryUsage() http.HandlerFunc {
 			From: from,
 			To:   to,
 			Filter: usage.QueryFilter{
-				UserID:     paramUserId,
-				PlaybackID: qs.Get("playbackId"),
-				CreatorID:  qs.Get("creatorId"),
+				UserID:    paramUserId,
+				CreatorID: qs.Get("creatorId"),
 			},
 		}
 

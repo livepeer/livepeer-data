@@ -12,9 +12,8 @@ import (
 )
 
 type QueryFilter struct {
-	PlaybackID string
-	CreatorID  string
-	UserID     string
+	CreatorID string
+	UserID    string
 }
 
 type QuerySpec struct {
