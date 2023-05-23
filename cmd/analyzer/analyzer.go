@@ -16,6 +16,7 @@ import (
 	"github.com/livepeer/livepeer-data/health/reducers"
 	"github.com/livepeer/livepeer-data/pkg/event"
 	"github.com/livepeer/livepeer-data/pkg/mistconnector"
+	"github.com/livepeer/livepeer-data/usage"
 	"github.com/livepeer/livepeer-data/views"
 	"github.com/peterbourgon/ff"
 )
@@ -41,6 +42,7 @@ type cliFlags struct {
 	memoryRecordsTtl time.Duration
 
 	viewsOpts views.ClientOptions
+	usageOpts usage.ClientOptions
 }
 
 func parseFlags(version string) cliFlags {
@@ -83,6 +85,7 @@ func parseFlags(version string) cliFlags {
 	fs.StringVar(&cli.viewsOpts.BigQueryCredentialsJSON, "bigquery-credentials-json", "", "Google Cloud service account credentials JSON with access to BigQuery")
 	fs.StringVar(&cli.viewsOpts.ViewershipEventsTable, "viewership-events-table", "livepeer-analytics.viewership.staging_viewership_events", "BigQuery table to read viewership events from")
 	fs.StringVar(&cli.viewsOpts.ViewershipSummaryTable, "viewership-summary-table", "livepeer-analytics.viewership.staging_viewership_summary_by_video", "BigQuery table to read viewership summarized metrics from")
+	fs.StringVar(&cli.usageOpts.HourlyUsageTable, "hourly-usage-table", "livepeer-analytics.usage.staging_hourly_usage", "BigQuery table to read hourly usage metrics from")
 	fs.Int64Var(&cli.viewsOpts.MaxBytesBilledPerBigQuery, "max-bytes-billed-per-big-query", 50*1024*1024 /* 50 MB */, "Max bytes billed configuration to use for the queries to BigQuery")
 
 	flag.Set("logtostderr", "true")
@@ -152,8 +155,16 @@ func Run(build BuildFlags) {
 		glog.Fatalf("Error creating views client. err=%q", err)
 	}
 
+	cli.usageOpts.BigQueryCredentialsJSON = cli.viewsOpts.BigQueryCredentialsJSON
+	cli.usageOpts.Livepeer = cli.viewsOpts.Livepeer
+
+	usage, err := usage.NewClient(cli.usageOpts)
+	if err != nil {
+		glog.Fatalf("Error creating usage client. err=%q", err)
+	}
+
 	glog.Info("Starting server...")
-	err = api.ListenAndServe(ctx, cli.serverOpts, healthcore, views)
+	err = api.ListenAndServe(ctx, cli.serverOpts, healthcore, views, usage)
 	if err != nil {
 		glog.Fatalf("Error starting api server. err=%q", err)
 	}
