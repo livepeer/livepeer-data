@@ -84,6 +84,7 @@ func NewHandler(serverCtx context.Context, opts APIHandlerOptions, healthcore *h
 
 		router.Mount(`/stream/{`+streamIDParam+`}`, handler.streamHealthHandler())
 		router.Mount("/views", handler.viewershipHandler())
+		router.Mount("/usage", handler.usageHandler())
 	})
 
 	return router
@@ -139,6 +140,21 @@ func (h *apiHandler) viewershipHandler() chi.Router {
 	h.withMetrics(router, "query_usage").
 		With(h.cache(true)).
 		MethodFunc("GET", `/usage`, h.queryUsage())
+
+	return router
+}
+
+func (h *apiHandler) usageHandler() chi.Router {
+	opts := h.opts
+
+	router := chi.NewRouter()
+	if opts.AuthURL != "" {
+		router.Use(authorization(opts.AuthURL))
+	}
+
+	h.withMetrics(router, "query_usage").
+		With(h.cache(true)).
+		MethodFunc("GET", `/query`, h.queryUsage())
 
 	return router
 }
@@ -283,31 +299,22 @@ func (h *apiHandler) queryUsage() http.HandlerFunc {
 			respondError(rw, http.StatusBadRequest, errs...)
 			return
 		}
-		userId, ok := r.Context().Value(userIdContextKey).(string)
 
+		userId, ok := r.Context().Value(userIdContextKey).(string)
 		if !ok {
 			respondError(rw, http.StatusInternalServerError, errors.New("request not authenticated"))
 			return
 		}
 
-		// TODO allow only admin to call this endpoint
-
 		qs := r.URL.Query()
 		creatorId := qs.Get("creatorId")
-		paramUserId := qs.Get("userId")
-
-		if paramUserId == "" {
-			respondError(rw, http.StatusBadRequest, errors.New("userId is required"))
-			return
-		}
 
 		query := usage.QuerySpec{
 			From: from,
 			To:   to,
 			Filter: usage.QueryFilter{
-				UserID:     paramUserId,
-				PlaybackID: qs.Get("playbackId"),
-				CreatorID:  qs.Get("creatorId"),
+				UserID:    userId,
+				CreatorID: qs.Get("creatorId"),
 			},
 		}
 
