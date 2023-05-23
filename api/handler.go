@@ -84,6 +84,7 @@ func NewHandler(serverCtx context.Context, opts APIHandlerOptions, healthcore *h
 
 		router.Mount(`/stream/{`+streamIDParam+`}`, handler.streamHealthHandler())
 		router.Mount("/views", handler.viewershipHandler())
+		router.Mount("/usage", handler.usageHandler())
 	})
 
 	return router
@@ -139,6 +140,21 @@ func (h *apiHandler) viewershipHandler() chi.Router {
 	h.withMetrics(router, "query_usage").
 		With(h.cache(true)).
 		MethodFunc("GET", `/usage`, h.queryUsage())
+
+	return router
+}
+
+func (h *apiHandler) usageHandler() chi.Router {
+	opts := h.opts
+
+	router := chi.NewRouter()
+	if opts.AuthURL != "" {
+		router.Use(authorization(opts.AuthURL))
+	}
+
+	h.withMetrics(router, "query_usage").
+		With(h.cache(true)).
+		MethodFunc("GET", `/query`, h.queryUsage())
 
 	return router
 }
