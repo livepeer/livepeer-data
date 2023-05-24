@@ -100,10 +100,10 @@ func buildUsageSummaryQuery(table string, userID string, creatorID string, spec 
 	}
 
 	if from := spec.From; from != nil {
-		query = query.Where("time >= timestamp_millis(?)", from.UnixMilli())
+		query = query.Where("usage_hour_ts >= timestamp_millis(?)", from.UnixMilli())
 	}
 	if to := spec.To; to != nil {
-		query = query.Where("time < timestamp_millis(?)", to.UnixMilli())
+		query = query.Where("usage_hour_ts < timestamp_millis(?)", to.UnixMilli())
 	}
 
 	query = withUserIdFilter(query, userID)
