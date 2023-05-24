@@ -247,9 +247,10 @@ func ensureIsCreatorQuery(next http.Handler) http.Handler {
 func (h *apiHandler) queryViewership(detailed bool) http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
 		var (
-			from, err1        = parseInputTimestamp(r.URL.Query().Get("from"))
-			to, err2          = parseInputTimestamp(r.URL.Query().Get("to"))
-			minPlaytime, err3 = parseInputDuration(r.URL.Query().Get("minPlaytime"))
+			qs                = r.URL.Query()
+			from, err1        = parseInputTimestamp(qs.Get("from"))
+			to, err2          = parseInputTimestamp(qs.Get("to"))
+			minPlaytime, err3 = parseInputDuration(qs.Get("minPlaytime"))
 		)
 		if errs := nonNilErrs(err1, err2, err3); len(errs) > 0 {
 			respondError(rw, http.StatusBadRequest, errs...)
@@ -262,7 +263,6 @@ func (h *apiHandler) queryViewership(detailed bool) http.HandlerFunc {
 			return
 		}
 
-		qs := r.URL.Query()
 		assetID, streamID := qs.Get("assetId"), qs.Get("streamId")
 		query := views.QuerySpec{
 			From:     from,
