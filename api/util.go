@@ -41,6 +41,13 @@ func parseInputTimestamp(str string) (*time.Time, error) {
 	return &t, nil
 }
 
+func parseInputDuration(str string) (time.Duration, error) {
+	if str == "" {
+		return 0, nil
+	}
+	return time.ParseDuration(str)
+}
+
 func parseInputUUID(str string) (*uuid.UUID, error) {
 	if str == "" {
 		return nil, nil
