@@ -315,14 +315,24 @@ func (h *apiHandler) queryUsage() http.HandlerFunc {
 			},
 		}
 
-		usage, err := h.usage.QuerySummary(r.Context(), userId, creatorId, query)
+		if qs.Get("timeStep") == "" {
+			usage, err := h.usage.QuerySummary(r.Context(), userId, creatorId, query)
+			if err != nil {
+				respondError(rw, http.StatusInternalServerError, err)
+				return
+			}
 
-		if err != nil {
-			respondError(rw, http.StatusInternalServerError, err)
-			return
+			respondJson(rw, http.StatusOK, usage)
+		} else {
+			usage, err := h.usage.QuerySummaryWithTimestep(r.Context(), userId, creatorId, query)
+			if err != nil {
+				respondError(rw, http.StatusInternalServerError, err)
+				return
+			}
+
+			respondJson(rw, http.StatusOK, usage)
 		}
 
-		respondJson(rw, http.StatusOK, usage)
 	}
 }
 

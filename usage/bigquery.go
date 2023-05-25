@@ -37,6 +37,7 @@ type UsageSummaryRow struct {
 
 type BigQuery interface {
 	QueryUsageSummary(ctx context.Context, userID string, creatorID string, spec QuerySpec) (*UsageSummaryRow, error)
+	QueryUsageSummaryWithTimestep(ctx context.Context, userID string, creatorID string, spec QuerySpec) (*[]UsageSummaryRow, error)
 }
 
 type BigQueryOptions struct {
@@ -44,6 +45,8 @@ type BigQueryOptions struct {
 	HourlyUsageTable          string
 	MaxBytesBilledPerBigQuery int64
 }
+
+const maxBigQueryResultRows = 31
 
 func NewBigQuery(opts BigQueryOptions) (BigQuery, error) {
 	bigquery, err := bigquery.NewClient(context.Background(),
@@ -87,6 +90,24 @@ func (bq *bigqueryHandler) QueryUsageSummary(ctx context.Context, userID string,
 	return &bqRows[0], nil
 }
 
+func (bq *bigqueryHandler) QueryUsageSummaryWithTimestep(ctx context.Context, userID string, creatorID string, spec QuerySpec) (*[]UsageSummaryRow, error) {
+	sql, args, err := buildUsageSummaryQuery(bq.opts.HourlyUsageTable, userID, creatorID, spec)
+	if err != nil {
+		return nil, fmt.Errorf("error building usage summary query: %w", err)
+	}
+
+	bqRows, err := doBigQuery[UsageSummaryRow](bq, ctx, sql, args)
+	if err != nil {
+		return nil, fmt.Errorf("bigquery error: %w", err)
+	}
+
+	if len(bqRows) == 0 {
+		return nil, nil
+	}
+
+	return &bqRows, nil
+}
+
 func buildUsageSummaryQuery(table string, userID string, creatorID string, spec QuerySpec) (string, []interface{}, error) {
 	if userID == "" {
 		return "", nil, fmt.Errorf("userID cannot be empty")
@@ -97,7 +118,7 @@ func buildUsageSummaryQuery(table string, userID string, creatorID string, spec 
 		"cast(sum(delivery_usage_gbs) as FLOAT64) as delivery_usage_gbs",
 		"cast(avg(storage_usage_mins) as FLOAT64) as storage_usage_mins").
 		From(table).
-		Limit(2)
+		Limit(maxBigQueryResultRows)
 
 	if creatorId := spec.Filter.CreatorID; creatorId != "" {
 		query = query.Where("creator_id_type = ?", "unverified")

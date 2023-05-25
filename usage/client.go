@@ -38,3 +38,12 @@ func (c *Client) QuerySummary(ctx context.Context, userID string, creatorID stri
 
 	return summary, nil
 }
+
+func (c *Client) QuerySummaryWithTimestep(ctx context.Context, userID string, creatorID string, spec QuerySpec) (*[]UsageSummaryRow, error) {
+	summary, err := c.bigquery.QueryUsageSummaryWithTimestep(ctx, userID, creatorID, spec)
+	if err != nil {
+		return nil, err
+	}
+
+	return summary, nil
+}
