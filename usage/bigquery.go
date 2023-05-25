@@ -17,8 +17,13 @@ type QueryFilter struct {
 }
 
 type QuerySpec struct {
+	TimeStep string
 	From, To *time.Time
 	Filter   QueryFilter
+}
+
+var allowedTimeSteps = map[string]bool{
+	"day": true,
 }
 
 type UsageSummaryRow struct {
@@ -104,6 +109,17 @@ func buildUsageSummaryQuery(table string, userID string, creatorID string, spec 
 	}
 	if to := spec.To; to != nil {
 		query = query.Where("usage_hour_ts < timestamp_millis(?)", to.UnixMilli())
+	}
+
+	if timeStep := spec.TimeStep; timeStep != "" {
+		if !allowedTimeSteps[timeStep] {
+			return "", nil, fmt.Errorf("invalid time step: %s", timeStep)
+		}
+
+		query = query.
+			Columns(fmt.Sprintf("timestamp_trunc(usage_hour_ts, %s) as time_interval", timeStep)).
+			GroupBy("time_interval").
+			OrderBy("time_interval")
 	}
 
 	query = withUserIdFilter(query, userID)

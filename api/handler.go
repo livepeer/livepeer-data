@@ -306,8 +306,9 @@ func (h *apiHandler) queryUsage() http.HandlerFunc {
 		creatorId := qs.Get("creatorId")
 
 		query := usage.QuerySpec{
-			From: from,
-			To:   to,
+			From:     from,
+			To:       to,
+			TimeStep: qs.Get("timeStep"),
 			Filter: usage.QueryFilter{
 				UserID:    userId,
 				CreatorID: qs.Get("creatorId"),
