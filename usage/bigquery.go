@@ -23,7 +23,8 @@ type QuerySpec struct {
 }
 
 var allowedTimeSteps = map[string]bool{
-	"day": true,
+	"hour": true,
+	"day":  true,
 }
 
 type UsageSummaryRow struct {
