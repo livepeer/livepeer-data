@@ -47,7 +47,7 @@ type BigQueryOptions struct {
 	MaxBytesBilledPerBigQuery int64
 }
 
-const maxBigQueryResultRows = 31
+const maxBigQueryResultRows = 10000
 
 func NewBigQuery(opts BigQueryOptions) (BigQuery, error) {
 	bigquery, err := bigquery.NewClient(context.Background(),
