@@ -117,7 +117,7 @@ func buildUsageSummaryQuery(table string, userID string, creatorID string, spec 
 	query := squirrel.Select(
 		"cast(sum(transcode_total_usage_mins) as FLOAT64) as transcode_total_usage_mins",
 		"cast(sum(delivery_usage_gbs) as FLOAT64) as delivery_usage_gbs",
-		"cast(avg(storage_usage_mins) as FLOAT64) as storage_usage_mins").
+		"cast((sum(storage_usage_mins) / count(distinct usage_hour_ts)) as FLOAT64) as storage_usage_mins").
 		From(table).
 		Limit(maxBigQueryResultRows)
 
