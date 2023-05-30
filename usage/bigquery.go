@@ -102,6 +102,12 @@ func (bq *bigqueryHandler) QueryUsageSummaryWithTimestep(ctx context.Context, us
 		return nil, fmt.Errorf("bigquery error: %w", err)
 	}
 
+	if err != nil {
+		return nil, fmt.Errorf("bigquery error: %w", err)
+	} else if len(bqRows) > maxBigQueryResultRows {
+		return nil, fmt.Errorf("query must return less than %d datapoints. consider decreasing your timeframe or increasing the time step", maxBigQueryResultRows)
+	}
+
 	if len(bqRows) == 0 {
 		return nil, nil
 	}
@@ -119,7 +125,7 @@ func buildUsageSummaryQuery(table string, userID string, creatorID string, spec 
 		"cast(sum(delivery_usage_mins) as FLOAT64) as delivery_usage_mins",
 		"cast((sum(storage_usage_mins) / count(distinct usage_hour_ts)) as FLOAT64) as storage_usage_mins").
 		From(table).
-		Limit(maxBigQueryResultRows)
+		Limit(maxBigQueryResultRows + 1)
 
 	if creatorId := spec.Filter.CreatorID; creatorId != "" {
 		query = query.Where("creator_id_type = ?", "unverified")
