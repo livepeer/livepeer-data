@@ -85,7 +85,7 @@ func parseFlags(version string) cliFlags {
 	fs.StringVar(&cli.viewsOpts.BigQueryCredentialsJSON, "bigquery-credentials-json", "", "Google Cloud service account credentials JSON with access to BigQuery")
 	fs.StringVar(&cli.viewsOpts.ViewershipEventsTable, "viewership-events-table", "livepeer-analytics.viewership.staging_viewership_events", "BigQuery table to read viewership events from")
 	fs.StringVar(&cli.viewsOpts.ViewershipSummaryTable, "viewership-summary-table", "livepeer-analytics.viewership.staging_viewership_summary_by_video", "BigQuery table to read viewership summarized metrics from")
-	fs.StringVar(&cli.usageOpts.HourlyUsageTable, "hourly-usage-table", "livepeer-analytics.usage.staging_hourly_usage", "BigQuery table to read hourly usage metrics from")
+	fs.StringVar(&cli.usageOpts.HourlyUsageTable, "hourly-usage-table", "livepeer-analytics.staging.hourly_billing_usage", "BigQuery table to read hourly usage metrics from")
 	fs.Int64Var(&cli.viewsOpts.MaxBytesBilledPerBigQuery, "max-bytes-billed-per-big-query", 50*1024*1024 /* 50 MB */, "Max bytes billed configuration to use for the queries to BigQuery")
 
 	flag.Set("logtostderr", "true")

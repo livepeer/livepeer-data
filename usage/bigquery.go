@@ -17,21 +17,28 @@ type QueryFilter struct {
 }
 
 type QuerySpec struct {
+	TimeStep string
 	From, To *time.Time
 	Filter   QueryFilter
+}
+
+var allowedTimeSteps = map[string]bool{
+	"hour": true,
+	"day":  true,
 }
 
 type UsageSummaryRow struct {
 	UserID    string `bigquery:"user_id"`
 	CreatorID string `bigquery:"creator_id"`
 
-	ViewCount       int64              `bigquery:"view_count"`
-	LegacyViewCount bigquery.NullInt64 `bigquery:"legacy_view_count"`
-	PlaytimeMins    float64            `bigquery:"playtime_mins"`
+	DeliveryUsageMins float64 `bigquery:"delivery_usage_mins"`
+	TotalUsageMins   float64 `bigquery:"transcode_total_usage_mins"`
+	StorageUsageMins float64 `bigquery:"storage_usage_mins"`
 }
 
 type BigQuery interface {
 	QueryUsageSummary(ctx context.Context, userID string, creatorID string, spec QuerySpec) (*UsageSummaryRow, error)
+	QueryUsageSummaryWithTimestep(ctx context.Context, userID string, creatorID string, spec QuerySpec) (*[]UsageSummaryRow, error)
 }
 
 type BigQueryOptions struct {
@@ -39,6 +46,8 @@ type BigQueryOptions struct {
 	HourlyUsageTable          string
 	MaxBytesBilledPerBigQuery int64
 }
+
+const maxBigQueryResultRows = 10000
 
 func NewBigQuery(opts BigQueryOptions) (BigQuery, error) {
 	bigquery, err := bigquery.NewClient(context.Background(),
@@ -82,21 +91,63 @@ func (bq *bigqueryHandler) QueryUsageSummary(ctx context.Context, userID string,
 	return &bqRows[0], nil
 }
 
+func (bq *bigqueryHandler) QueryUsageSummaryWithTimestep(ctx context.Context, userID string, creatorID string, spec QuerySpec) (*[]UsageSummaryRow, error) {
+	sql, args, err := buildUsageSummaryQuery(bq.opts.HourlyUsageTable, userID, creatorID, spec)
+	if err != nil {
+		return nil, fmt.Errorf("error building usage summary query: %w", err)
+	}
+
+	bqRows, err := doBigQuery[UsageSummaryRow](bq, ctx, sql, args)
+	if err != nil {
+		return nil, fmt.Errorf("bigquery error: %w", err)
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("bigquery error: %w", err)
+	} else if len(bqRows) > maxBigQueryResultRows {
+		return nil, fmt.Errorf("query must return less than %d datapoints. consider decreasing your timeframe or increasing the time step", maxBigQueryResultRows)
+	}
+
+	if len(bqRows) == 0 {
+		return nil, nil
+	}
+
+	return &bqRows, nil
+}
+
 func buildUsageSummaryQuery(table string, userID string, creatorID string, spec QuerySpec) (string, []interface{}, error) {
 	if userID == "" {
 		return "", nil, fmt.Errorf("userID cannot be empty")
 	}
 
 	query := squirrel.Select(
-		"cast(sum(transcode_total_usage_minutes) as FLOAT64) as transcode_total_usage_minutes",
-		"cast(sum(delivery_usage_gbs) as FLOAT64) as delivery_usage_gbs",
-		"cast(avg(storage_usage_gbs) as FLOAT64) as storage_usage_gbs").
+		"cast(sum(transcode_total_usage_mins) as FLOAT64) as transcode_total_usage_mins",
+		"cast(sum(delivery_usage_mins) as FLOAT64) as delivery_usage_mins",
+		"cast((sum(storage_usage_mins) / count(distinct usage_hour_ts)) as FLOAT64) as storage_usage_mins").
 		From(table).
-		Limit(2)
+		Limit(maxBigQueryResultRows + 1)
 
 	if creatorId := spec.Filter.CreatorID; creatorId != "" {
 		query = query.Where("creator_id_type = ?", "unverified")
 		query = query.Where("creator_id = ?", creatorID)
+	}
+
+	if from := spec.From; from != nil {
+		query = query.Where("usage_hour_ts >= timestamp_millis(?)", from.UnixMilli())
+	}
+	if to := spec.To; to != nil {
+		query = query.Where("usage_hour_ts < timestamp_millis(?)", to.UnixMilli())
+	}
+
+	if timeStep := spec.TimeStep; timeStep != "" {
+		if !allowedTimeSteps[timeStep] {
+			return "", nil, fmt.Errorf("invalid time step: %s", timeStep)
+		}
+
+		query = query.
+			Columns(fmt.Sprintf("timestamp_trunc(usage_hour_ts, %s) as time_interval", timeStep)).
+			GroupBy("time_interval").
+			OrderBy("time_interval")
 	}
 
 	query = withUserIdFilter(query, userID)
