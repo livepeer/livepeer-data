@@ -36,7 +36,7 @@ var viewershipBreakdownFields = map[string]string{
 	"browserEngine": "browser_engine",
 	"continent":     "playback_continent_name",
 	"country":       "playback_country_name",
-	"subdivision":   "playback_subdivisions_name",
+	"subdivision":   "playback_subdivision_name",
 	"timezone":      "playback_timezone",
 	"viewerId":      "viewer_id",
 }
