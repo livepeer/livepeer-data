@@ -2,13 +2,20 @@ package data
 
 const EventTypeTaskResultPartial EventType = "task_result_partial"
 
-func NewTaskResultPartialEvent(info TaskInfo, err *ErrorInfo, output *TaskOutput) *TaskResultPartialEvent {
+func NewTaskResultPartialEvent(info TaskInfo, output *TaskPartialOutput) *TaskResultPartialEvent {
 	return &TaskResultPartialEvent{
 		Base:   newEventBase(EventTypeTaskResultPartial, ""),
 		Task:   info,
-		Error:  err,
 		Output: output,
 	}
 }
 
-type TaskResultPartialEvent TaskResultEvent
+type TaskResultPartialEvent struct {
+	Base
+	Task   TaskInfo           `json:"task"`
+	Output *TaskPartialOutput `json:"output,omitempty"`
+}
+
+type TaskPartialOutput struct {
+	Upload *UploadTaskOutput `json:"upload,omitempty"`
+}
