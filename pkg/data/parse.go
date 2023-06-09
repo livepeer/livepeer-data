@@ -47,6 +47,12 @@ func ParseEvent(data []byte) (Event, error) {
 			return nil, fmt.Errorf("error unmarshalling task result event: %w", err)
 		}
 		return trev, nil
+	case EventTypeTaskResultPartial:
+		var event *TaskResultPartialEvent
+		if err := json.Unmarshal(data, &event); err != nil {
+			return nil, fmt.Errorf("error unmarshalling task partial result event: %w", err)
+		}
+		return event, nil
 	default:
 		return nil, fmt.Errorf("unknown event type=%q, streamId=%q, ts=%v", base.Type(), base.StreamID_, base.Timestamp_)
 	}
