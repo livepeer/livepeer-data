@@ -66,7 +66,7 @@ type ViewershipEventRow struct {
 
 	Continent   bigquery.NullString `bigquery:"playback_continent_name"`
 	Country     bigquery.NullString `bigquery:"playback_country_name"`
-	Subdivision bigquery.NullString `bigquery:"playback_subdivisions_name"`
+	Subdivision bigquery.NullString `bigquery:"playback_subdivision_name"`
 	TimeZone    bigquery.NullString `bigquery:"playback_timezone"`
 
 	// metric data
