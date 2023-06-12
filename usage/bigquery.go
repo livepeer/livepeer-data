@@ -28,12 +28,12 @@ var allowedTimeSteps = map[string]bool{
 }
 
 type UsageSummaryRow struct {
-	UserID    string `bigquery:"user_id"`
-	CreatorID string `bigquery:"creator_id"`
+	UserID    string `bigquery:"user_id" json:"userId"`
+	CreatorID string `bigquery:"creator_id" json:"creatorId"`
 
-	DeliveryUsageMins float64 `bigquery:"delivery_usage_mins"`
-	TotalUsageMins   float64 `bigquery:"transcode_total_usage_mins"`
-	StorageUsageMins float64 `bigquery:"storage_usage_mins"`
+	DeliveryUsageMins float64 `bigquery:"delivery_usage_mins" json:"deliveryUsageMins"`
+	TotalUsageMins    float64 `bigquery:"transcode_total_usage_mins" json:"totalUsageMins"`
+	StorageUsageMins  float64 `bigquery:"storage_usage_mins" json:"storageUsageMins"`
 }
 
 type BigQuery interface {
