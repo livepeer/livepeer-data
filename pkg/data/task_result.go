@@ -27,6 +27,7 @@ type TaskOutput struct {
 	Upload        *UploadTaskOutput        `json:"upload,omitempty"`
 	Import        *UploadTaskOutput        `json:"import,omitempty"`
 	Export        *ExportTaskOutput        `json:"export,omitempty"`
+	ExportData    *ExportDataTaskOutput    `json:"exportData,omitempty"`
 	Transcode     *TranscodeTaskOutput     `json:"transcode,omitempty"`
 	TranscodeFile *TranscodeFileTaskOutput `json:"transcodeFile,omitempty"`
 }
@@ -67,4 +68,12 @@ type ExportTaskOutput struct {
 type IPFSExportInfo struct {
 	VideoFileCID   string `json:"videoFileCid"`
 	NFTMetadataCID string `json:"nftMetadataCid,omitempty"`
+}
+
+type ExportDataTaskOutput struct {
+	IPFS *IPFSExportDataInfo `json:"ipfs,omitempty"`
+}
+
+type IPFSExportDataInfo struct {
+	CID string `json:"cid"`
 }
