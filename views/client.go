@@ -193,10 +193,6 @@ func viewershipEventsToMetrics(rows []ViewershipEventRow, spec QuerySpec) []Metr
 	return metrics
 }
 
-func toInt64Ptr(bqInt bigquery.NullInt64, asked bool) data.Nullable[int64] {
-	return data.ToNullable(bqInt.Int64, bqInt.Valid, asked)
-}
-
 func toFloat64Ptr(bqFloat bigquery.NullFloat64, asked bool) data.Nullable[float64] {
 	return data.ToNullable(bqFloat.Float64, bqFloat.Valid, asked)
 }
