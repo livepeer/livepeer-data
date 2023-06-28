@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"cloud.google.com/go/bigquery"
 	livepeer "github.com/livepeer/go-api-client"
+	"github.com/livepeer/livepeer-data/pkg/data"
 	promClient "github.com/prometheus/client_golang/api"
 )
 
@@ -19,31 +21,31 @@ type Metric struct {
 
 	// breakdown fields
 
-	Device     *string `json:"device,omitempty"`
-	DeviceType *string `json:"deviceType,omitempty"`
-	CPU        *string `json:"cpu,omitempty"`
+	Device     data.Nullable[string] `json:"device,omitempty"`
+	DeviceType data.Nullable[string] `json:"deviceType,omitempty"`
+	CPU        data.Nullable[string] `json:"cpu,omitempty"`
 
-	OS            *string `json:"os,omitempty"`
-	Browser       *string `json:"browser,omitempty"`
-	BrowserEngine *string `json:"browserEngine,omitempty"`
+	OS            data.Nullable[string] `json:"os,omitempty"`
+	Browser       data.Nullable[string] `json:"browser,omitempty"`
+	BrowserEngine data.Nullable[string] `json:"browserEngine,omitempty"`
 
-	Continent   *string `json:"continent,omitempty"`
-	Country     *string `json:"country,omitempty"`
-	Subdivision *string `json:"subdivision,omitempty"`
-	TimeZone    *string `json:"timezone,omitempty"`
+	Continent   data.Nullable[string] `json:"continent,omitempty"`
+	Country     data.Nullable[string] `json:"country,omitempty"`
+	Subdivision data.Nullable[string] `json:"subdivision,omitempty"`
+	TimeZone    data.Nullable[string] `json:"timezone,omitempty"`
 
 	// metric data
 
-	ViewCount         int64    `json:"viewCount"`
-	PlaytimeMins      float64  `json:"playtimeMins"`
-	TtffMs            *float64 `json:"ttffMs,omitempty"`
-	RebufferRatio     *float64 `json:"rebufferRatio,omitempty"`
-	ErrorRate         *float64 `json:"errorRate,omitempty"`
-	ExistsBeforeStart *float64 `json:"existsBeforeStart,omitempty"`
+	ViewCount         int64                  `json:"viewCount"`
+	PlaytimeMins      float64                `json:"playtimeMins"`
+	TtffMs            data.Nullable[float64] `json:"ttffMs,omitempty"`
+	RebufferRatio     data.Nullable[float64] `json:"rebufferRatio,omitempty"`
+	ErrorRate         data.Nullable[float64] `json:"errorRate,omitempty"`
+	ExistsBeforeStart data.Nullable[float64] `json:"existsBeforeStart,omitempty"`
 	// Present only on the summary queries. These were imported from the
 	// prometheus data we had on the first version of this API and are not
 	// shown in the detailed metrics queries (non-/total).
-	LegacyViewCount *int64 `json:"legacyViewCount,omitempty"`
+	LegacyViewCount data.Nullable[int64] `json:"legacyViewCount,omitempty"`
 }
 
 type ClientOptions struct {
@@ -110,11 +112,18 @@ func viewershipSummaryToMetric(playbackID string, summary *ViewSummaryRow) *Metr
 		return nil
 	}
 
+	// We never want to return `null` for the legacy view count, so we don't use
+	// the regular nullable creation.
+	legacyViewCount := int64(0)
+	if summary.LegacyViewCount.Valid {
+		legacyViewCount = summary.LegacyViewCount.Int64
+	}
+
 	return &Metric{
 		PlaybackID:      summary.PlaybackID,
 		DStorageURL:     summary.DStorageURL,
 		ViewCount:       summary.ViewCount,
-		LegacyViewCount: toInt64Ptr(summary.LegacyViewCount),
+		LegacyViewCount: data.ToNullable[int64](legacyViewCount, true, true),
 		PlaytimeMins:    summary.PlaytimeMins,
 	}
 }
@@ -148,29 +157,29 @@ func (c *Client) QueryEvents(ctx context.Context, spec QuerySpec, assetID, strea
 		return nil, err
 	}
 
-	metrics := viewershipEventsToMetrics(rows)
+	metrics := viewershipEventsToMetrics(rows, spec)
 	return metrics, nil
 }
 
-func viewershipEventsToMetrics(rows []ViewershipEventRow) []Metric {
+func viewershipEventsToMetrics(rows []ViewershipEventRow, spec QuerySpec) []Metric {
 	metrics := make([]Metric, len(rows))
 	for i, row := range rows {
 		m := Metric{
 			PlaybackID:        row.PlaybackID,
 			DStorageURL:       row.DStorageURL,
-			Device:            toStringPtr(row.Device),
-			OS:                toStringPtr(row.OS),
-			Browser:           toStringPtr(row.Browser),
-			Continent:         toStringPtr(row.Continent),
-			Country:           toStringPtr(row.Country),
-			Subdivision:       toStringPtr(row.Subdivision),
-			TimeZone:          toStringPtr(row.TimeZone),
+			Device:            toStringPtr(row.Device, spec.hasBreakdownBy("device")),
+			OS:                toStringPtr(row.OS, spec.hasBreakdownBy("os")),
+			Browser:           toStringPtr(row.Browser, spec.hasBreakdownBy("browser")),
+			Continent:         toStringPtr(row.Continent, spec.hasBreakdownBy("continent")),
+			Country:           toStringPtr(row.Country, spec.hasBreakdownBy("country")),
+			Subdivision:       toStringPtr(row.Subdivision, spec.hasBreakdownBy("subdivision")),
+			TimeZone:          toStringPtr(row.TimeZone, spec.hasBreakdownBy("timezone")),
 			ViewCount:         row.ViewCount,
 			PlaytimeMins:      row.PlaytimeMins,
-			TtffMs:            toFloat64Ptr(row.TtffMs),
-			RebufferRatio:     toFloat64Ptr(row.RebufferRatio),
-			ErrorRate:         toFloat64Ptr(row.ErrorRate),
-			ExistsBeforeStart: toFloat64Ptr(row.ExistsBeforeStart),
+			TtffMs:            toFloat64Ptr(row.TtffMs, spec.Detailed),
+			RebufferRatio:     toFloat64Ptr(row.RebufferRatio, spec.Detailed),
+			ErrorRate:         toFloat64Ptr(row.ErrorRate, spec.Detailed),
+			ExistsBeforeStart: toFloat64Ptr(row.ExistsBeforeStart, spec.Detailed),
 		}
 
 		if !row.TimeInterval.IsZero() {
@@ -183,26 +192,28 @@ func viewershipEventsToMetrics(rows []ViewershipEventRow) []Metric {
 	return metrics
 }
 
-func toInt64Ptr(bqFloat bigquery.NullInt64) *int64 {
-	if bqFloat.Valid {
-		i := bqFloat.Int64
-		return &i
-	}
-	return nil
+func toInt64Ptr(bqInt bigquery.NullInt64, asked bool) data.Nullable[int64] {
+	return data.ToNullable(bqInt.Int64, bqInt.Valid, asked)
 }
 
-func toFloat64Ptr(bqFloat bigquery.NullFloat64) *float64 {
-	if bqFloat.Valid {
-		f := bqFloat.Float64
-		return &f
-	}
-	return nil
+func toFloat64Ptr(bqFloat bigquery.NullFloat64, asked bool) data.Nullable[float64] {
+	return data.ToNullable(bqFloat.Float64, bqFloat.Valid, asked)
 }
 
-func toStringPtr(bqFloat bigquery.NullString) *string {
-	if bqFloat.Valid {
-		f := bqFloat.StringVal
-		return &f
+func toStringPtr(bqStr bigquery.NullString, asked bool) data.Nullable[string] {
+	return data.ToNullable(bqStr.StringVal, bqStr.Valid, asked)
+}
+
+func (q *QuerySpec) hasBreakdownBy(e string) bool {
+	// callers always set `e` as a string literal so we can panic if it's not valid
+	if viewershipBreakdownFields[e] == "" {
+		panic(fmt.Sprintf("unknown breakdown field %q", e))
 	}
-	return nil
+
+	for _, a := range q.BreakdownBy {
+		if strings.EqualFold(a, e) {
+			return true
+		}
+	}
+	return false
 }
