@@ -36,12 +36,12 @@ type Metric struct {
 
 	// metric data
 
-	ViewCount         int64                  `json:"viewCount"`
-	PlaytimeMins      float64                `json:"playtimeMins"`
-	TtffMs            data.Nullable[float64] `json:"ttffMs,omitempty"`
-	RebufferRatio     data.Nullable[float64] `json:"rebufferRatio,omitempty"`
-	ErrorRate         data.Nullable[float64] `json:"errorRate,omitempty"`
-	ExistsBeforeStart data.Nullable[float64] `json:"existsBeforeStart,omitempty"`
+	ViewCount        int64                  `json:"viewCount"`
+	PlaytimeMins     float64                `json:"playtimeMins"`
+	TtffMs           data.Nullable[float64] `json:"ttffMs,omitempty"`
+	RebufferRatio    data.Nullable[float64] `json:"rebufferRatio,omitempty"`
+	ErrorRate        data.Nullable[float64] `json:"errorRate,omitempty"`
+	ExitsBeforeStart data.Nullable[float64] `json:"exitsBeforeStart,omitempty"`
 	// Present only on the summary queries. These were imported from the
 	// prometheus data we had on the first version of this API and are not
 	// shown in the detailed metrics queries (non-/total).
@@ -165,21 +165,21 @@ func viewershipEventsToMetrics(rows []ViewershipEventRow, spec QuerySpec) []Metr
 	metrics := make([]Metric, len(rows))
 	for i, row := range rows {
 		m := Metric{
-			PlaybackID:        row.PlaybackID,
-			DStorageURL:       row.DStorageURL,
-			Device:            toStringPtr(row.Device, spec.hasBreakdownBy("device")),
-			OS:                toStringPtr(row.OS, spec.hasBreakdownBy("os")),
-			Browser:           toStringPtr(row.Browser, spec.hasBreakdownBy("browser")),
-			Continent:         toStringPtr(row.Continent, spec.hasBreakdownBy("continent")),
-			Country:           toStringPtr(row.Country, spec.hasBreakdownBy("country")),
-			Subdivision:       toStringPtr(row.Subdivision, spec.hasBreakdownBy("subdivision")),
-			TimeZone:          toStringPtr(row.TimeZone, spec.hasBreakdownBy("timezone")),
-			ViewCount:         row.ViewCount,
-			PlaytimeMins:      row.PlaytimeMins,
-			TtffMs:            toFloat64Ptr(row.TtffMs, spec.Detailed),
-			RebufferRatio:     toFloat64Ptr(row.RebufferRatio, spec.Detailed),
-			ErrorRate:         toFloat64Ptr(row.ErrorRate, spec.Detailed),
-			ExistsBeforeStart: toFloat64Ptr(row.ExistsBeforeStart, spec.Detailed),
+			PlaybackID:       row.PlaybackID,
+			DStorageURL:      row.DStorageURL,
+			Device:           toStringPtr(row.Device, spec.hasBreakdownBy("device")),
+			OS:               toStringPtr(row.OS, spec.hasBreakdownBy("os")),
+			Browser:          toStringPtr(row.Browser, spec.hasBreakdownBy("browser")),
+			Continent:        toStringPtr(row.Continent, spec.hasBreakdownBy("continent")),
+			Country:          toStringPtr(row.Country, spec.hasBreakdownBy("country")),
+			Subdivision:      toStringPtr(row.Subdivision, spec.hasBreakdownBy("subdivision")),
+			TimeZone:         toStringPtr(row.TimeZone, spec.hasBreakdownBy("timezone")),
+			ViewCount:        row.ViewCount,
+			PlaytimeMins:     row.PlaytimeMins,
+			TtffMs:           toFloat64Ptr(row.TtffMs, spec.Detailed),
+			RebufferRatio:    toFloat64Ptr(row.RebufferRatio, spec.Detailed),
+			ErrorRate:        toFloat64Ptr(row.ErrorRate, spec.Detailed),
+			ExitsBeforeStart: toFloat64Ptr(row.ExitsBeforeStart, spec.Detailed),
 		}
 
 		if !row.TimeInterval.IsZero() {

@@ -71,12 +71,12 @@ type ViewershipEventRow struct {
 
 	// metric data
 
-	ViewCount         int64                `bigquery:"view_count"`
-	PlaytimeMins      float64              `bigquery:"playtime_mins"`
-	TtffMs            bigquery.NullFloat64 `bigquery:"ttff_ms"`
-	RebufferRatio     bigquery.NullFloat64 `bigquery:"rebuffer_ratio"`
-	ErrorRate         bigquery.NullFloat64 `bigquery:"error_rate"`
-	ExistsBeforeStart bigquery.NullFloat64 `bigquery:"exits_before_start"`
+	ViewCount        int64                `bigquery:"view_count"`
+	PlaytimeMins     float64              `bigquery:"playtime_mins"`
+	TtffMs           bigquery.NullFloat64 `bigquery:"ttff_ms"`
+	RebufferRatio    bigquery.NullFloat64 `bigquery:"rebuffer_ratio"`
+	ErrorRate        bigquery.NullFloat64 `bigquery:"error_rate"`
+	ExitsBeforeStart bigquery.NullFloat64 `bigquery:"exits_before_start"`
 }
 
 type ViewSummaryRow struct {
