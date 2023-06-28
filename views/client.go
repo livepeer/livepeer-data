@@ -15,11 +15,12 @@ import (
 var ErrAssetNotFound = errors.New("asset not found")
 
 type Metric struct {
-	PlaybackID  string `json:"playbackId,omitempty"`
-	DStorageURL string `json:"dStorageUrl,omitempty"`
-	Timestamp   *int64 `json:"timestamp,omitempty"`
+	Timestamp *int64 `json:"timestamp,omitempty"`
 
 	// breakdown fields
+
+	PlaybackID  data.Nullable[string] `json:"playbackId,omitempty"`
+	DStorageURL data.Nullable[string] `json:"dStorageUrl,omitempty"`
 
 	Device     data.Nullable[string] `json:"device,omitempty"`
 	DeviceType data.Nullable[string] `json:"deviceType,omitempty"`
@@ -120,8 +121,8 @@ func viewershipSummaryToMetric(playbackID string, summary *ViewSummaryRow) *Metr
 	}
 
 	return &Metric{
-		PlaybackID:      summary.PlaybackID,
-		DStorageURL:     summary.DStorageURL,
+		PlaybackID:      toStringPtr(summary.PlaybackID, summary.PlaybackID.Valid),
+		DStorageURL:     toStringPtr(summary.DStorageURL, summary.DStorageURL.Valid),
 		ViewCount:       summary.ViewCount,
 		LegacyViewCount: data.ToNullable[int64](legacyViewCount, true, true),
 		PlaytimeMins:    summary.PlaytimeMins,
@@ -165,8 +166,8 @@ func viewershipEventsToMetrics(rows []ViewershipEventRow, spec QuerySpec) []Metr
 	metrics := make([]Metric, len(rows))
 	for i, row := range rows {
 		m := Metric{
-			PlaybackID:       row.PlaybackID,
-			DStorageURL:      row.DStorageURL,
+			PlaybackID:       toStringPtr(row.PlaybackID, spec.hasBreakdownBy("playbackId")),
+			DStorageURL:      toStringPtr(row.DStorageURL, spec.hasBreakdownBy("dStorageUrl")),
 			Device:           toStringPtr(row.Device, spec.hasBreakdownBy("device")),
 			OS:               toStringPtr(row.OS, spec.hasBreakdownBy("os")),
 			Browser:          toStringPtr(row.Browser, spec.hasBreakdownBy("browser")),

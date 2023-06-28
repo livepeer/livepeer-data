@@ -28,6 +28,8 @@ type QuerySpec struct {
 }
 
 var viewershipBreakdownFields = map[string]string{
+	"playbackId":    "playback_id",
+	"dStorageUrl":   "d_storage_url",
 	"deviceType":    "device_type",
 	"device":        "device",
 	"cpu":           "cpu",
@@ -51,10 +53,10 @@ var allowedTimeSteps = map[string]bool{
 
 type ViewershipEventRow struct {
 	TimeInterval time.Time `bigquery:"time_interval"`
-	PlaybackID   string    `bigquery:"playback_id"`
-	DStorageURL  string    `bigquery:"d_storage_url"`
 
 	// breakdown fields
+	PlaybackID  bigquery.NullString `bigquery:"playback_id"`
+	DStorageURL bigquery.NullString `bigquery:"d_storage_url"`
 
 	DeviceType bigquery.NullString `bigquery:"device_type"`
 	Device     bigquery.NullString `bigquery:"device"`
@@ -80,8 +82,8 @@ type ViewershipEventRow struct {
 }
 
 type ViewSummaryRow struct {
-	PlaybackID  string `bigquery:"playback_id"`
-	DStorageURL string `bigquery:"d_storage_url"`
+	PlaybackID  bigquery.NullString `bigquery:"playback_id"`
+	DStorageURL bigquery.NullString `bigquery:"d_storage_url"`
 
 	ViewCount       int64              `bigquery:"view_count"`
 	LegacyViewCount bigquery.NullInt64 `bigquery:"legacy_view_count"`
@@ -241,8 +243,10 @@ func buildViewsSummaryQuery(table string, playbackID string) (string, []interfac
 
 func withPlaybackIdFilter(query squirrel.SelectBuilder, playbackID string) squirrel.SelectBuilder {
 	if playbackID == "" {
-		query = query.Column("playback_id").GroupBy("playback_id")
-	} else if dStorageURL := ToDStorageURL(playbackID); dStorageURL != "" {
+		return query
+	}
+
+	if dStorageURL := ToDStorageURL(playbackID); dStorageURL != "" {
 		query = query.Columns("d_storage_url").
 			Where("d_storage_url = ?", dStorageURL).
 			GroupBy("d_storage_url")
