@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"net/http"
 
 	"github.com/livepeer/livepeer-data/health"
@@ -16,6 +17,11 @@ const (
 
 func streamStatus(healthcore *health.Core) middleware {
 	return inlineMiddleware(func(rw http.ResponseWriter, r *http.Request, next http.Handler) {
+		if healthcore == nil {
+			respondError(rw, http.StatusNotImplemented, errors.New("stream healthcore is unavailable"))
+			return
+		}
+
 		streamID := apiParam(r, streamIDParam)
 		if streamID == "" {
 			next.ServeHTTP(rw, r)
