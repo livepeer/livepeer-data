@@ -29,8 +29,11 @@ type BuildFlags struct {
 type cliFlags struct {
 	mistJson bool
 
-	rabbitmqUri string
-	amqpUri     string
+	// stream health
+
+	enableStreamHealth bool
+	rabbitmqUri        string
+	amqpUri            string
 
 	golivepeerExchange  string
 	shardPrefixesFlag   string
@@ -40,6 +43,8 @@ type cliFlags struct {
 	serverOpts       api.ServerOptions
 	streamingOpts    health.StreamingOptions
 	memoryRecordsTtl time.Duration
+
+	// data analytics
 
 	viewsOpts views.ClientOptions
 	usageOpts usage.ClientOptions
@@ -51,6 +56,7 @@ func parseFlags(version string) cliFlags {
 
 	fs.BoolVar(&cli.mistJson, "j", false, "Print application info as json")
 
+	fs.BoolVar(&cli.enableStreamHealth, "enable-stream-health", true, "Whether to enable the stream health services and API")
 	fs.StringVar(&cli.rabbitmqUri, "rabbitmq-uri", "amqp://guest:guest@localhost:5672/livepeer", "URI for RabbitMQ server to consume from. Can be specified as a default AMQP URI which will be converted to stream protocol.")
 	fs.StringVar(&cli.amqpUri, "amqp-uri", "", "Explicit AMQP URI in case of non-default protocols/ports (optional). Must point to the same cluster as rabbitmqUri")
 
@@ -120,6 +126,9 @@ func parseFlags(version string) cliFlags {
 		os.Exit(0)
 	}
 
+	cli.usageOpts.BigQueryCredentialsJSON = cli.viewsOpts.BigQueryCredentialsJSON
+	cli.usageOpts.Livepeer = cli.viewsOpts.Livepeer
+
 	return cli
 }
 
@@ -129,6 +138,21 @@ func Run(build BuildFlags) {
 
 	glog.Infof("Stream health care system starting up... version=%q", build.Version)
 	ctx := contextUntilSignal(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+
+	healthcore := provisionStreamHealthcore(ctx, cli)
+	views, usage := provisionDataAnalytics(cli)
+
+	glog.Info("Starting server...")
+	err := api.ListenAndServe(ctx, cli.serverOpts, healthcore, views, usage)
+	if err != nil {
+		glog.Fatalf("Error starting api server. err=%q", err)
+	}
+}
+
+func provisionStreamHealthcore(ctx context.Context, cli cliFlags) *health.Core {
+	if !cli.enableStreamHealth {
+		return nil
+	}
 
 	streamUri := cli.rabbitmqUri
 	if cli.amqpUri == "" && strings.HasPrefix(streamUri, "amqp") {
@@ -150,24 +174,21 @@ func Run(build BuildFlags) {
 		glog.Fatalf("Error starting health core. err=%q", err)
 	}
 
+	return healthcore
+}
+
+func provisionDataAnalytics(cli cliFlags) (*views.Client, *usage.Client) {
 	views, err := views.NewClient(cli.viewsOpts)
 	if err != nil {
 		glog.Fatalf("Error creating views client. err=%q", err)
 	}
-
-	cli.usageOpts.BigQueryCredentialsJSON = cli.viewsOpts.BigQueryCredentialsJSON
-	cli.usageOpts.Livepeer = cli.viewsOpts.Livepeer
 
 	usage, err := usage.NewClient(cli.usageOpts)
 	if err != nil {
 		glog.Fatalf("Error creating usage client. err=%q", err)
 	}
 
-	glog.Info("Starting server...")
-	err = api.ListenAndServe(ctx, cli.serverOpts, healthcore, views, usage)
-	if err != nil {
-		glog.Fatalf("Error starting api server. err=%q", err)
-	}
+	return views, usage
 }
 
 func contextUntilSignal(parent context.Context, sigs ...os.Signal) context.Context {
