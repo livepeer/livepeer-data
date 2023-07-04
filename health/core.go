@@ -61,9 +61,10 @@ type StreamingOptions struct {
 }
 
 type CoreOptions struct {
-	Streaming        StreamingOptions
-	StartTimeOffset  time.Duration
-	MemoryRecordsTtl time.Duration
+	StreamUri, AMQPUri string
+	Streaming          StreamingOptions
+	StartTimeOffset    time.Duration
+	MemoryRecordsTtl   time.Duration
 }
 
 type Core struct {
@@ -78,13 +79,22 @@ type Core struct {
 	lastEventTs time.Time
 }
 
-func NewCore(opts CoreOptions, consumer event.StreamConsumer, reducer Reducer) *Core {
+func NewCore(opts CoreOptions, reducer Reducer) (*Core, error) {
+	consumer, err := event.NewStreamConsumer(opts.StreamUri, opts.AMQPUri)
+	if err != nil {
+		return nil, err
+	}
+
 	return &Core{
 		opts:     opts,
 		consumer: consumer,
 		reducer:  reducer,
 		storage:  RecordStorage{SizeGauge: recordStorageSize},
-	}
+	}, nil
+}
+
+func (c *Core) Close() error {
+	return c.consumer.Close()
 }
 
 func (c *Core) IsHealthy() bool {
