@@ -19,6 +19,8 @@ type Metric struct {
 
 	// breakdown fields
 
+	CreatorId   data.Nullable[string] `json:"creatorId,omitempty"`
+	ViewerId    data.Nullable[string] `json:"viewerId,omitempty"`
 	PlaybackID  data.Nullable[string] `json:"playbackId,omitempty"`
 	DStorageURL data.Nullable[string] `json:"dStorageUrl,omitempty"`
 
@@ -166,6 +168,8 @@ func viewershipEventsToMetrics(rows []ViewershipEventRow, spec QuerySpec) []Metr
 	metrics := make([]Metric, len(rows))
 	for i, row := range rows {
 		m := Metric{
+			CreatorId:        toStringPtr(row.CreatorId, spec.hasBreakdownBy("creatorId")),
+			ViewerId:         toStringPtr(row.ViewerId, spec.hasBreakdownBy("viewerId")),
 			PlaybackID:       toStringPtr(row.PlaybackID, spec.hasBreakdownBy("playbackId")),
 			DStorageURL:      toStringPtr(row.DStorageURL, spec.hasBreakdownBy("dStorageUrl")),
 			Device:           toStringPtr(row.Device, spec.hasBreakdownBy("device")),

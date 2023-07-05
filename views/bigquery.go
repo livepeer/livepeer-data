@@ -7,6 +7,7 @@ import (
 
 	"cloud.google.com/go/bigquery"
 	"github.com/Masterminds/squirrel"
+	"github.com/golang/glog"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 )
@@ -41,6 +42,7 @@ var viewershipBreakdownFields = map[string]string{
 	"subdivision":   "playback_subdivision_name",
 	"timezone":      "playback_timezone",
 	"viewerId":      "viewer_id",
+	"creatorId":     "creator_id",
 }
 
 var allowedTimeSteps = map[string]bool{
@@ -55,6 +57,8 @@ type ViewershipEventRow struct {
 	TimeInterval time.Time `bigquery:"time_interval"`
 
 	// breakdown fields
+	CreatorId   bigquery.NullString `bigquery:"creator_id"`
+	ViewerId    bigquery.NullString `bigquery:"viewer_id"`
 	PlaybackID  bigquery.NullString `bigquery:"playback_id"`
 	DStorageURL bigquery.NullString `bigquery:"d_storage_url"`
 
@@ -155,7 +159,7 @@ func buildViewsEventsQuery(table string, spec QuerySpec) (string, []interface{},
 			"avg(ttff_ms) as ttff_ms",
 			"avg(rebuffer_ratio) as rebuffer_ratio",
 			"avg(if(error_count > 0, 1, 0)) as error_rate",
-			"avg(if(exit_before_start, 1, 0)) as exits_before_start")
+			"sum(if(exit_before_start, 1.0, 0.0)) as exits_before_start")
 	}
 
 	if creatorId := spec.Filter.CreatorID; creatorId != "" {
@@ -259,9 +263,11 @@ func withPlaybackIdFilter(query squirrel.SelectBuilder, playbackID string) squir
 }
 
 func doBigQuery[RowT any](bq *bigqueryHandler, ctx context.Context, sql string, args []interface{}) ([]RowT, error) {
+
 	query := bq.client.Query(sql)
 	query.Parameters = toBigQueryParameters(args)
 	query.MaxBytesBilled = bq.opts.MaxBytesBilledPerBigQuery
+	glog.V(10).Infof("Running query. sql=%q args=%s", sql, args)
 
 	it, err := query.Read(ctx)
 	if err != nil {
@@ -283,6 +289,7 @@ func toTypedValues[RowT any](it *bigquery.RowIterator) ([]RowT, error) {
 	var values []RowT
 	for {
 		var row RowT
+
 		err := it.Next(&row)
 		if err == iterator.Done {
 			break
