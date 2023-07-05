@@ -14,7 +14,6 @@ import (
 	"github.com/livepeer/livepeer-data/api"
 	"github.com/livepeer/livepeer-data/health"
 	"github.com/livepeer/livepeer-data/health/reducers"
-	"github.com/livepeer/livepeer-data/pkg/event"
 	"github.com/livepeer/livepeer-data/pkg/mistconnector"
 	"github.com/livepeer/livepeer-data/usage"
 	"github.com/livepeer/livepeer-data/views"
@@ -140,6 +139,8 @@ func Run(build BuildFlags) {
 	ctx := contextUntilSignal(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 
 	healthcore := provisionStreamHealthcore(ctx, cli)
+	defer healthcore.Close()
+
 	views, usage := provisionDataAnalytics(cli)
 
 	glog.Info("Starting server...")
@@ -154,22 +155,23 @@ func provisionStreamHealthcore(ctx context.Context, cli cliFlags) *health.Core {
 		return nil
 	}
 
-	streamUri := cli.rabbitmqUri
-	if cli.amqpUri == "" && strings.HasPrefix(streamUri, "amqp") {
-		streamUri, cli.amqpUri = "", streamUri
+	streamUri, amqpUri := cli.rabbitmqUri, cli.amqpUri
+	if amqpUri == "" && strings.HasPrefix(streamUri, "amqp") {
+		streamUri, amqpUri = "", streamUri
 	}
-	consumer, err := event.NewStreamConsumer(streamUri, cli.amqpUri)
-	if err != nil {
-		glog.Fatalf("Error creating stream consumer. err=%q", err)
-	}
-	defer consumer.Close()
 
 	reducer := reducers.Default(cli.golivepeerExchange, cli.shardPrefixes, cli.streamStateExchange)
-	healthcore := health.NewCore(health.CoreOptions{
+	healthcore, err := health.NewCore(health.CoreOptions{
+		StreamUri:        streamUri,
+		AMQPUri:          amqpUri,
 		Streaming:        cli.streamingOpts,
 		StartTimeOffset:  reducers.DefaultStarTimeOffset(),
 		MemoryRecordsTtl: cli.memoryRecordsTtl,
-	}, consumer, reducer)
+	}, reducer)
+	if err != nil {
+		glog.Fatalf("Error creating healthcore err=%q", err)
+	}
+
 	if err := healthcore.Start(ctx); err != nil {
 		glog.Fatalf("Error starting health core. err=%q", err)
 	}
