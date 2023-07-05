@@ -19,8 +19,8 @@ type Metric struct {
 
 	// breakdown fields
 
-	CreatorId   data.Nullable[string] `json:"creatorId,omitempty"`
-	ViewerId    data.Nullable[string] `json:"viewerId,omitempty"`
+	CreatorID   data.Nullable[string] `json:"creatorId,omitempty"`
+	ViewerID    data.Nullable[string] `json:"viewerId,omitempty"`
 	PlaybackID  data.Nullable[string] `json:"playbackId,omitempty"`
 	DStorageURL data.Nullable[string] `json:"dStorageUrl,omitempty"`
 
