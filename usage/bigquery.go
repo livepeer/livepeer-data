@@ -3,6 +3,7 @@ package usage
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"cloud.google.com/go/bigquery"
@@ -28,16 +29,16 @@ var allowedTimeSteps = map[string]bool{
 }
 
 type UsageSummaryRow struct {
-	UserID    string `bigquery:"user_id"`
-	CreatorID string `bigquery:"creator_id"`
-
+	UserID            string  `bigquery:"user_id"`
+	CreatorID         string  `bigquery:"creator_id"`
 	DeliveryUsageMins float64 `bigquery:"delivery_usage_mins"`
-	TotalUsageMins   float64 `bigquery:"transcode_total_usage_mins"`
-	StorageUsageMins float64 `bigquery:"storage_usage_mins"`
+	TotalUsageMins    float64 `bigquery:"transcode_total_usage_mins"`
+	StorageUsageMins  float64 `bigquery:"storage_usage_mins"`
 }
 
 type BigQuery interface {
 	QueryUsageSummary(ctx context.Context, userID string, creatorID string, spec QuerySpec) (*UsageSummaryRow, error)
+	QueryUsersUsage(ctx context.Context, userIDs []string, spec QuerySpec) (*[]UsageSummaryRow, error)
 	QueryUsageSummaryWithTimestep(ctx context.Context, userID string, creatorID string, spec QuerySpec) (*[]UsageSummaryRow, error)
 }
 
@@ -115,6 +116,24 @@ func (bq *bigqueryHandler) QueryUsageSummaryWithTimestep(ctx context.Context, us
 	return &bqRows, nil
 }
 
+func (bq *bigqueryHandler) QueryUsersUsage(ctx context.Context, userIDs []string, spec QuerySpec) (*[]UsageSummaryRow, error) {
+	sql, args, err := buildUsageUsersQuery(bq.opts.HourlyUsageTable, userIDs, spec)
+	if err != nil {
+		return nil, fmt.Errorf("error building usage summary query: %w", err)
+	}
+
+	bqRows, err := doBigQuery[UsageSummaryRow](bq, ctx, sql, args)
+	if err != nil {
+		return nil, fmt.Errorf("bigquery error: %w", err)
+	}
+
+	if len(bqRows) == 0 {
+		return nil, nil
+	}
+
+	return &bqRows, nil
+}
+
 func buildUsageSummaryQuery(table string, userID string, creatorID string, spec QuerySpec) (string, []interface{}, error) {
 	if userID == "" {
 		return "", nil, fmt.Errorf("userID cannot be empty")
@@ -151,6 +170,55 @@ func buildUsageSummaryQuery(table string, userID string, creatorID string, spec 
 	}
 
 	query = withUserIdFilter(query, userID)
+
+	sql, args, err := query.ToSql()
+	if err != nil {
+		return "", nil, err
+	}
+
+	return sql, args, nil
+}
+
+func buildUsageUsersQuery(table string, userIDs []string, spec QuerySpec) (string, []interface{}, error) {
+	if len(userIDs) == 0 {
+		return "", nil, fmt.Errorf("userIDs cannot be empty")
+	}
+
+	placeholders := make([]string, len(userIDs))
+	args := make([]interface{}, len(userIDs))
+
+	for i, userID := range userIDs {
+		placeholders[i] = "?"
+		args[i] = userID
+	}
+
+	query := squirrel.Select(
+		"user_id",
+		"cast(sum(transcode_total_usage_mins) as FLOAT64) as transcode_total_usage_mins",
+		"cast(sum(delivery_usage_mins) as FLOAT64) as delivery_usage_mins",
+		"cast((sum(storage_usage_mins) / count(distinct usage_hour_ts)) as FLOAT64) as storage_usage_mins").
+		From(table).
+		Where(fmt.Sprintf("user_id IN (%s)", strings.Join(placeholders, ",")), args...).
+		GroupBy("user_id").
+		Limit(maxBigQueryResultRows + 1)
+
+	if from := spec.From; from != nil {
+		query = query.Where("usage_hour_ts >= timestamp_millis(?)", from.UnixMilli())
+	}
+	if to := spec.To; to != nil {
+		query = query.Where("usage_hour_ts < timestamp_millis(?)", to.UnixMilli())
+	}
+
+	if timeStep := spec.TimeStep; timeStep != "" {
+		if !allowedTimeSteps[timeStep] {
+			return "", nil, fmt.Errorf("invalid time step: %s", timeStep)
+		}
+
+		query = query.
+			Columns(fmt.Sprintf("timestamp_trunc(usage_hour_ts, %s) as time_interval", timeStep)).
+			GroupBy("time_interval").
+			OrderBy("time_interval")
+	}
 
 	sql, args, err := query.ToSql()
 	if err != nil {

@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -151,6 +152,10 @@ func (h *apiHandler) usageHandler() chi.Router {
 	h.withMetrics(router, "query_usage").
 		With(h.cache(true)).
 		MethodFunc("GET", `/query`, h.queryUsage())
+
+	h.withMetrics(router, "query_users_usage").
+		With(h.cache(true)).
+		MethodFunc("POST", `/query/users`, h.queryUsersUsage())
 
 	return router
 }
@@ -333,6 +338,52 @@ func (h *apiHandler) queryUsage() http.HandlerFunc {
 			respondJson(rw, http.StatusOK, usage)
 		}
 
+	}
+}
+
+func (h *apiHandler) queryUsersUsage() http.HandlerFunc {
+	return func(rw http.ResponseWriter, r *http.Request) {
+		var (
+			from, err1 = parseInputTimestamp(r.URL.Query().Get("from"))
+			to, err2   = parseInputTimestamp(r.URL.Query().Get("to"))
+		)
+		if errs := nonNilErrs(err1, err2); len(errs) > 0 {
+			respondError(rw, http.StatusBadRequest, errs...)
+			return
+		}
+
+		var userIds []string
+		if err := json.NewDecoder(r.Body).Decode(&userIds); err != nil {
+			respondError(rw, http.StatusBadRequest, err)
+			return
+		}
+
+		adminUserId, ok := r.Context().Value(userIdContextKey).(string)
+
+		if !ok {
+			respondError(rw, http.StatusInternalServerError, errors.New("request not authenticated"))
+			return
+		}
+
+		qs := r.URL.Query()
+
+		query := usage.QuerySpec{
+			From:     from,
+			To:       to,
+			TimeStep: qs.Get("timeStep"),
+			Filter: usage.QueryFilter{
+				UserID:    adminUserId,
+				CreatorID: "",
+			},
+		}
+
+		usage, err := h.usage.QueryUsersUsage(r.Context(), userIds, query)
+		if err != nil {
+			respondError(rw, http.StatusInternalServerError, err)
+			return
+		}
+
+		respondJson(rw, http.StatusOK, usage)
 	}
 }
 
