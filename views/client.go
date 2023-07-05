@@ -36,6 +36,7 @@ type Metric struct {
 	Country     data.Nullable[string] `json:"country,omitempty"`
 	Subdivision data.Nullable[string] `json:"subdivision,omitempty"`
 	TimeZone    data.Nullable[string] `json:"timezone,omitempty"`
+	GeoHash     data.Nullable[string] `json:"geohash,omitempty"`
 
 	// metric data
 
@@ -179,6 +180,7 @@ func viewershipEventsToMetrics(rows []ViewershipEventRow, spec QuerySpec) []Metr
 			Country:          toStringPtr(row.Country, spec.hasBreakdownBy("country")),
 			Subdivision:      toStringPtr(row.Subdivision, spec.hasBreakdownBy("subdivision")),
 			TimeZone:         toStringPtr(row.TimeZone, spec.hasBreakdownBy("timezone")),
+			GeoHash:          toStringPtr(row.GeoHash, spec.hasBreakdownBy("geohash")),
 			ViewCount:        row.ViewCount,
 			PlaytimeMins:     row.PlaytimeMins,
 			TtffMs:           toFloat64Ptr(row.TtffMs, spec.Detailed),
