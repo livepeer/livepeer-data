@@ -41,6 +41,7 @@ var viewershipBreakdownFields = map[string]string{
 	"country":       "playback_country_name",
 	"subdivision":   "playback_subdivision_name",
 	"timezone":      "playback_timezone",
+	"geohash":       "playback_geo_hash",
 	"viewerId":      "viewer_id",
 	"creatorId":     "creator_id",
 }
@@ -74,6 +75,7 @@ type ViewershipEventRow struct {
 	Country     bigquery.NullString `bigquery:"playback_country_name"`
 	Subdivision bigquery.NullString `bigquery:"playback_subdivision_name"`
 	TimeZone    bigquery.NullString `bigquery:"playback_timezone"`
+	GeoHash     bigquery.NullString `bigquery:"playback_geo_hash"`
 
 	// metric data
 
