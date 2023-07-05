@@ -57,8 +57,8 @@ type ViewershipEventRow struct {
 	TimeInterval time.Time `bigquery:"time_interval"`
 
 	// breakdown fields
-	CreatorId   bigquery.NullString `bigquery:"creator_id"`
-	ViewerId    bigquery.NullString `bigquery:"viewer_id"`
+	CreatorID   bigquery.NullString `bigquery:"creator_id"`
+	ViewerID    bigquery.NullString `bigquery:"viewer_id"`
 	PlaybackID  bigquery.NullString `bigquery:"playback_id"`
 	DStorageURL bigquery.NullString `bigquery:"d_storage_url"`
 

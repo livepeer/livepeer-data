@@ -168,8 +168,8 @@ func viewershipEventsToMetrics(rows []ViewershipEventRow, spec QuerySpec) []Metr
 	metrics := make([]Metric, len(rows))
 	for i, row := range rows {
 		m := Metric{
-			CreatorId:        toStringPtr(row.CreatorId, spec.hasBreakdownBy("creatorId")),
-			ViewerId:         toStringPtr(row.ViewerId, spec.hasBreakdownBy("viewerId")),
+			CreatorID:        toStringPtr(row.CreatorID, spec.hasBreakdownBy("creatorId")),
+			ViewerID:         toStringPtr(row.ViewerID, spec.hasBreakdownBy("viewerId")),
 			PlaybackID:       toStringPtr(row.PlaybackID, spec.hasBreakdownBy("playbackId")),
 			DStorageURL:      toStringPtr(row.DStorageURL, spec.hasBreakdownBy("dStorageUrl")),
 			Device:           toStringPtr(row.Device, spec.hasBreakdownBy("device")),
