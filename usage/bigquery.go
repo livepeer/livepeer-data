@@ -210,14 +210,7 @@ func buildUsageUsersQuery(table string, userIDs []string, spec QuerySpec) (strin
 	}
 
 	if timeStep := spec.TimeStep; timeStep != "" {
-		if !allowedTimeSteps[timeStep] {
-			return "", nil, fmt.Errorf("invalid time step: %s", timeStep)
-		}
-
-		query = query.
-			Columns(fmt.Sprintf("timestamp_trunc(usage_hour_ts, %s) as time_interval", timeStep)).
-			GroupBy("time_interval").
-			OrderBy("time_interval")
+		return "", nil, fmt.Errorf("time step is not supported for multiple users query")
 	}
 
 	sql, args, err := query.ToSql()
