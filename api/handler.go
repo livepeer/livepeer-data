@@ -202,7 +202,7 @@ func (h *apiHandler) cors() middleware {
 
 func (h *apiHandler) healthcheck(rw http.ResponseWriter, r *http.Request) {
 	status := http.StatusOK
-	if !h.core.IsHealthy() {
+	if h.core != nil && !h.core.IsHealthy() {
 		status = http.StatusServiceUnavailable
 	}
 	rw.WriteHeader(status)
