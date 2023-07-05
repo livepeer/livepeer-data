@@ -16,7 +16,7 @@ func ToNullable[T any](val T, valid, asked bool) Nullable[T] {
 		return nil
 	}
 
-	if valid {
+	if !valid {
 		var null *T
 		return &null
 	}
