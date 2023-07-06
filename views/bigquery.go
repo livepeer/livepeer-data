@@ -180,9 +180,13 @@ func buildViewsEventsQuery(table string, spec QuerySpec) (string, []interface{},
 			OrderBy("time_interval")
 	}
 
-	if from := spec.From; from != nil {
-		query = query.Where("time >= timestamp_millis(?)", from.UnixMilli())
+	from := spec.From
+	if from == nil {
+		defaultFrom := time.Now().AddDate(0, 0, -7)
+		from = &defaultFrom
 	}
+	query = query.Where("time >= timestamp_millis(?)", from.UnixMilli())
+
 	if to := spec.To; to != nil {
 		query = query.Where("time < timestamp_millis(?)", to.UnixMilli())
 	}
