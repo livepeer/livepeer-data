@@ -218,9 +218,13 @@ func (h *apiHandler) queryTotalViewership(rw http.ResponseWriter, r *http.Reques
 	}
 
 	if metric == nil {
-		metric = &views.Metric{PlaybackID: playbackID}
+		metric = &views.Metric{
+			PlaybackID: data.ToNullable[string](playbackID, true, true),
+		}
 		if dStorageURL := views.ToDStorageURL(playbackID); dStorageURL != "" {
-			metric = &views.Metric{DStorageURL: dStorageURL}
+			metric = &views.Metric{
+				DStorageURL: data.ToNullable[string](dStorageURL, true, true),
+			}
 		}
 	}
 

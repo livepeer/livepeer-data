@@ -7,6 +7,7 @@ import (
 
 	"cloud.google.com/go/bigquery"
 	"github.com/Masterminds/squirrel"
+	"github.com/golang/glog"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 )
@@ -28,6 +29,8 @@ type QuerySpec struct {
 }
 
 var viewershipBreakdownFields = map[string]string{
+	"playbackId":    "playback_id",
+	"dStorageUrl":   "d_storage_url",
 	"deviceType":    "device_type",
 	"device":        "device",
 	"cpu":           "cpu",
@@ -38,7 +41,9 @@ var viewershipBreakdownFields = map[string]string{
 	"country":       "playback_country_name",
 	"subdivision":   "playback_subdivision_name",
 	"timezone":      "playback_timezone",
+	"geohash":       "playback_geo_hash",
 	"viewerId":      "viewer_id",
+	"creatorId":     "creator_id",
 }
 
 var allowedTimeSteps = map[string]bool{
@@ -51,10 +56,12 @@ var allowedTimeSteps = map[string]bool{
 
 type ViewershipEventRow struct {
 	TimeInterval time.Time `bigquery:"time_interval"`
-	PlaybackID   string    `bigquery:"playback_id"`
-	DStorageURL  string    `bigquery:"d_storage_url"`
 
 	// breakdown fields
+	CreatorID   bigquery.NullString `bigquery:"creator_id"`
+	ViewerID    bigquery.NullString `bigquery:"viewer_id"`
+	PlaybackID  bigquery.NullString `bigquery:"playback_id"`
+	DStorageURL bigquery.NullString `bigquery:"d_storage_url"`
 
 	DeviceType bigquery.NullString `bigquery:"device_type"`
 	Device     bigquery.NullString `bigquery:"device"`
@@ -68,20 +75,21 @@ type ViewershipEventRow struct {
 	Country     bigquery.NullString `bigquery:"playback_country_name"`
 	Subdivision bigquery.NullString `bigquery:"playback_subdivision_name"`
 	TimeZone    bigquery.NullString `bigquery:"playback_timezone"`
+	GeoHash     bigquery.NullString `bigquery:"playback_geo_hash"`
 
 	// metric data
 
-	ViewCount         int64                `bigquery:"view_count"`
-	PlaytimeMins      float64              `bigquery:"playtime_mins"`
-	TtffMs            bigquery.NullFloat64 `bigquery:"ttff_ms"`
-	RebufferRatio     bigquery.NullFloat64 `bigquery:"rebuffer_ratio"`
-	ErrorRate         bigquery.NullFloat64 `bigquery:"error_rate"`
-	ExistsBeforeStart bigquery.NullFloat64 `bigquery:"exits_before_start"`
+	ViewCount        int64                `bigquery:"view_count"`
+	PlaytimeMins     float64              `bigquery:"playtime_mins"`
+	TtffMs           bigquery.NullFloat64 `bigquery:"ttff_ms"`
+	RebufferRatio    bigquery.NullFloat64 `bigquery:"rebuffer_ratio"`
+	ErrorRate        bigquery.NullFloat64 `bigquery:"error_rate"`
+	ExitsBeforeStart bigquery.NullFloat64 `bigquery:"exits_before_start"`
 }
 
 type ViewSummaryRow struct {
-	PlaybackID  string `bigquery:"playback_id"`
-	DStorageURL string `bigquery:"d_storage_url"`
+	PlaybackID  bigquery.NullString `bigquery:"playback_id"`
+	DStorageURL bigquery.NullString `bigquery:"d_storage_url"`
 
 	ViewCount       int64              `bigquery:"view_count"`
 	LegacyViewCount bigquery.NullInt64 `bigquery:"legacy_view_count"`
@@ -153,7 +161,7 @@ func buildViewsEventsQuery(table string, spec QuerySpec) (string, []interface{},
 			"avg(ttff_ms) as ttff_ms",
 			"avg(rebuffer_ratio) as rebuffer_ratio",
 			"avg(if(error_count > 0, 1, 0)) as error_rate",
-			"avg(if(exit_before_start, 1, 0)) as exits_before_start")
+			"sum(if(exit_before_start, 1.0, 0.0)) as exits_before_start")
 	}
 
 	if creatorId := spec.Filter.CreatorID; creatorId != "" {
@@ -241,8 +249,10 @@ func buildViewsSummaryQuery(table string, playbackID string) (string, []interfac
 
 func withPlaybackIdFilter(query squirrel.SelectBuilder, playbackID string) squirrel.SelectBuilder {
 	if playbackID == "" {
-		query = query.Column("playback_id").GroupBy("playback_id")
-	} else if dStorageURL := ToDStorageURL(playbackID); dStorageURL != "" {
+		return query
+	}
+
+	if dStorageURL := ToDStorageURL(playbackID); dStorageURL != "" {
 		query = query.Columns("d_storage_url").
 			Where("d_storage_url = ?", dStorageURL).
 			GroupBy("d_storage_url")
@@ -255,9 +265,11 @@ func withPlaybackIdFilter(query squirrel.SelectBuilder, playbackID string) squir
 }
 
 func doBigQuery[RowT any](bq *bigqueryHandler, ctx context.Context, sql string, args []interface{}) ([]RowT, error) {
+
 	query := bq.client.Query(sql)
 	query.Parameters = toBigQueryParameters(args)
 	query.MaxBytesBilled = bq.opts.MaxBytesBilledPerBigQuery
+	glog.V(10).Infof("Running query. sql=%q args=%s", sql, args)
 
 	it, err := query.Read(ctx)
 	if err != nil {
@@ -279,6 +291,7 @@ func toTypedValues[RowT any](it *bigquery.RowIterator) ([]RowT, error) {
 	var values []RowT
 	for {
 		var row RowT
+
 		err := it.Next(&row)
 		if err == iterator.Done {
 			break

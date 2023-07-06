@@ -4,46 +4,52 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"cloud.google.com/go/bigquery"
 	livepeer "github.com/livepeer/go-api-client"
+	"github.com/livepeer/livepeer-data/pkg/data"
 	promClient "github.com/prometheus/client_golang/api"
 )
 
 var ErrAssetNotFound = errors.New("asset not found")
 
 type Metric struct {
-	PlaybackID  string `json:"playbackId,omitempty"`
-	DStorageURL string `json:"dStorageUrl,omitempty"`
-	Timestamp   *int64 `json:"timestamp,omitempty"`
+	Timestamp *int64 `json:"timestamp,omitempty"`
 
 	// breakdown fields
 
-	Device     *string `json:"device,omitempty"`
-	DeviceType *string `json:"deviceType,omitempty"`
-	CPU        *string `json:"cpu,omitempty"`
+	CreatorID   data.Nullable[string] `json:"creatorId,omitempty"`
+	ViewerID    data.Nullable[string] `json:"viewerId,omitempty"`
+	PlaybackID  data.Nullable[string] `json:"playbackId,omitempty"`
+	DStorageURL data.Nullable[string] `json:"dStorageUrl,omitempty"`
 
-	OS            *string `json:"os,omitempty"`
-	Browser       *string `json:"browser,omitempty"`
-	BrowserEngine *string `json:"browserEngine,omitempty"`
+	Device     data.Nullable[string] `json:"device,omitempty"`
+	DeviceType data.Nullable[string] `json:"deviceType,omitempty"`
+	CPU        data.Nullable[string] `json:"cpu,omitempty"`
 
-	Continent   *string `json:"continent,omitempty"`
-	Country     *string `json:"country,omitempty"`
-	Subdivision *string `json:"subdivision,omitempty"`
-	TimeZone    *string `json:"timezone,omitempty"`
+	OS            data.Nullable[string] `json:"os,omitempty"`
+	Browser       data.Nullable[string] `json:"browser,omitempty"`
+	BrowserEngine data.Nullable[string] `json:"browserEngine,omitempty"`
+
+	Continent   data.Nullable[string] `json:"continent,omitempty"`
+	Country     data.Nullable[string] `json:"country,omitempty"`
+	Subdivision data.Nullable[string] `json:"subdivision,omitempty"`
+	TimeZone    data.Nullable[string] `json:"timezone,omitempty"`
+	GeoHash     data.Nullable[string] `json:"geohash,omitempty"`
 
 	// metric data
 
-	ViewCount         int64    `json:"viewCount"`
-	PlaytimeMins      float64  `json:"playtimeMins"`
-	TtffMs            *float64 `json:"ttffMs,omitempty"`
-	RebufferRatio     *float64 `json:"rebufferRatio,omitempty"`
-	ErrorRate         *float64 `json:"errorRate,omitempty"`
-	ExistsBeforeStart *float64 `json:"existsBeforeStart,omitempty"`
+	ViewCount        int64                  `json:"viewCount"`
+	PlaytimeMins     float64                `json:"playtimeMins"`
+	TtffMs           data.Nullable[float64] `json:"ttffMs,omitempty"`
+	RebufferRatio    data.Nullable[float64] `json:"rebufferRatio,omitempty"`
+	ErrorRate        data.Nullable[float64] `json:"errorRate,omitempty"`
+	ExitsBeforeStart data.Nullable[float64] `json:"exitsBeforeStart,omitempty"`
 	// Present only on the summary queries. These were imported from the
 	// prometheus data we had on the first version of this API and are not
 	// shown in the detailed metrics queries (non-/total).
-	LegacyViewCount *int64 `json:"legacyViewCount,omitempty"`
+	LegacyViewCount data.Nullable[int64] `json:"legacyViewCount,omitempty"`
 }
 
 type ClientOptions struct {
@@ -110,11 +116,18 @@ func viewershipSummaryToMetric(playbackID string, summary *ViewSummaryRow) *Metr
 		return nil
 	}
 
+	// We never want to return `null` for the legacy view count, so we don't use
+	// the regular nullable creation.
+	legacyViewCount := int64(0)
+	if summary.LegacyViewCount.Valid {
+		legacyViewCount = summary.LegacyViewCount.Int64
+	}
+
 	return &Metric{
-		PlaybackID:      summary.PlaybackID,
-		DStorageURL:     summary.DStorageURL,
+		PlaybackID:      toStringPtr(summary.PlaybackID, summary.PlaybackID.Valid),
+		DStorageURL:     toStringPtr(summary.DStorageURL, summary.DStorageURL.Valid),
 		ViewCount:       summary.ViewCount,
-		LegacyViewCount: toInt64Ptr(summary.LegacyViewCount),
+		LegacyViewCount: data.ToNullable[int64](legacyViewCount, true, true),
 		PlaytimeMins:    summary.PlaytimeMins,
 	}
 }
@@ -148,29 +161,32 @@ func (c *Client) QueryEvents(ctx context.Context, spec QuerySpec, assetID, strea
 		return nil, err
 	}
 
-	metrics := viewershipEventsToMetrics(rows)
+	metrics := viewershipEventsToMetrics(rows, spec)
 	return metrics, nil
 }
 
-func viewershipEventsToMetrics(rows []ViewershipEventRow) []Metric {
+func viewershipEventsToMetrics(rows []ViewershipEventRow, spec QuerySpec) []Metric {
 	metrics := make([]Metric, len(rows))
 	for i, row := range rows {
 		m := Metric{
-			PlaybackID:        row.PlaybackID,
-			DStorageURL:       row.DStorageURL,
-			Device:            toStringPtr(row.Device),
-			OS:                toStringPtr(row.OS),
-			Browser:           toStringPtr(row.Browser),
-			Continent:         toStringPtr(row.Continent),
-			Country:           toStringPtr(row.Country),
-			Subdivision:       toStringPtr(row.Subdivision),
-			TimeZone:          toStringPtr(row.TimeZone),
-			ViewCount:         row.ViewCount,
-			PlaytimeMins:      row.PlaytimeMins,
-			TtffMs:            toFloat64Ptr(row.TtffMs),
-			RebufferRatio:     toFloat64Ptr(row.RebufferRatio),
-			ErrorRate:         toFloat64Ptr(row.ErrorRate),
-			ExistsBeforeStart: toFloat64Ptr(row.ExistsBeforeStart),
+			CreatorID:        toStringPtr(row.CreatorID, spec.hasBreakdownBy("creatorId")),
+			ViewerID:         toStringPtr(row.ViewerID, spec.hasBreakdownBy("viewerId")),
+			PlaybackID:       toStringPtr(row.PlaybackID, spec.hasBreakdownBy("playbackId")),
+			DStorageURL:      toStringPtr(row.DStorageURL, spec.hasBreakdownBy("dStorageUrl")),
+			Device:           toStringPtr(row.Device, spec.hasBreakdownBy("device")),
+			OS:               toStringPtr(row.OS, spec.hasBreakdownBy("os")),
+			Browser:          toStringPtr(row.Browser, spec.hasBreakdownBy("browser")),
+			Continent:        toStringPtr(row.Continent, spec.hasBreakdownBy("continent")),
+			Country:          toStringPtr(row.Country, spec.hasBreakdownBy("country")),
+			Subdivision:      toStringPtr(row.Subdivision, spec.hasBreakdownBy("subdivision")),
+			TimeZone:         toStringPtr(row.TimeZone, spec.hasBreakdownBy("timezone")),
+			GeoHash:          toStringPtr(row.GeoHash, spec.hasBreakdownBy("geohash")),
+			ViewCount:        row.ViewCount,
+			PlaytimeMins:     row.PlaytimeMins,
+			TtffMs:           toFloat64Ptr(row.TtffMs, spec.Detailed),
+			RebufferRatio:    toFloat64Ptr(row.RebufferRatio, spec.Detailed),
+			ErrorRate:        toFloat64Ptr(row.ErrorRate, spec.Detailed),
+			ExitsBeforeStart: toFloat64Ptr(row.ExitsBeforeStart, spec.Detailed),
 		}
 
 		if !row.TimeInterval.IsZero() {
@@ -183,26 +199,24 @@ func viewershipEventsToMetrics(rows []ViewershipEventRow) []Metric {
 	return metrics
 }
 
-func toInt64Ptr(bqFloat bigquery.NullInt64) *int64 {
-	if bqFloat.Valid {
-		i := bqFloat.Int64
-		return &i
-	}
-	return nil
+func toFloat64Ptr(bqFloat bigquery.NullFloat64, asked bool) data.Nullable[float64] {
+	return data.ToNullable(bqFloat.Float64, bqFloat.Valid, asked)
 }
 
-func toFloat64Ptr(bqFloat bigquery.NullFloat64) *float64 {
-	if bqFloat.Valid {
-		f := bqFloat.Float64
-		return &f
-	}
-	return nil
+func toStringPtr(bqStr bigquery.NullString, asked bool) data.Nullable[string] {
+	return data.ToNullable(bqStr.StringVal, bqStr.Valid, asked)
 }
 
-func toStringPtr(bqFloat bigquery.NullString) *string {
-	if bqFloat.Valid {
-		f := bqFloat.StringVal
-		return &f
+func (q *QuerySpec) hasBreakdownBy(e string) bool {
+	// callers always set `e` as a string literal so we can panic if it's not valid
+	if viewershipBreakdownFields[e] == "" {
+		panic(fmt.Sprintf("unknown breakdown field %q", e))
 	}
-	return nil
+
+	for _, a := range q.BreakdownBy {
+		if strings.EqualFold(a, e) {
+			return true
+		}
+	}
+	return false
 }
