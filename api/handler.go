@@ -301,9 +301,14 @@ func (h *apiHandler) queryUsage() http.HandlerFunc {
 		}
 
 		userId, ok := r.Context().Value(userIdContextKey).(string)
+
 		if !ok {
 			respondError(rw, http.StatusInternalServerError, errors.New("request not authenticated"))
 			return
+		}
+
+		if qs := r.URL.Query(); qs.Get("userId") != "" {
+			userId = qs.Get("userId")
 		}
 
 		qs := r.URL.Query()
