@@ -3,6 +3,7 @@ package views
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"cloud.google.com/go/bigquery"
@@ -139,7 +140,11 @@ func (bq *bigqueryHandler) QueryViewsEvents(ctx context.Context, spec QuerySpec)
 
 	bqRows, err := doBigQuery[ViewershipEventRow](bq, ctx, sql, args)
 	if err != nil {
-		return nil, fmt.Errorf("bigquery error: %w", err)
+		if strings.Contains(err.Error(), "bytesBilledLimitExceeded") {
+			return nil, fmt.Errorf("result exceeded maximum bytes allowed. consider decreasing your timeframe or increasing the time step")
+		} else {
+			return nil, fmt.Errorf("bigquery error: %w", err)
+		}
 	} else if len(bqRows) > maxBigQueryResultRows {
 		return nil, fmt.Errorf("query must return less than %d datapoints. consider decreasing your timeframe or increasing the time step", maxBigQueryResultRows)
 	}
