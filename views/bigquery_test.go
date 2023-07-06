@@ -24,7 +24,7 @@ func TestCallsBigQueryClient(t *testing.T) {
 	require.ErrorContains(err, "dry-run")
 
 	require.Equal("SELECT countif(play_intent) as view_count, sum(playtime_ms) / 60000.0 as playtime_mins "+
-		"FROM bq_events WHERE account_id = ? LIMIT 10001", receivedQuery)
+		"FROM bq_events WHERE account_id = ? AND time >= timestamp_millis(?) AND time < timestamp_millis(?) LIMIT 10001", receivedQuery)
 }
 
 func TestBuildViewsEventsQuery(t *testing.T) {
