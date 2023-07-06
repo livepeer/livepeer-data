@@ -181,15 +181,17 @@ func buildViewsEventsQuery(table string, spec QuerySpec) (string, []interface{},
 	}
 
 	from := spec.From
+	to := spec.To
+	if to == nil {
+		defaultTo := time.Now()
+		to = &defaultTo
+	}
 	if from == nil {
-		defaultFrom := time.Now().AddDate(0, 0, -7)
+		defaultFrom := to.AddDate(0, 0, -7)
 		from = &defaultFrom
 	}
 	query = query.Where("time >= timestamp_millis(?)", from.UnixMilli())
-
-	if to := spec.To; to != nil {
-		query = query.Where("time < timestamp_millis(?)", to.UnixMilli())
-	}
+	query = query.Where("time < timestamp_millis(?)", to.UnixMilli())
 
 	for _, by := range spec.BreakdownBy {
 		field, ok := viewershipBreakdownFields[by]
