@@ -203,6 +203,10 @@ func buildViewsEventsQuery(table string, spec QuerySpec) (string, []interface{},
 		if !ok {
 			return "", nil, fmt.Errorf("invalid breakdown field: %s", by)
 		}
+		// skip breakdowns that are already in the query
+		if strings.Contains(query.Columns().ToSql().Sql, field) {
+			continue
+		}
 		query = query.Columns(field).GroupBy(field)
 	}
 
