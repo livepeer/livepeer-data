@@ -140,6 +140,9 @@ func (c *Client) QueryEvents(ctx context.Context, spec QuerySpec, assetID, strea
 		asset, err = c.lp.GetAsset(assetID, false)
 		if asset != nil {
 			spec.Filter.PlaybackID = asset.PlaybackID
+			if spec.Filter.UserID != asset.UserID {
+				return nil, fmt.Errorf("error getting asset: verify that asset exists and you are using proper credentials")
+			}
 		}
 	} else if streamID != "" {
 		var stream *livepeer.Stream
@@ -147,6 +150,9 @@ func (c *Client) QueryEvents(ctx context.Context, spec QuerySpec, assetID, strea
 		stream, err = c.lp.GetStream(streamID, false)
 		if stream != nil {
 			spec.Filter.PlaybackID = stream.PlaybackID
+			if spec.Filter.UserID != stream.UserID {
+				return nil, fmt.Errorf("error getting asset: verify that asset exists and you are using proper credentials")
+			}
 		}
 	}
 
