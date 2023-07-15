@@ -197,6 +197,11 @@ func buildViewsEventsQuery(table string, spec QuerySpec) (string, []interface{},
 		if !ok {
 			return "", nil, fmt.Errorf("invalid breakdown field: %s", by)
 		}
+		// skip breakdowns that are already in the query
+		// only happens when playbackId or dStorageUrl is specified
+		if sql, _, _ := query.ToSql(); strings.Contains(sql, field) {
+			continue
+		}
 		query = query.Columns(field).GroupBy(field)
 	}
 
