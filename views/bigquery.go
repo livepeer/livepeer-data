@@ -185,23 +185,22 @@ func buildViewsEventsQuery(table string, spec QuerySpec) (string, []interface{},
 			OrderBy("time_interval")
 	}
 
-	from := spec.From
-	to := spec.To
-	if to == nil {
-		defaultTo := time.Now()
-		to = &defaultTo
+	if from := spec.From; from != nil {
+		query = query.Where("time >= timestamp_millis(?)", from.UnixMilli())
 	}
-	if from == nil {
-		defaultFrom := to.AddDate(0, 0, -7)
-		from = &defaultFrom
+	if to := spec.To; to != nil {
+		query = query.Where("time < timestamp_millis(?)", to.UnixMilli())
 	}
-	query = query.Where("time >= timestamp_millis(?)", from.UnixMilli())
-	query = query.Where("time < timestamp_millis(?)", to.UnixMilli())
 
 	for _, by := range spec.BreakdownBy {
 		field, ok := viewershipBreakdownFields[by]
 		if !ok {
 			return "", nil, fmt.Errorf("invalid breakdown field: %s", by)
+		}
+		// skip breakdowns that are already in the query
+		// only happens when playbackId or dStorageUrl is specified
+		if sql, _, _ := query.ToSql(); strings.Contains(sql, field) {
+			continue
 		}
 		query = query.Columns(field).GroupBy(field)
 	}
