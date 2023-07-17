@@ -151,7 +151,7 @@ func (c *Client) QueryEvents(ctx context.Context, spec QuerySpec, assetID, strea
 		if stream != nil {
 			spec.Filter.PlaybackID = stream.PlaybackID
 			if spec.Filter.UserID != stream.UserID {
-				return nil, fmt.Errorf("error getting asset: verify that asset exists and you are using proper credentials")
+				return nil, fmt.Errorf("error getting stream: verify that stream exists and you are using proper credentials")
 			}
 		}
 	}
