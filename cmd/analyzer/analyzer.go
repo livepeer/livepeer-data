@@ -31,6 +31,7 @@ type cliFlags struct {
 	// stream health
 
 	enableStreamHealth bool
+	disableBigQuery    bool
 	rabbitmqUri        string
 	amqpUri            string
 
@@ -56,6 +57,7 @@ func parseFlags(version string) cliFlags {
 	fs.BoolVar(&cli.mistJson, "j", false, "Print application info as json")
 
 	fs.BoolVar(&cli.enableStreamHealth, "enable-stream-health", true, "Whether to enable the stream health services and API")
+	fs.BoolVar(&cli.disableBigQuery, "disable-bigquery", false, "Whether to disable the BigQuery-based views and usage APIs")
 	fs.StringVar(&cli.rabbitmqUri, "rabbitmq-uri", "amqp://guest:guest@localhost:5672/livepeer", "URI for RabbitMQ server to consume from. Can be specified as a default AMQP URI which will be converted to stream protocol.")
 	fs.StringVar(&cli.amqpUri, "amqp-uri", "", "Explicit AMQP URI in case of non-default protocols/ports (optional). Must point to the same cluster as rabbitmqUri")
 
@@ -180,6 +182,9 @@ func provisionStreamHealthcore(ctx context.Context, cli cliFlags) *health.Core {
 }
 
 func provisionDataAnalytics(cli cliFlags) (*views.Client, *usage.Client) {
+	if cli.disableBigQuery {
+		return nil, nil
+	}
 	views, err := views.NewClient(cli.viewsOpts)
 	if err != nil {
 		glog.Fatalf("Error creating views client. err=%q", err)
