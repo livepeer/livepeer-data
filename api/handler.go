@@ -110,10 +110,20 @@ func (h *apiHandler) streamHealthHandler() chi.Router {
 	return router
 }
 
+func notImplemented() http.Handler {
+	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		respondError(rw, http.StatusNotImplemented, errors.New("bigquery is unavailable"))
+	})
+}
+
 func (h *apiHandler) viewershipHandler() chi.Router {
 	opts := h.opts
 
 	router := chi.NewRouter()
+	if h.views == nil {
+		router.Handle("/*", notImplemented())
+		return router
+	}
 	if opts.AuthURL != "" {
 		router.Use(authorization(opts.AuthURL))
 	}
@@ -144,6 +154,10 @@ func (h *apiHandler) usageHandler() chi.Router {
 	opts := h.opts
 
 	router := chi.NewRouter()
+	if h.usage == nil {
+		router.Handle("/*", notImplemented())
+		return router
+	}
 	if opts.AuthURL != "" {
 		router.Use(authorization(opts.AuthURL))
 	}
