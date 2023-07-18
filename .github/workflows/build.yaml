@@ -100,6 +100,7 @@ jobs:
           path: releases/
 
   upload:
+    if: ${{ github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository }}
     name: Upload artifacts to google bucket
     permissions:
       contents: "read"
