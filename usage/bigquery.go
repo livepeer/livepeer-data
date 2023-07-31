@@ -32,8 +32,8 @@ type UsageSummaryRow struct {
 	CreatorID string `bigquery:"creator_id"`
 
 	DeliveryUsageMins float64 `bigquery:"delivery_usage_mins"`
-	TotalUsageMins   float64 `bigquery:"transcode_total_usage_mins"`
-	StorageUsageMins float64 `bigquery:"storage_usage_mins"`
+	TotalUsageMins    float64 `bigquery:"transcode_total_usage_mins"`
+	StorageUsageMins  float64 `bigquery:"storage_usage_mins"`
 }
 
 type BigQuery interface {
@@ -86,7 +86,13 @@ func (bq *bigqueryHandler) QueryUsageSummary(ctx context.Context, userID string,
 	}
 
 	if len(bqRows) == 0 {
-		return nil, nil
+		return &UsageSummaryRow{
+			UserID:            userID,
+			CreatorID:         creatorID,
+			DeliveryUsageMins: 0,
+			TotalUsageMins:    0,
+			StorageUsageMins:  0,
+		}, nil
 	}
 	return &bqRows[0], nil
 }
