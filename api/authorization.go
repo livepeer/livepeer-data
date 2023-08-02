@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/golang/glog"
@@ -37,7 +38,8 @@ var (
 		Transport: promhttp.InstrumentRoundTripperDuration(authRequestDuration, http.DefaultTransport),
 	}
 
-	userIdContextKey = &struct{}{}
+	userIdContextKey        = &struct{}{}
+	isCallerAdminContextKey = &struct{}{}
 )
 
 func authorization(authUrl string) middleware {
@@ -85,6 +87,16 @@ func authorization(authUrl string) middleware {
 
 		if userID := authRes.Header.Get("X-Livepeer-User-Id"); userID != "" {
 			ctx := context.WithValue(r.Context(), userIdContextKey, userID)
+			r = r.WithContext(ctx)
+		}
+
+		if isCallerAdmin := authRes.Header.Get("X-Livepeer-Is-Caller-Admin"); isCallerAdmin != "" {
+			isAdmin, err := strconv.ParseBool(isCallerAdmin)
+			if err != nil {
+				respondError(rw, http.StatusInternalServerError, fmt.Errorf("error parsing isCallerAdmin header: %w", err))
+				return
+			}
+			ctx := context.WithValue(r.Context(), isCallerAdminContextKey, isAdmin)
 			r = r.WithContext(ctx)
 		}
 
