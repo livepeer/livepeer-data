@@ -46,12 +46,25 @@ func (t MultistreamReducer) Reduce(current *data.HealthStatus, _ interface{}, ev
 
 	multistream := current.MultistreamCopy()
 	multistream, idx := findOrCreateMultistreamStatus(multistream, target)
-	if status := connectedStatusFromEvent(evt); status != nil {
-		currConnected := multistream[idx].Connected
+	currConnected := multistream[idx].Connected
+
+	switch evt.Event {
+	case "multistream.connected":
+		status := true
 		multistream[idx] = &data.MultistreamStatus{
 			Target:    target,
-			Connected: data.NewCondition("", ts, status, currConnected),
+			Connected: data.NewCondition("", ts, &status, currConnected),
 		}
+	case "multistream.error":
+		status := false
+		multistream[idx] = &data.MultistreamStatus{
+			Target:    target,
+			Connected: data.NewCondition("", ts, &status, currConnected),
+		}
+	case "multistream.disconnected":
+		multistream = append(multistream[:idx], multistream[idx+1:]...)
+	default:
+		glog.Errorf("Unknown multistream webhook event. event=%q", evt.Event)
 	}
 
 	conditions := current.ConditionsCopy()
@@ -75,20 +88,6 @@ func allTargetsConnected(multistream []*data.MultistreamStatus) bool {
 		}
 	}
 	return true
-}
-
-func connectedStatusFromEvent(evt *data.WebhookEvent) *bool {
-	var connected bool
-	switch evt.Event {
-	case "multistream.connected":
-		connected = true
-	case "multistream.disconnected", "multistream.error":
-		connected = false
-	default:
-		glog.Errorf("Unknown multistream webhook event. event=%q", evt.Event)
-		return nil
-	}
-	return &connected
 }
 
 func findOrCreateMultistreamStatus(multistream []*data.MultistreamStatus, target data.MultistreamTargetInfo) ([]*data.MultistreamStatus, int) {
