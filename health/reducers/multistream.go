@@ -70,8 +70,12 @@ func (t MultistreamReducer) Reduce(current *data.HealthStatus, _ interface{}, ev
 	conditions := current.ConditionsCopy()
 	for i, cond := range conditions {
 		if cond.Type == ConditionMultistreaming {
-			status := allTargetsConnected(multistream)
-			conditions[i] = data.NewCondition(cond.Type, ts, &status, cond)
+			if len(multistream) == 0 {
+				conditions[i] = &data.Condition{Type: ConditionMultistreaming}
+			} else {
+				status := allTargetsConnected(multistream)
+				conditions[i] = data.NewCondition(cond.Type, ts, &status, cond)
+			}
 		}
 	}
 
