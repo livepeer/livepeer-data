@@ -325,7 +325,7 @@ func (h *apiHandler) queryUsage() http.HandlerFunc {
 
 		if qs := r.URL.Query(); qs.Has("userId") {
 			if !ok {
-				respondError(rw, http.StatusInternalServerError, errors.New("request not authenticated"))
+				respondError(rw, http.StatusInternalServerError, errors.New("request not authenticated - cannot retrieve usage for other users"))
 				return
 			}
 			if !isCallerAdmin {
