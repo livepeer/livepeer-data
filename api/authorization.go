@@ -37,8 +37,8 @@ var (
 		Transport: promhttp.InstrumentRoundTripperDuration(authRequestDuration, http.DefaultTransport),
 	}
 
-	userIdContextKey        = "userId"
-	isCallerAdminContextKey = "isCallerAdmin"
+	userIdContextKey        = &struct{}{}
+	isCallerAdminContextKey = &struct{}{}
 )
 
 func authorization(authUrl string) middleware {
