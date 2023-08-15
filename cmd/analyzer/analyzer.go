@@ -14,6 +14,7 @@ import (
 	"github.com/livepeer/livepeer-data/api"
 	"github.com/livepeer/livepeer-data/health"
 	"github.com/livepeer/livepeer-data/health/reducers"
+	"github.com/livepeer/livepeer-data/metrics"
 	"github.com/livepeer/livepeer-data/pkg/mistconnector"
 	"github.com/livepeer/livepeer-data/usage"
 	"github.com/livepeer/livepeer-data/views"
@@ -136,6 +137,8 @@ func parseFlags(version string) cliFlags {
 func Run(build BuildFlags) {
 	cli := parseFlags(build.Version)
 	cli.serverOpts.APIHandlerOptions.ServerName = "analyzer/" + build.Version
+
+	metrics.Version.WithLabelValues("analyzer", build.Version).Inc()
 
 	glog.Infof("Stream health care system starting up... version=%q", build.Version)
 	ctx := contextUntilSignal(context.Background(), syscall.SIGINT, syscall.SIGTERM)
