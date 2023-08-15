@@ -86,7 +86,8 @@ func authorization(authUrl string) middleware {
 		}
 
 		if userID := authRes.Header.Get("X-Livepeer-User-Id"); userID != "" {
-			ctx = context.WithValue(ctx, userIdContextKey, userID)
+			ctx := context.WithValue(r.Context(), userIdContextKey, userID)
+			r = r.WithContext(ctx)
 		}
 
 		if isCallerAdmin := authRes.Header.Get("X-Livepeer-Is-Caller-Admin"); isCallerAdmin != "" {
@@ -95,10 +96,9 @@ func authorization(authUrl string) middleware {
 				respondError(rw, http.StatusInternalServerError, fmt.Errorf("error parsing isCallerAdmin header: %w", err))
 				return
 			}
-			ctx = context.WithValue(ctx, isCallerAdminContextKey, isAdmin)
+			ctx := context.WithValue(r.Context(), isCallerAdminContextKey, isAdmin)
+			r = r.WithContext(ctx)
 		}
-
-		r = r.WithContext(ctx)
 
 		next.ServeHTTP(rw, r)
 	})

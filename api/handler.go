@@ -321,14 +321,14 @@ func (h *apiHandler) queryUsage() http.HandlerFunc {
 			return
 		}
 
-		isCallerAdmin, ok := r.Context().Value(isCallerAdminContextKey).(bool)
+		isCallerAdmin, ok := r.Context().Value(isCallerAdminContextKey).(string)
 
 		if qs := r.URL.Query(); qs.Has("userId") {
 			if !ok {
 				respondError(rw, http.StatusInternalServerError, errors.New("request not authenticated - cannot retrieve usage for other users"))
 				return
 			}
-			if !isCallerAdmin {
+			if isCallerAdmin != "true" {
 				respondError(rw, http.StatusForbidden, errors.New("only admins can query usage for other users"))
 				return
 			}
