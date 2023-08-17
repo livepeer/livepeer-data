@@ -37,8 +37,13 @@ var (
 		Transport: promhttp.InstrumentRoundTripperDuration(authRequestDuration, http.DefaultTransport),
 	}
 
-	userIdContextKey = &struct{}{}
+	userIdContextKey        = &contextKeys{"userId"}
+	isCallerAdminContextKey = &contextKeys{"isCallerAdmin"}
 )
+
+type contextKeys struct {
+	str string
+}
 
 func authorization(authUrl string) middleware {
 	return inlineMiddleware(func(rw http.ResponseWriter, r *http.Request, next http.Handler) {
@@ -85,6 +90,11 @@ func authorization(authUrl string) middleware {
 
 		if userID := authRes.Header.Get("X-Livepeer-User-Id"); userID != "" {
 			ctx := context.WithValue(r.Context(), userIdContextKey, userID)
+			r = r.WithContext(ctx)
+		}
+
+		if isCallerAdmin := authRes.Header.Get("X-Livepeer-Is-Caller-Admin"); isCallerAdmin != "" {
+			ctx := context.WithValue(r.Context(), isCallerAdminContextKey, isCallerAdmin)
 			r = r.WithContext(ctx)
 		}
 
