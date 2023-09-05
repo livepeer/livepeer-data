@@ -166,10 +166,6 @@ func (h *apiHandler) usageHandler() chi.Router {
 		With(h.cache(true)).
 		MethodFunc("GET", `/query`, h.queryUsage())
 
-	h.withMetrics(router, "query_total_usage").
-		With(h.cache(true)).
-		MethodFunc("GET", `/query/total`, h.queryTotalUsage())
-
 	return router
 }
 
@@ -369,37 +365,6 @@ func (h *apiHandler) queryUsage() http.HandlerFunc {
 			respondJson(rw, http.StatusOK, usage)
 		}
 
-	}
-}
-
-func (h *apiHandler) queryTotalUsage() http.HandlerFunc {
-	return func(rw http.ResponseWriter, r *http.Request) {
-		var (
-			from, err1 = parseInputTimestamp(r.URL.Query().Get("from"))
-			to, err2   = parseInputTimestamp(r.URL.Query().Get("to"))
-		)
-		if errs := nonNilErrs(err1, err2); len(errs) > 0 {
-			respondError(rw, http.StatusBadRequest, errs...)
-			return
-		}
-
-		query := usage.QuerySpec{
-			From:     from,
-			To:       to,
-			TimeStep: "day",
-			Filter: usage.QueryFilter{
-				UserID:    "",
-				CreatorID: "",
-			},
-		}
-
-		usage, err := h.usage.QueryTotalSummary(r.Context(), query)
-		if err != nil {
-			respondError(rw, http.StatusInternalServerError, err)
-			return
-		}
-
-		respondJson(rw, http.StatusOK, usage)
 	}
 }
 

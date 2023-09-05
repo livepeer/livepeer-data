@@ -39,6 +39,7 @@ type UsageSummaryRow struct {
 type BigQuery interface {
 	QueryUsageSummary(ctx context.Context, userID string, creatorID string, spec QuerySpec) (*UsageSummaryRow, error)
 	QueryUsageSummaryWithTimestep(ctx context.Context, userID string, creatorID string, spec QuerySpec) (*[]UsageSummaryRow, error)
+	QueryTotalUsageSummary(ctx context.Context, spec QuerySpec) (*[]UsageSummaryRow, error)
 }
 
 type BigQueryOptions struct {
@@ -121,6 +122,30 @@ func (bq *bigqueryHandler) QueryUsageSummaryWithTimestep(ctx context.Context, us
 	return &bqRows, nil
 }
 
+func (bq *bigqueryHandler) QueryTotalUsageSummary(ctx context.Context, spec QuerySpec) (*[]UsageSummaryRow, error) {
+	sql, args, err := buildTotalUsageSummaryQuery(bq.opts.HourlyUsageTable, spec)
+	if err != nil {
+		return nil, fmt.Errorf("error building usage summary query: %w", err)
+	}
+
+	bqRows, err := doBigQuery[UsageSummaryRow](bq, ctx, sql, args)
+	if err != nil {
+		return nil, fmt.Errorf("bigquery error: %w", err)
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("bigquery error: %w", err)
+	} else if len(bqRows) > maxBigQueryResultRows {
+		return nil, fmt.Errorf("query must return less than %d datapoints. consider decreasing your timeframe or increasing the time step", maxBigQueryResultRows)
+	}
+
+	if len(bqRows) == 0 {
+		return nil, nil
+	}
+
+	return &bqRows, nil
+}
+
 func buildUsageSummaryQuery(table string, userID string, creatorID string, spec QuerySpec) (string, []interface{}, error) {
 	if userID == "" {
 		return "", nil, fmt.Errorf("userID cannot be empty")
@@ -157,6 +182,29 @@ func buildUsageSummaryQuery(table string, userID string, creatorID string, spec 
 	}
 
 	query = withUserIdFilter(query, userID)
+
+	sql, args, err := query.ToSql()
+	if err != nil {
+		return "", nil, err
+	}
+
+	return sql, args, nil
+}
+
+func buildTotalUsageSummaryQuery(table string, spec QuerySpec) (string, []interface{}, error) {
+
+	query := squirrel.Select(
+		"date_ts,date_s,week_ts,week_s,volume_eth,volume_usd, fee_derived_minutes,participation_rate,inflation,active_transcoder_count,delegators_count,average_price_per_pixel,average_pixel_per_minute").
+		From(table).
+		Limit(maxBigQueryResultRows + 1).
+		OrderBy("date_ts DESC")
+
+	if from := spec.From; from != nil {
+		query = query.Where("date_ts >= timestamp_millis(?)", from.UnixMilli())
+	}
+	if to := spec.To; to != nil {
+		query = query.Where("date_ts < timestamp_millis(?)", to.UnixMilli())
+	}
 
 	sql, args, err := query.ToSql()
 	if err != nil {
