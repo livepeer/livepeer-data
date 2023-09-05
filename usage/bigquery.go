@@ -3,6 +3,7 @@ package usage
 import (
 	"context"
 	"fmt"
+	"math/big"
 	"time"
 
 	"cloud.google.com/go/bigquery"
@@ -36,15 +37,32 @@ type UsageSummaryRow struct {
 	StorageUsageMins  float64 `bigquery:"storage_usage_mins"`
 }
 
+type TotalUsageSummaryRow struct {
+	DateTs                time.Time `bigquery:"date_ts" json:"dateTs"`
+	DateS                 int64     `bigquery:"date_s" json:"dateS"`
+	WeekTs                time.Time `bigquery:"week_ts" json:"weekTs"`
+	WeekS                 int64     `bigquery:"week_s" json:"weekS"`
+	VolumeEth             *big.Rat  `bigquery:"volume_eth" json:"volumeEth"`
+	VolumeUsd             *big.Rat  `bigquery:"volume_usd" json:"volumeUsd"`
+	FeeDerivedMinutes     float64   `bigquery:"fee_derived_minutes" json:"feeDerivedMinutes"`
+	ParticipationRate     *big.Rat  `bigquery:"participation_rate" json:"participationRate"`
+	Inflation             *big.Rat  `bigquery:"inflation" json:"inflation"`
+	ActiveTranscoderCount int64     `bigquery:"active_transcoder_count" json:"activeTranscoderCount"`
+	DelegatorsCount       int64     `bigquery:"delegators_count" json:"delegatorsCount"`
+	AveragePricePerPixel  *big.Rat  `bigquery:"average_price_per_pixel" json:"averagePricePerPixel"`
+	AveragePixelPerMinute float64   `bigquery:"average_pixel_per_minute" json:"averagePixelPerMinute"`
+}
+
 type BigQuery interface {
 	QueryUsageSummary(ctx context.Context, userID string, creatorID string, spec QuerySpec) (*UsageSummaryRow, error)
 	QueryUsageSummaryWithTimestep(ctx context.Context, userID string, creatorID string, spec QuerySpec) (*[]UsageSummaryRow, error)
-	QueryTotalUsageSummary(ctx context.Context, spec QuerySpec) (*[]UsageSummaryRow, error)
+	QueryTotalUsageSummary(ctx context.Context, spec QuerySpec) (*[]TotalUsageSummaryRow, error)
 }
 
 type BigQueryOptions struct {
 	BigQueryCredentialsJSON   string
 	HourlyUsageTable          string
+	ExplorerDayDataTable      string
 	MaxBytesBilledPerBigQuery int64
 }
 
@@ -122,13 +140,13 @@ func (bq *bigqueryHandler) QueryUsageSummaryWithTimestep(ctx context.Context, us
 	return &bqRows, nil
 }
 
-func (bq *bigqueryHandler) QueryTotalUsageSummary(ctx context.Context, spec QuerySpec) (*[]UsageSummaryRow, error) {
-	sql, args, err := buildTotalUsageSummaryQuery(bq.opts.HourlyUsageTable, spec)
+func (bq *bigqueryHandler) QueryTotalUsageSummary(ctx context.Context, spec QuerySpec) (*[]TotalUsageSummaryRow, error) {
+	sql, args, err := buildTotalUsageSummaryQuery(bq.opts.ExplorerDayDataTable, spec)
 	if err != nil {
 		return nil, fmt.Errorf("error building usage summary query: %w", err)
 	}
 
-	bqRows, err := doBigQuery[UsageSummaryRow](bq, ctx, sql, args)
+	bqRows, err := doBigQuery[TotalUsageSummaryRow](bq, ctx, sql, args)
 	if err != nil {
 		return nil, fmt.Errorf("bigquery error: %w", err)
 	}
