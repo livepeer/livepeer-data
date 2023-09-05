@@ -383,6 +383,12 @@ func (h *apiHandler) queryTotalUsage() http.HandlerFunc {
 			return
 		}
 
+		_, ok := r.Context().Value(userIdContextKey).(string)
+		if !ok {
+			respondError(rw, http.StatusInternalServerError, errors.New("request not authenticated"))
+			return
+		}
+
 		query := usage.QuerySpec{
 			From:     from,
 			To:       to,
