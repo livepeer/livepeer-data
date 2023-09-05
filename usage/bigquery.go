@@ -3,7 +3,6 @@ package usage
 import (
 	"context"
 	"fmt"
-	"math/big"
 	"time"
 
 	"cloud.google.com/go/bigquery"
@@ -42,14 +41,14 @@ type TotalUsageSummaryRow struct {
 	DateS                 int64     `bigquery:"date_s" json:"dateS"`
 	WeekTs                time.Time `bigquery:"week_ts" json:"weekTs"`
 	WeekS                 int64     `bigquery:"week_s" json:"weekS"`
-	VolumeEth             *big.Rat  `bigquery:"volume_eth" json:"volumeEth"`
-	VolumeUsd             *big.Rat  `bigquery:"volume_usd" json:"volumeUsd"`
+	VolumeEth             float64   `bigquery:"volume_eth" json:"volumeEth"`
+	VolumeUsd             float64   `bigquery:"volume_usd" json:"volumeUsd"`
 	FeeDerivedMinutes     float64   `bigquery:"fee_derived_minutes" json:"feeDerivedMinutes"`
-	ParticipationRate     *big.Rat  `bigquery:"participation_rate" json:"participationRate"`
-	Inflation             *big.Rat  `bigquery:"inflation" json:"inflation"`
+	ParticipationRate     float64   `bigquery:"participation_rate" json:"participationRate"`
+	Inflation             float64   `bigquery:"inflation" json:"inflation"`
 	ActiveTranscoderCount int64     `bigquery:"active_transcoder_count" json:"activeTranscoderCount"`
 	DelegatorsCount       int64     `bigquery:"delegators_count" json:"delegatorsCount"`
-	AveragePricePerPixel  *big.Rat  `bigquery:"average_price_per_pixel" json:"averagePricePerPixel"`
+	AveragePricePerPixel  float64   `bigquery:"average_price_per_pixel" json:"averagePricePerPixel"`
 	AveragePixelPerMinute float64   `bigquery:"average_pixel_per_minute" json:"averagePixelPerMinute"`
 }
 
