@@ -22,6 +22,10 @@ type QuerySpec struct {
 	Filter   QueryFilter
 }
 
+type FromToQuerySpec struct {
+	From, To *time.Time
+}
+
 var allowedTimeSteps = map[string]bool{
 	"hour": true,
 	"day":  true,
@@ -55,13 +59,13 @@ type TotalUsageSummaryRow struct {
 type BigQuery interface {
 	QueryUsageSummary(ctx context.Context, userID string, creatorID string, spec QuerySpec) (*UsageSummaryRow, error)
 	QueryUsageSummaryWithTimestep(ctx context.Context, userID string, creatorID string, spec QuerySpec) (*[]UsageSummaryRow, error)
-	QueryTotalUsageSummary(ctx context.Context, spec QuerySpec) (*[]TotalUsageSummaryRow, error)
+	QueryTotalUsageSummary(ctx context.Context, spec FromToQuerySpec) (*[]TotalUsageSummaryRow, error)
 }
 
 type BigQueryOptions struct {
 	BigQueryCredentialsJSON   string
 	HourlyUsageTable          string
-	ExplorerDayDataTable      string
+	DailyUsageTable           string
 	MaxBytesBilledPerBigQuery int64
 }
 
@@ -139,8 +143,8 @@ func (bq *bigqueryHandler) QueryUsageSummaryWithTimestep(ctx context.Context, us
 	return &bqRows, nil
 }
 
-func (bq *bigqueryHandler) QueryTotalUsageSummary(ctx context.Context, spec QuerySpec) (*[]TotalUsageSummaryRow, error) {
-	sql, args, err := buildTotalUsageSummaryQuery(bq.opts.ExplorerDayDataTable, spec)
+func (bq *bigqueryHandler) QueryTotalUsageSummary(ctx context.Context, spec FromToQuerySpec) (*[]TotalUsageSummaryRow, error) {
+	sql, args, err := buildTotalUsageSummaryQuery(bq.opts.DailyUsageTable, spec)
 	if err != nil {
 		return nil, fmt.Errorf("error building usage summary query: %w", err)
 	}
@@ -208,7 +212,7 @@ func buildUsageSummaryQuery(table string, userID string, creatorID string, spec 
 	return sql, args, nil
 }
 
-func buildTotalUsageSummaryQuery(table string, spec QuerySpec) (string, []interface{}, error) {
+func buildTotalUsageSummaryQuery(table string, spec FromToQuerySpec) (string, []interface{}, error) {
 
 	query := squirrel.Select(
 		"date_ts,date_s,week_ts,week_s,volume_eth,volume_usd, fee_derived_minutes,participation_rate,inflation,active_transcoder_count,delegators_count,average_price_per_pixel,average_pixel_per_minute").

@@ -383,14 +383,27 @@ func (h *apiHandler) queryTotalUsage() http.HandlerFunc {
 			return
 		}
 
-		query := usage.QuerySpec{
-			From:     from,
-			To:       to,
-			TimeStep: "day",
-			Filter: usage.QueryFilter{
-				UserID:    "",
-				CreatorID: "",
-			},
+		_, ok := r.Context().Value(userIdContextKey).(string)
+		if !ok {
+			respondError(rw, http.StatusInternalServerError, errors.New("request not authenticated"))
+			return
+		}
+
+		isCallerAdmin, ok := r.Context().Value(isCallerAdminContextKey).(string)
+
+		if !ok {
+			respondError(rw, http.StatusInternalServerError, errors.New("request not authenticated - unable to determine if caller is admin"))
+			return
+		}
+
+		if isCallerAdmin != "true" {
+			respondError(rw, http.StatusForbidden, errors.New("only admins can query total usage"))
+			return
+		}
+
+		query := usage.FromToQuerySpec{
+			From: from,
+			To:   to,
 		}
 
 		usage, err := h.usage.QueryTotalSummary(r.Context(), query)
