@@ -166,6 +166,10 @@ func (h *apiHandler) usageHandler() chi.Router {
 		With(h.cache(true)).
 		MethodFunc("GET", `/query`, h.queryUsage())
 
+	h.withMetrics(router, "query_total_usage").
+		With(h.cache(true)).
+		MethodFunc("GET", `/query/total`, h.queryTotalUsage())
+
 	return router
 }
 
@@ -365,6 +369,50 @@ func (h *apiHandler) queryUsage() http.HandlerFunc {
 			respondJson(rw, http.StatusOK, usage)
 		}
 
+	}
+}
+
+func (h *apiHandler) queryTotalUsage() http.HandlerFunc {
+	return func(rw http.ResponseWriter, r *http.Request) {
+		var (
+			from, err1 = parseInputTimestamp(r.URL.Query().Get("from"))
+			to, err2   = parseInputTimestamp(r.URL.Query().Get("to"))
+		)
+		if errs := nonNilErrs(err1, err2); len(errs) > 0 {
+			respondError(rw, http.StatusBadRequest, errs...)
+			return
+		}
+
+		_, ok := r.Context().Value(userIdContextKey).(string)
+		if !ok {
+			respondError(rw, http.StatusInternalServerError, errors.New("request not authenticated"))
+			return
+		}
+
+		isCallerAdmin, ok := r.Context().Value(isCallerAdminContextKey).(string)
+
+		if !ok {
+			respondError(rw, http.StatusInternalServerError, errors.New("request not authenticated - unable to determine if caller is admin"))
+			return
+		}
+
+		if isCallerAdmin != "true" {
+			respondError(rw, http.StatusForbidden, errors.New("only admins can query total usage"))
+			return
+		}
+
+		query := usage.FromToQuerySpec{
+			From: from,
+			To:   to,
+		}
+
+		usage, err := h.usage.QueryTotalSummary(r.Context(), query)
+		if err != nil {
+			respondError(rw, http.StatusInternalServerError, err)
+			return
+		}
+
+		respondJson(rw, http.StatusOK, usage)
 	}
 }
 

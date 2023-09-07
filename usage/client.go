@@ -47,3 +47,12 @@ func (c *Client) QuerySummaryWithTimestep(ctx context.Context, userID string, cr
 
 	return summary, nil
 }
+
+func (c *Client) QueryTotalSummary(ctx context.Context, spec FromToQuerySpec) (*[]TotalUsageSummaryRow, error) {
+	summary, err := c.bigquery.QueryTotalUsageSummary(ctx, spec)
+	if err != nil {
+		return nil, err
+	}
+
+	return summary, nil
+}

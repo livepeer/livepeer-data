@@ -22,6 +22,10 @@ type QuerySpec struct {
 	Filter   QueryFilter
 }
 
+type FromToQuerySpec struct {
+	From, To *time.Time
+}
+
 var allowedTimeSteps = map[string]bool{
 	"hour": true,
 	"day":  true,
@@ -36,14 +40,32 @@ type UsageSummaryRow struct {
 	StorageUsageMins  float64 `bigquery:"storage_usage_mins"`
 }
 
+type TotalUsageSummaryRow struct {
+	DateTs                time.Time `bigquery:"date_ts" json:"dateTs"`
+	DateS                 int64     `bigquery:"date_s" json:"dateS"`
+	WeekTs                time.Time `bigquery:"week_ts" json:"weekTs"`
+	WeekS                 int64     `bigquery:"week_s" json:"weekS"`
+	VolumeEth             float64   `bigquery:"volume_eth" json:"volumeEth"`
+	VolumeUsd             float64   `bigquery:"volume_usd" json:"volumeUsd"`
+	FeeDerivedMinutes     float64   `bigquery:"fee_derived_minutes" json:"feeDerivedMinutes"`
+	ParticipationRate     float64   `bigquery:"participation_rate" json:"participationRate"`
+	Inflation             float64   `bigquery:"inflation" json:"inflation"`
+	ActiveTranscoderCount int64     `bigquery:"active_transcoder_count" json:"activeTranscoderCount"`
+	DelegatorsCount       int64     `bigquery:"delegators_count" json:"delegatorsCount"`
+	AveragePricePerPixel  float64   `bigquery:"average_price_per_pixel" json:"averagePricePerPixel"`
+	AveragePixelPerMinute float64   `bigquery:"average_pixel_per_minute" json:"averagePixelPerMinute"`
+}
+
 type BigQuery interface {
 	QueryUsageSummary(ctx context.Context, userID string, creatorID string, spec QuerySpec) (*UsageSummaryRow, error)
 	QueryUsageSummaryWithTimestep(ctx context.Context, userID string, creatorID string, spec QuerySpec) (*[]UsageSummaryRow, error)
+	QueryTotalUsageSummary(ctx context.Context, spec FromToQuerySpec) (*[]TotalUsageSummaryRow, error)
 }
 
 type BigQueryOptions struct {
 	BigQueryCredentialsJSON   string
 	HourlyUsageTable          string
+	DailyUsageTable           string
 	MaxBytesBilledPerBigQuery int64
 }
 
@@ -121,6 +143,30 @@ func (bq *bigqueryHandler) QueryUsageSummaryWithTimestep(ctx context.Context, us
 	return &bqRows, nil
 }
 
+func (bq *bigqueryHandler) QueryTotalUsageSummary(ctx context.Context, spec FromToQuerySpec) (*[]TotalUsageSummaryRow, error) {
+	sql, args, err := buildTotalUsageSummaryQuery(bq.opts.DailyUsageTable, spec)
+	if err != nil {
+		return nil, fmt.Errorf("error building usage summary query: %w", err)
+	}
+
+	bqRows, err := doBigQuery[TotalUsageSummaryRow](bq, ctx, sql, args)
+	if err != nil {
+		return nil, fmt.Errorf("bigquery error: %w", err)
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("bigquery error: %w", err)
+	} else if len(bqRows) > maxBigQueryResultRows {
+		return nil, fmt.Errorf("query must return less than %d datapoints. consider decreasing your timeframe or increasing the time step", maxBigQueryResultRows)
+	}
+
+	if len(bqRows) == 0 {
+		return nil, nil
+	}
+
+	return &bqRows, nil
+}
+
 func buildUsageSummaryQuery(table string, userID string, creatorID string, spec QuerySpec) (string, []interface{}, error) {
 	if userID == "" {
 		return "", nil, fmt.Errorf("userID cannot be empty")
@@ -157,6 +203,29 @@ func buildUsageSummaryQuery(table string, userID string, creatorID string, spec 
 	}
 
 	query = withUserIdFilter(query, userID)
+
+	sql, args, err := query.ToSql()
+	if err != nil {
+		return "", nil, err
+	}
+
+	return sql, args, nil
+}
+
+func buildTotalUsageSummaryQuery(table string, spec FromToQuerySpec) (string, []interface{}, error) {
+
+	query := squirrel.Select(
+		"date_ts,date_s,week_ts,week_s,volume_eth,volume_usd, fee_derived_minutes,participation_rate,inflation,active_transcoder_count,delegators_count,average_price_per_pixel,average_pixel_per_minute").
+		From(table).
+		Limit(maxBigQueryResultRows + 1).
+		OrderBy("date_ts DESC")
+
+	if from := spec.From; from != nil {
+		query = query.Where("date_ts >= timestamp_millis(?)", from.UnixMilli())
+	}
+	if to := spec.To; to != nil {
+		query = query.Where("date_ts < timestamp_millis(?)", to.UnixMilli())
+	}
 
 	sql, args, err := query.ToSql()
 	if err != nil {
