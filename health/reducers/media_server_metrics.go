@@ -38,7 +38,7 @@ func (t MediaServerMetrics) Reduce(current *data.HealthStatus, _ interface{}, ev
 
 	metrics := current.MetricsCopy()
 	ts, dims := evt.Timestamp(), map[string]string{"region": evt.Region, "nodeId": evt.NodeID}
-	if evt.Stats.MediaTimeMs != nil {
+	if evt.Stats != nil && evt.Stats.MediaTimeMs != nil {
 		metrics.Add(data.NewMetric(MetricMediaTimeMillis, dims, ts, float64(*evt.Stats.MediaTimeMs)))
 	}
 	for _, ms := range evt.Multistream {
