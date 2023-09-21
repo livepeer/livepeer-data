@@ -30,6 +30,7 @@ type TaskOutput struct {
 	ExportData    *ExportDataTaskOutput    `json:"exportData,omitempty"`
 	Transcode     *TranscodeTaskOutput     `json:"transcode,omitempty"`
 	TranscodeFile *TranscodeFileTaskOutput `json:"transcodeFile,omitempty"`
+	Clip          *ClipTaskOutput          `json:"clip,omitempty"`
 }
 
 type TranscodeTaskOutput struct {
@@ -37,6 +38,10 @@ type TranscodeTaskOutput struct {
 }
 
 type TranscodeFileTaskOutputPath struct {
+	Path string `json:"path,omitempty"`
+}
+
+type ClipTaskOutputPath struct {
 	Path string `json:"path,omitempty"`
 }
 
@@ -51,6 +56,12 @@ type TranscodeFileTaskOutput struct {
 	Mp4        []TranscodeFileTaskOutputPath `json:"mp4,omitempty"`
 	RequestID  string                        `json:"request_id,omitempty"`
 	InputVideo *InputVideo                   `json:"input_video,omitempty"`
+}
+
+type ClipTaskOutput struct {
+	BaseUrl   string              `json:"baseUrl,omitempty"`
+	Hls       *ClipTaskOutputPath `json:"hls,omitempty"`
+	RequestID string              `json:"request_id,omitempty"`
 }
 
 type UploadTaskOutput struct {
