@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
+	"runtime/debug"
 	"sort"
 	"time"
 
@@ -137,7 +138,11 @@ func (c *Core) HandleMessage(msg event.StreamMessage) {
 		}
 
 		start := time.Now()
-		c.handleSingleEvent(evt)
+		err = c.handleSingleEvent(evt)
+		if err != nil {
+			glog.Errorf("Health core failed to process event. err=%q, event=%q", err, rawEvt)
+			continue
+		}
 		dur := time.Since(start)
 
 		eventsProcessedCount.WithLabelValues(string(evt.Type())).
@@ -150,7 +155,7 @@ func (c *Core) HandleMessage(msg event.StreamMessage) {
 	}
 }
 
-func (c *Core) handleSingleEvent(evt data.Event) {
+func (c *Core) handleSingleEvent(evt data.Event) (err error) {
 	streamID, ts := evt.StreamID(), evt.Timestamp()
 	c.lastEventTs = ts
 	record := c.storage.GetOrCreate(streamID, c.conditionTypes)
@@ -158,8 +163,12 @@ func (c *Core) handleSingleEvent(evt data.Event) {
 	record.RLock()
 	status, state := record.LastStatus, record.ReducerState
 	record.RUnlock()
-	// Only 1 go-routine processing events rn, so no need for locking here.
-	status, state = c.reducer.Reduce(status, state, evt)
+
+	// Only 1 go-routine processing events at a time, so no need for locking here.
+	status, state, err = reduceRecv(c.reducer, status, state, evt)
+	if err != nil {
+		return err
+	}
 
 	record.Lock()
 	defer record.Unlock()
@@ -182,6 +191,22 @@ func (c *Core) handleSingleEvent(evt data.Event) {
 			glog.Warningf("Buffer full for health event subscription, skipping message. streamId=%q, eventTs=%q", streamID, ts)
 		}
 	}
+	return nil
+}
+
+// reduceRecv is a wrapper around the reducer's Reduce method that recovers from
+// panics. Reducers are stateless so its safe to recover from panics and
+// continue processing of other events.
+func reduceRecv(reducer Reducer, currStatus *data.HealthStatus, currState interface{}, evt data.Event) (newStatus *data.HealthStatus, newState interface{}, err error) {
+	defer func() {
+		if rec := recover(); rec != nil {
+			glog.Errorf("Panic in health reducer. panicValue=%q event=%+v stack=%q", rec, evt, debug.Stack())
+			err = fmt.Errorf("panic: %v", rec)
+		}
+	}()
+
+	newStatus, newState = reducer.Reduce(currStatus, currState, evt)
+	return
 }
 
 func (c *Core) GetStatus(manifestID string) (*data.HealthStatus, error) {
