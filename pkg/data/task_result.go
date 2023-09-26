@@ -41,10 +41,6 @@ type TranscodeFileTaskOutputPath struct {
 	Path string `json:"path,omitempty"`
 }
 
-type ClipTaskOutputPath struct {
-	Path string `json:"path,omitempty"`
-}
-
 type InputVideo struct {
 	Duration  float64 `json:"duration,omitempty"`
 	SizeBytes int64   `json:"size,omitempty"`
@@ -59,9 +55,10 @@ type TranscodeFileTaskOutput struct {
 }
 
 type ClipTaskOutput struct {
-	BaseUrl   string              `json:"baseUrl,omitempty"`
-	Hls       *ClipTaskOutputPath `json:"hls,omitempty"`
-	RequestID string              `json:"request_id,omitempty"`
+	VideoFilePath    string `json:"videoFilePath"`
+	MetadataFilePath string `json:"metadataFilePath"`
+	// This is livepeerAPI.AssetSpec but we don't want to depend on the whole pkg
+	AssetSpec interface{} `json:"assetSpec"`
 }
 
 type UploadTaskOutput struct {
