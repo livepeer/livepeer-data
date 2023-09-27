@@ -30,6 +30,7 @@ type TaskOutput struct {
 	ExportData    *ExportDataTaskOutput    `json:"exportData,omitempty"`
 	Transcode     *TranscodeTaskOutput     `json:"transcode,omitempty"`
 	TranscodeFile *TranscodeFileTaskOutput `json:"transcodeFile,omitempty"`
+	Clip          *UploadTaskOutput        `json:"clip,omitempty"`
 }
 
 type TranscodeTaskOutput struct {
