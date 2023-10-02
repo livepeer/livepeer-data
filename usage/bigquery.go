@@ -3,6 +3,7 @@ package usage
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"time"
 
 	"cloud.google.com/go/bigquery"
@@ -102,6 +103,23 @@ func NewBigQuery(opts BigQueryOptions) (BigQuery, error) {
 	return &bigqueryHandler{opts, bigquery}, nil
 }
 
+func parseInputTimestamp(str string) (*time.Time, error) {
+	if str == "" {
+		return nil, nil
+	}
+	t, rfcErr := time.Parse(time.RFC3339Nano, str)
+	if rfcErr == nil {
+		return &t, nil
+	}
+
+	ts, unixErr := strconv.ParseInt(str, 10, 64)
+	if unixErr != nil {
+		return nil, fmt.Errorf("bad time %q. must be in RFC3339 or Unix Timestamp (millisecond) formats. rfcErr: %s; unixErr: %s", str, rfcErr, unixErr)
+	}
+	t = time.UnixMilli(ts)
+	return &t, nil
+}
+
 // interface from *bigquery.Client to allow mocking
 type bigqueryClient interface {
 	Query(q string) *bigquery.Query
@@ -188,7 +206,7 @@ func (bq *bigqueryHandler) QueryTotalUsageSummary(ctx context.Context, spec From
 }
 
 func (bq *bigqueryHandler) QueryActiveUsersUsageSummary(ctx context.Context, spec FromToQuerySpec) (*[]ActiveUsersSummaryRow, error) {
-	sql, args, err := buildActiveUsersUsageSummaryQuery(bq.opts.DailyUsageTable, bq.opts.UsersTable, spec)
+	sql, args, err := buildActiveUsersUsageSummaryQuery(bq.opts.HourlyUsageTable, bq.opts.UsersTable, spec)
 	if err != nil {
 		return nil, fmt.Errorf("error building active users summary query: %w", err)
 	}
@@ -212,7 +230,7 @@ func (bq *bigqueryHandler) QueryActiveUsersUsageSummary(ctx context.Context, spe
 }
 
 func (bq *bigqueryHandler) QueryGroupedUsageSummary(ctx context.Context, spec GroupedQuerySpec) (*[]ActiveUsersSummaryRow, error) {
-	sql, args, err := buildGroupedUsageSummaryQuery(bq.opts.DailyUsageTable, bq.opts.UsersTable, spec)
+	sql, args, err := buildGroupedUsageSummaryQuery(bq.opts.HourlyUsageTable, spec)
 	if err != nil {
 		return nil, fmt.Errorf("error building active users summary query: %w", err)
 	}
@@ -339,15 +357,47 @@ func buildActiveUsersUsageSummaryQuery(billingTable, usersTable string, spec Fro
 	return sql, args, nil
 }
 
-func buildGroupedUsageSummaryQuery(billingTable, usersTable string, spec GroupedQuerySpec) (string, []interface{}, error) {
+func buildGroupedUsageSummaryQuery(table string, spec GroupedQuerySpec) (string, []interface{}, error) {
+	var subqueries []squirrel.SelectBuilder
 
-	// Create the base select statement using the provided billingTable and usersTable
-	query := squirrel.
-		Select(
-			"TODO: actual query",
-		)
+	for _, user := range spec.Users {
+		startTime, err := parseInputTimestamp(user.billingCycleStart)
+		if err != nil {
+			return "", nil, err
+		}
+		endTime, err := parseInputTimestamp(user.billingCycleEnd)
+		if err != nil {
+			return "", nil, err
+		}
 
-	// Convert to SQL
+		subquery := squirrel.
+			Select(
+				"user_id",
+				"min(usage_hour_ts) as interval_start_date",
+				"max(usage_hour_ts) as interval_end_date",
+				"sum(transcode_total_usage_mins) as transcode_mins",
+				"sum(delivery_usage_mins) as delivery_mins",
+				"sum(storage_usage_mins) / count(distinct usage_hour_ts) as storage_mins",
+			).
+			From(table).
+			Where(squirrel.Eq{"user_id": user.userId}).
+			Where("usage_hour_ts BETWEEN ? AND ?", startTime.UnixMilli(), endTime.UnixMilli()).
+			GroupBy("user_id")
+
+		subqueries = append(subqueries, subquery)
+	}
+
+	// Combine all sub-queries using UNION ALL
+	query := subqueries[0]
+
+	for _, sq := range subqueries[1:] {
+		subSql, _, err := sq.ToSql()
+		if err != nil {
+			return "", nil, err
+		}
+		query = query.Suffix("UNION ALL " + subSql)
+	}
+
 	sql, args, err := query.ToSql()
 	if err != nil {
 		return "", nil, err
