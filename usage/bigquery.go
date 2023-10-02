@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"cloud.google.com/go/bigquery"
@@ -28,9 +29,9 @@ type FromToQuerySpec struct {
 }
 
 type GroupedParams struct {
-	userId            string
-	billingCycleStart string
-	billingCycleEnd   string
+	UserId            string `json:"userId" binding:"required"`
+	BillingCycleStart string `json:"billingCycleStart" binding:"required"`
+	BillingCycleEnd   string `json:"billingCycleEnd" binding:"required"`
 }
 
 type GroupedQuerySpec struct {
@@ -52,10 +53,20 @@ type UsageSummaryRow struct {
 }
 
 type ActiveUsersSummaryRow struct {
-	UserID string `bigquery:"user_id" json:"userId"`
-	Email  string `bigquery:"email" json:"email"`
-	From   int64  `bigquery:"interval_start_date" json:"from"`
-	To     int64  `bigquery:"interval_end_date" json:"to"`
+	UserID string    `bigquery:"user_id" json:"userId"`
+	Email  string    `bigquery:"email" json:"email"`
+	From   time.Time `bigquery:"interval_start_date" json:"from"`
+	To     time.Time `bigquery:"interval_end_date" json:"to"`
+}
+
+type GroupedUsageRow struct {
+	UserID string    `bigquery:"user_id" json:"userId"`
+	From   time.Time `bigquery:"interval_start_date" json:"from"`
+	To     time.Time `bigquery:"interval_end_date" json:"to"`
+
+	DeliveryUsageMins float64 `bigquery:"delivery_usage_mins" json:"deliveryUsageMins"`
+	TotalUsageMins    float64 `bigquery:"transcode_total_usage_mins" json:"totalUsageMins"`
+	StorageUsageMins  float64 `bigquery:"storage_usage_mins" json:"storageUsageMins"`
 }
 
 type TotalUsageSummaryRow struct {
@@ -79,7 +90,7 @@ type BigQuery interface {
 	QueryUsageSummaryWithTimestep(ctx context.Context, userID string, creatorID string, spec QuerySpec) (*[]UsageSummaryRow, error)
 	QueryTotalUsageSummary(ctx context.Context, spec FromToQuerySpec) (*[]TotalUsageSummaryRow, error)
 	QueryActiveUsersUsageSummary(ctx context.Context, spec FromToQuerySpec) (*[]ActiveUsersSummaryRow, error)
-	QueryGroupedUsageSummary(ctx context.Context, spec GroupedQuerySpec) (*[]ActiveUsersSummaryRow, error)
+	QueryGroupedUsageSummary(ctx context.Context, spec GroupedQuerySpec) (*[]GroupedUsageRow, error)
 }
 
 type BigQueryOptions struct {
@@ -229,13 +240,13 @@ func (bq *bigqueryHandler) QueryActiveUsersUsageSummary(ctx context.Context, spe
 	return &bqRows, nil
 }
 
-func (bq *bigqueryHandler) QueryGroupedUsageSummary(ctx context.Context, spec GroupedQuerySpec) (*[]ActiveUsersSummaryRow, error) {
+func (bq *bigqueryHandler) QueryGroupedUsageSummary(ctx context.Context, spec GroupedQuerySpec) (*[]GroupedUsageRow, error) {
 	sql, args, err := buildGroupedUsageSummaryQuery(bq.opts.HourlyUsageTable, spec)
 	if err != nil {
 		return nil, fmt.Errorf("error building active users summary query: %w", err)
 	}
 
-	bqRows, err := doBigQuery[ActiveUsersSummaryRow](bq, ctx, sql, args)
+	bqRows, err := doBigQuery[GroupedUsageRow](bq, ctx, sql, args)
 	if err != nil {
 		return nil, fmt.Errorf("bigquery error: %w", err)
 	}
@@ -330,15 +341,15 @@ func buildActiveUsersUsageSummaryQuery(billingTable, usersTable string, spec Fro
 			"u.email",
 			"min(usage_hour_ts) as interval_start_date",
 			"max(usage_hour_ts) as interval_end_date",
-			"sum(transcode_total_usage_mins) as transcode_mins",
-			"sum(delivery_usage_mins) as delivery_mins",
-			"sum(storage_usage_mins) / count(distinct usage_hour_ts) as storage_mins",
+			"cast(sum(transcode_total_usage_mins) as FLOAT64) as transcode_total_usage_mins",
+			"cast(sum(delivery_usage_mins) as FLOAT64) as delivery_usage_mins",
+			"cast((sum(storage_usage_mins) / count(distinct usage_hour_ts)) as FLOAT64) as storage_usage_mins",
 		).
 		From(fmt.Sprintf("`%s` as b", billingTable)).
 		Join(fmt.Sprintf("%s as u on b.user_id = u.user_id", usersTable)).
 		Where("not internal").
 		GroupBy("b.user_id", "u.email").
-		Having("transcode_mins > 0 or delivery_mins > 0 or storage_mins > 0")
+		Having("transcode_total_usage_mins > 0 or delivery_usage_mins > 0 or storage_usage_mins > 0")
 
 	// Apply additional conditions based on the spec provided
 	if from := spec.From; from != nil {
@@ -358,14 +369,15 @@ func buildActiveUsersUsageSummaryQuery(billingTable, usersTable string, spec Fro
 }
 
 func buildGroupedUsageSummaryQuery(table string, spec GroupedQuerySpec) (string, []interface{}, error) {
-	var subqueries []squirrel.SelectBuilder
+	var subqueryStrs []string
+	var allArgs []interface{}
 
 	for _, user := range spec.Users {
-		startTime, err := parseInputTimestamp(user.billingCycleStart)
+		startTime, err := parseInputTimestamp(user.BillingCycleStart)
 		if err != nil {
 			return "", nil, err
 		}
-		endTime, err := parseInputTimestamp(user.billingCycleEnd)
+		endTime, err := parseInputTimestamp(user.BillingCycleEnd)
 		if err != nil {
 			return "", nil, err
 		}
@@ -375,35 +387,28 @@ func buildGroupedUsageSummaryQuery(table string, spec GroupedQuerySpec) (string,
 				"user_id",
 				"min(usage_hour_ts) as interval_start_date",
 				"max(usage_hour_ts) as interval_end_date",
-				"sum(transcode_total_usage_mins) as transcode_mins",
-				"sum(delivery_usage_mins) as delivery_mins",
-				"sum(storage_usage_mins) / count(distinct usage_hour_ts) as storage_mins",
+				"cast(sum(transcode_total_usage_mins) as FLOAT64) as transcode_total_usage_mins",
+				"cast(sum(delivery_usage_mins) as FLOAT64) as delivery_usage_mins",
+				"cast((sum(storage_usage_mins) / count(distinct usage_hour_ts)) as FLOAT64) as storage_usage_mins",
 			).
 			From(table).
-			Where(squirrel.Eq{"user_id": user.userId}).
-			Where("usage_hour_ts BETWEEN ? AND ?", startTime.UnixMilli(), endTime.UnixMilli()).
+			Where(squirrel.Eq{"user_id": user.UserId}).
+			Where("usage_hour_ts BETWEEN TIMESTAMP_MILLIS(?) AND TIMESTAMP_MILLIS(?)", startTime.UnixMilli(), endTime.UnixMilli()).
 			GroupBy("user_id")
 
-		subqueries = append(subqueries, subquery)
-	}
-
-	// Combine all sub-queries using UNION ALL
-	query := subqueries[0]
-
-	for _, sq := range subqueries[1:] {
-		subSql, _, err := sq.ToSql()
+		subSql, args, err := subquery.ToSql()
 		if err != nil {
 			return "", nil, err
 		}
-		query = query.Suffix("UNION ALL " + subSql)
+
+		subqueryStrs = append(subqueryStrs, subSql)
+		allArgs = append(allArgs, args...)
 	}
 
-	sql, args, err := query.ToSql()
-	if err != nil {
-		return "", nil, err
-	}
+	// Combine all subquery strings using "UNION ALL"
+	sql := strings.Join(subqueryStrs, " UNION ALL ")
 
-	return sql, args, nil
+	return sql, allArgs, nil
 }
 
 // query helpers

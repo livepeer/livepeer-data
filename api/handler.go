@@ -177,7 +177,7 @@ func (h *apiHandler) usageHandler() chi.Router {
 
 	h.withMetrics(router, "query_grouped_usage").
 		With(h.cache(true)).
-		MethodFunc("GET", `/query/grouped`, h.queryUsageGrouped())
+		MethodFunc("POST", `/query/grouped`, h.queryUsageGrouped())
 
 	return router
 }
@@ -474,11 +474,13 @@ func (h *apiHandler) queryActiveUsersUsage() http.HandlerFunc {
 func (h *apiHandler) queryUsageGrouped() http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
 
-		var users []usage.GroupedParams
+		var users []interface{}
 		if err := json.NewDecoder(r.Body).Decode(&users); err != nil {
 			respondError(rw, http.StatusBadRequest, err)
 			return
 		}
+
+		glog.Infof("Querying grouped usage for %v users", len(users))
 
 		_, ok := r.Context().Value(userIdContextKey).(string)
 		if !ok {
@@ -498,8 +500,20 @@ func (h *apiHandler) queryUsageGrouped() http.HandlerFunc {
 			return
 		}
 
+		userList := make([]usage.GroupedParams, 0)
+
+		for _, user := range users {
+			groupedParams := usage.GroupedParams{
+				UserId:            user.(map[string]interface{})["userId"].(string),
+				BillingCycleStart: user.(map[string]interface{})["billingCycleStart"].(string),
+				BillingCycleEnd:   user.(map[string]interface{})["billingCycleEnd"].(string),
+			}
+
+			userList = append(userList, groupedParams)
+		}
+
 		query := usage.GroupedQuerySpec{
-			Users: users,
+			Users: userList,
 		}
 
 		usage, err := h.usage.QueryGroupedUsageSummary(r.Context(), query)
