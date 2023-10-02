@@ -26,6 +26,16 @@ type FromToQuerySpec struct {
 	From, To *time.Time
 }
 
+type GroupedParams struct {
+	userId            string
+	billingCycleStart string
+	billingCycleEnd   string
+}
+
+type GroupedQuerySpec struct {
+	Users []GroupedParams
+}
+
 var allowedTimeSteps = map[string]bool{
 	"hour": true,
 	"day":  true,
@@ -41,13 +51,10 @@ type UsageSummaryRow struct {
 }
 
 type ActiveUsersSummaryRow struct {
-	UserID            string  `bigquery:"user_id" json:"userId"`
-	Email             string  `bigquery:"email" json:"email"`
-	DeliveryUsageMins float64 `bigquery:"delivery_usage_mins" json:"deliveryUsageMins"`
-	TotalUsageMins    float64 `bigquery:"transcode_total_usage_mins" json:"totalUsageMins"`
-	StorageUsageMins  float64 `bigquery:"storage_usage_mins" json:"storageUsageMins"`
-	From              int64   `bigquery:"interval_start_date" json:"from"`
-	To                int64   `bigquery:"interval_end_date" json:"to"`
+	UserID string `bigquery:"user_id" json:"userId"`
+	Email  string `bigquery:"email" json:"email"`
+	From   int64  `bigquery:"interval_start_date" json:"from"`
+	To     int64  `bigquery:"interval_end_date" json:"to"`
 }
 
 type TotalUsageSummaryRow struct {
@@ -71,6 +78,7 @@ type BigQuery interface {
 	QueryUsageSummaryWithTimestep(ctx context.Context, userID string, creatorID string, spec QuerySpec) (*[]UsageSummaryRow, error)
 	QueryTotalUsageSummary(ctx context.Context, spec FromToQuerySpec) (*[]TotalUsageSummaryRow, error)
 	QueryActiveUsersUsageSummary(ctx context.Context, spec FromToQuerySpec) (*[]ActiveUsersSummaryRow, error)
+	QueryGroupedUsageSummary(ctx context.Context, spec GroupedQuerySpec) (*[]ActiveUsersSummaryRow, error)
 }
 
 type BigQueryOptions struct {
@@ -203,6 +211,30 @@ func (bq *bigqueryHandler) QueryActiveUsersUsageSummary(ctx context.Context, spe
 	return &bqRows, nil
 }
 
+func (bq *bigqueryHandler) QueryGroupedUsageSummary(ctx context.Context, spec GroupedQuerySpec) (*[]ActiveUsersSummaryRow, error) {
+	sql, args, err := buildGroupedUsageSummaryQuery(bq.opts.DailyUsageTable, bq.opts.UsersTable, spec)
+	if err != nil {
+		return nil, fmt.Errorf("error building active users summary query: %w", err)
+	}
+
+	bqRows, err := doBigQuery[ActiveUsersSummaryRow](bq, ctx, sql, args)
+	if err != nil {
+		return nil, fmt.Errorf("bigquery error: %w", err)
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("bigquery error: %w", err)
+	} else if len(bqRows) > maxBigQueryResultRows {
+		return nil, fmt.Errorf("query must return less than %d datapoints. consider decreasing your timeframe or increasing the time step", maxBigQueryResultRows)
+	}
+
+	if len(bqRows) == 0 {
+		return nil, nil
+	}
+
+	return &bqRows, nil
+}
+
 func buildUsageSummaryQuery(table string, userID string, creatorID string, spec QuerySpec) (string, []interface{}, error) {
 	if userID == "" {
 		return "", nil, fmt.Errorf("userID cannot be empty")
@@ -297,6 +329,23 @@ func buildActiveUsersUsageSummaryQuery(billingTable, usersTable string, spec Fro
 	if to := spec.To; to != nil {
 		query = query.Where("usage_hour_ts < timestamp_millis(?)", to.UnixMilli())
 	}
+
+	// Convert to SQL
+	sql, args, err := query.ToSql()
+	if err != nil {
+		return "", nil, err
+	}
+
+	return sql, args, nil
+}
+
+func buildGroupedUsageSummaryQuery(billingTable, usersTable string, spec GroupedQuerySpec) (string, []interface{}, error) {
+
+	// Create the base select statement using the provided billingTable and usersTable
+	query := squirrel.
+		Select(
+			"TODO: actual query",
+		)
 
 	// Convert to SQL
 	sql, args, err := query.ToSql()

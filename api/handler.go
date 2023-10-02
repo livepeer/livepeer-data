@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -173,6 +174,10 @@ func (h *apiHandler) usageHandler() chi.Router {
 	h.withMetrics(router, "query_active_users").
 		With(h.cache(true)).
 		MethodFunc("GET", `/query/active`, h.queryActiveUsersUsage())
+
+	h.withMetrics(router, "query_grouped_usage").
+		With(h.cache(true)).
+		MethodFunc("GET", `/query/grouped`, h.queryUsageGrouped())
 
 	return router
 }
@@ -457,6 +462,47 @@ func (h *apiHandler) queryActiveUsersUsage() http.HandlerFunc {
 		}
 
 		usage, err := h.usage.QueryActiveUsageSummary(r.Context(), query)
+		if err != nil {
+			respondError(rw, http.StatusInternalServerError, err)
+			return
+		}
+
+		respondJson(rw, http.StatusOK, usage)
+	}
+}
+
+func (h *apiHandler) queryUsageGrouped() http.HandlerFunc {
+	return func(rw http.ResponseWriter, r *http.Request) {
+
+		var users []usage.GroupedParams
+		if err := json.NewDecoder(r.Body).Decode(&users); err != nil {
+			respondError(rw, http.StatusBadRequest, err)
+			return
+		}
+
+		_, ok := r.Context().Value(userIdContextKey).(string)
+		if !ok {
+			respondError(rw, http.StatusInternalServerError, errors.New("request not authenticated"))
+			return
+		}
+
+		isCallerAdmin, ok := r.Context().Value(isCallerAdminContextKey).(string)
+
+		if !ok {
+			respondError(rw, http.StatusInternalServerError, errors.New("request not authenticated - unable to determine if caller is admin"))
+			return
+		}
+
+		if isCallerAdmin != "true" {
+			respondError(rw, http.StatusForbidden, errors.New("only admins can query grouped usage"))
+			return
+		}
+
+		query := usage.GroupedQuerySpec{
+			Users: users,
+		}
+
+		usage, err := h.usage.QueryGroupedUsageSummary(r.Context(), query)
 		if err != nil {
 			respondError(rw, http.StatusInternalServerError, err)
 			return
