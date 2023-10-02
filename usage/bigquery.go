@@ -40,6 +40,16 @@ type UsageSummaryRow struct {
 	StorageUsageMins  float64 `bigquery:"storage_usage_mins"`
 }
 
+type ActiveUsersSummaryRow struct {
+	UserID            string  `bigquery:"user_id" json:"userId"`
+	Email             string  `bigquery:"email" json:"email"`
+	DeliveryUsageMins float64 `bigquery:"delivery_usage_mins" json:"deliveryUsageMins"`
+	TotalUsageMins    float64 `bigquery:"transcode_total_usage_mins" json:"totalUsageMins"`
+	StorageUsageMins  float64 `bigquery:"storage_usage_mins" json:"storageUsageMins"`
+	From              int64   `bigquery:"interval_start_date" json:"from"`
+	To                int64   `bigquery:"interval_end_date" json:"to"`
+}
+
 type TotalUsageSummaryRow struct {
 	DateTs                time.Time `bigquery:"date_ts" json:"dateTs"`
 	DateS                 int64     `bigquery:"date_s" json:"dateS"`
@@ -60,12 +70,14 @@ type BigQuery interface {
 	QueryUsageSummary(ctx context.Context, userID string, creatorID string, spec QuerySpec) (*UsageSummaryRow, error)
 	QueryUsageSummaryWithTimestep(ctx context.Context, userID string, creatorID string, spec QuerySpec) (*[]UsageSummaryRow, error)
 	QueryTotalUsageSummary(ctx context.Context, spec FromToQuerySpec) (*[]TotalUsageSummaryRow, error)
+	QueryActiveUsersUsageSummary(ctx context.Context, spec FromToQuerySpec) (*[]ActiveUsersSummaryRow, error)
 }
 
 type BigQueryOptions struct {
 	BigQueryCredentialsJSON   string
 	HourlyUsageTable          string
 	DailyUsageTable           string
+	UsersTable                string
 	MaxBytesBilledPerBigQuery int64
 }
 
@@ -167,6 +179,30 @@ func (bq *bigqueryHandler) QueryTotalUsageSummary(ctx context.Context, spec From
 	return &bqRows, nil
 }
 
+func (bq *bigqueryHandler) QueryActiveUsersUsageSummary(ctx context.Context, spec FromToQuerySpec) (*[]ActiveUsersSummaryRow, error) {
+	sql, args, err := buildActiveUsersUsageSummaryQuery(bq.opts.DailyUsageTable, bq.opts.UsersTable, spec)
+	if err != nil {
+		return nil, fmt.Errorf("error building active users summary query: %w", err)
+	}
+
+	bqRows, err := doBigQuery[ActiveUsersSummaryRow](bq, ctx, sql, args)
+	if err != nil {
+		return nil, fmt.Errorf("bigquery error: %w", err)
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("bigquery error: %w", err)
+	} else if len(bqRows) > maxBigQueryResultRows {
+		return nil, fmt.Errorf("query must return less than %d datapoints. consider decreasing your timeframe or increasing the time step", maxBigQueryResultRows)
+	}
+
+	if len(bqRows) == 0 {
+		return nil, nil
+	}
+
+	return &bqRows, nil
+}
+
 func buildUsageSummaryQuery(table string, userID string, creatorID string, spec QuerySpec) (string, []interface{}, error) {
 	if userID == "" {
 		return "", nil, fmt.Errorf("userID cannot be empty")
@@ -227,6 +263,42 @@ func buildTotalUsageSummaryQuery(table string, spec FromToQuerySpec) (string, []
 		query = query.Where("date_ts < timestamp_millis(?)", to.UnixMilli())
 	}
 
+	sql, args, err := query.ToSql()
+	if err != nil {
+		return "", nil, err
+	}
+
+	return sql, args, nil
+}
+
+func buildActiveUsersUsageSummaryQuery(billingTable, usersTable string, spec FromToQuerySpec) (string, []interface{}, error) {
+
+	// Create the base select statement using the provided billingTable and usersTable
+	query := squirrel.
+		Select(
+			"b.user_id",
+			"u.email",
+			"min(usage_hour_ts) as interval_start_date",
+			"max(usage_hour_ts) as interval_end_date",
+			"sum(transcode_total_usage_mins) as transcode_mins",
+			"sum(delivery_usage_mins) as delivery_mins",
+			"sum(storage_usage_mins) / count(distinct usage_hour_ts) as storage_mins",
+		).
+		From(fmt.Sprintf("`%s` as b", billingTable)).
+		Join(fmt.Sprintf("%s as u on b.user_id = u.user_id", usersTable)).
+		Where("not internal").
+		GroupBy("b.user_id", "u.email").
+		Having("transcode_mins > 0 or delivery_mins > 0 or storage_mins > 0")
+
+	// Apply additional conditions based on the spec provided
+	if from := spec.From; from != nil {
+		query = query.Where("usage_hour_ts >= timestamp_millis(?)", from.UnixMilli())
+	}
+	if to := spec.To; to != nil {
+		query = query.Where("usage_hour_ts < timestamp_millis(?)", to.UnixMilli())
+	}
+
+	// Convert to SQL
 	sql, args, err := query.ToSql()
 	if err != nil {
 		return "", nil, err
