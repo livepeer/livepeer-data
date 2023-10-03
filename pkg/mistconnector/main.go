@@ -5,7 +5,6 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"strconv"
 )
 
 type MistOptional struct {
@@ -25,16 +24,12 @@ type MistConfig struct {
 	Version      string                  `json:"version,omitempty"`
 }
 
-func isIntType(value string) bool {
-	if _, err := strconv.Atoi(value); err == nil {
-		return true
-	}
-	return false
-}
-
 func isBoolType(value string) bool {
-	if _, err := strconv.ParseBool(value); err == nil {
-		return true
+	boolValues := []string{"true", "TRUE", "True", "false", "FALSE", "False"}
+	for _, bv := range boolValues {
+		if value == bv {
+			return true
+		}
 	}
 	return false
 }
@@ -48,11 +43,9 @@ func PrintMistConfigJson(name, description, friendlyName, version string, flagSe
 		Optional:     make(map[string]MistOptional),
 	}
 	flagSet.VisitAll(func(f *flag.Flag) {
-		var flagType string = "str"
+		flagType := "str"
 		if len(f.DefValue) > 0 {
-			if isIntType(f.DefValue) {
-				flagType = "uint"
-			} else if isBoolType(f.DefValue) {
+			if isBoolType(f.DefValue) {
 				flagType = ""
 			}
 		}
