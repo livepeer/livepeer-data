@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 )
 
 type MistOptional struct {
@@ -25,9 +26,9 @@ type MistConfig struct {
 }
 
 func isBoolType(value string) bool {
-	boolValues := []string{"true", "TRUE", "True", "false", "FALSE", "False"}
+	boolValues := []string{"true", "false"}
 	for _, bv := range boolValues {
-		if value == bv {
+		if strings.ToLower(value) == bv {
 			return true
 		}
 	}
