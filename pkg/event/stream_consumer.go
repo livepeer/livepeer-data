@@ -119,15 +119,20 @@ func (c *strmConsumer) Consume(ctx context.Context, opts ConsumeOptions, handler
 	}
 
 	go func() {
-		defer func() {
-			if rec := recover(); rec != nil {
-				glog.Fatalf("Panic in stream message handler. panicValue=%v, stack=%q", rec, debug.Stack())
-			}
-		}()
 		defer cancel()
 
-		for msg := range msgs {
+		handleMsgRecv := func(msg StreamMessage) {
+			defer func() {
+				if rec := recover(); rec != nil {
+					glog.Fatalf("Panic in stream message handler. panicValue=%q message=%q stack=%q", rec, msg.Data, debug.Stack())
+				}
+			}()
+
 			handler.HandleMessage(msg)
+		}
+
+		for msg := range msgs {
+			handleMsgRecv(msg)
 		}
 	}()
 	return nil
