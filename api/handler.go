@@ -269,10 +269,12 @@ func ensureIsCreatorQuery(next http.Handler) http.Handler {
 func (h *apiHandler) queryViewership(detailed bool) http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
 		var (
-			from, err1 = parseInputTimestamp(r.URL.Query().Get("from"))
-			to, err2   = parseInputTimestamp(r.URL.Query().Get("to"))
+			qs                = r.URL.Query()
+			from, err1        = parseInputTimestamp(qs.Get("from"))
+			to, err2          = parseInputTimestamp(qs.Get("to"))
+			minPlaytime, err3 = parseInputDuration(qs.Get("minPlaytime"))
 		)
-		if errs := nonNilErrs(err1, err2); len(errs) > 0 {
+		if errs := nonNilErrs(err1, err2, err3); len(errs) > 0 {
 			respondError(rw, http.StatusBadRequest, errs...)
 			return
 		}
@@ -283,16 +285,16 @@ func (h *apiHandler) queryViewership(detailed bool) http.HandlerFunc {
 			return
 		}
 
-		qs := r.URL.Query()
 		assetID, streamID := qs.Get("assetId"), qs.Get("streamId")
 		query := views.QuerySpec{
 			From:     from,
 			To:       to,
 			TimeStep: qs.Get("timeStep"),
 			Filter: views.QueryFilter{
-				UserID:     userId,
-				PlaybackID: qs.Get("playbackId"),
-				CreatorID:  qs.Get("creatorId"),
+				UserID:      userId,
+				PlaybackID:  qs.Get("playbackId"),
+				CreatorID:   qs.Get("creatorId"),
+				MinPlaytime: minPlaytime,
 			},
 			BreakdownBy: qs["breakdownBy[]"],
 			Detailed:    detailed,

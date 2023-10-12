@@ -16,9 +16,10 @@ import (
 const maxBigQueryResultRows = 10000
 
 type QueryFilter struct {
-	PlaybackID string
-	CreatorID  string
-	UserID     string
+	PlaybackID  string
+	CreatorID   string
+	UserID      string
+	MinPlaytime time.Duration
 }
 
 type QuerySpec struct {
@@ -172,6 +173,10 @@ func buildViewsEventsQuery(table string, spec QuerySpec) (string, []interface{},
 	if creatorId := spec.Filter.CreatorID; creatorId != "" {
 		query = query.Where("creator_id_type = ?", "unverified")
 		query = query.Where("creator_id = ?", creatorId)
+	}
+
+	if minPlaytime := spec.Filter.MinPlaytime.Milliseconds(); minPlaytime > 0 {
+		query = query.Where("playtime_ms >= ?", minPlaytime)
 	}
 
 	if timeStep := spec.TimeStep; timeStep != "" {
