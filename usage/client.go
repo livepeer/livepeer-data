@@ -56,3 +56,12 @@ func (c *Client) QueryTotalSummary(ctx context.Context, spec FromToQuerySpec) (*
 
 	return summary, nil
 }
+
+func (c *Client) QueryActiveUsageSummary(ctx context.Context, spec FromToQuerySpec) (*[]ActiveUsersSummaryRow, error) {
+	summary, err := c.bigquery.QueryActiveUsersUsageSummary(ctx, spec)
+	if err != nil {
+		return nil, err
+	}
+
+	return summary, nil
+}

@@ -3,6 +3,7 @@ package usage
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"time"
 
 	"cloud.google.com/go/bigquery"
@@ -26,6 +27,16 @@ type FromToQuerySpec struct {
 	From, To *time.Time
 }
 
+type GroupedParams struct {
+	UserId            string `json:"userId" binding:"required"`
+	BillingCycleStart string `json:"billingCycleStart" binding:"required"`
+	BillingCycleEnd   string `json:"billingCycleEnd" binding:"required"`
+}
+
+type GroupedQuerySpec struct {
+	Users []GroupedParams
+}
+
 var allowedTimeSteps = map[string]bool{
 	"hour": true,
 	"day":  true,
@@ -38,6 +49,27 @@ type UsageSummaryRow struct {
 	DeliveryUsageMins float64 `bigquery:"delivery_usage_mins"`
 	TotalUsageMins    float64 `bigquery:"transcode_total_usage_mins"`
 	StorageUsageMins  float64 `bigquery:"storage_usage_mins"`
+}
+
+type ActiveUsersSummaryRow struct {
+	UserID string    `bigquery:"user_id" json:"userId"`
+	Email  string    `bigquery:"email" json:"email"`
+	From   time.Time `bigquery:"interval_start_date" json:"from"`
+	To     time.Time `bigquery:"interval_end_date" json:"to"`
+
+	DeliveryUsageMins float64 `bigquery:"delivery_usage_mins" json:"deliveryUsageMins"`
+	TotalUsageMins    float64 `bigquery:"transcode_total_usage_mins" json:"totalUsageMins"`
+	StorageUsageMins  float64 `bigquery:"storage_usage_mins" json:"storageUsageMins"`
+}
+
+type GroupedUsageRow struct {
+	UserID string    `bigquery:"user_id" json:"userId"`
+	From   time.Time `bigquery:"interval_start_date" json:"from"`
+	To     time.Time `bigquery:"interval_end_date" json:"to"`
+
+	DeliveryUsageMins float64 `bigquery:"delivery_usage_mins" json:"deliveryUsageMins"`
+	TotalUsageMins    float64 `bigquery:"transcode_total_usage_mins" json:"totalUsageMins"`
+	StorageUsageMins  float64 `bigquery:"storage_usage_mins" json:"storageUsageMins"`
 }
 
 type TotalUsageSummaryRow struct {
@@ -60,12 +92,14 @@ type BigQuery interface {
 	QueryUsageSummary(ctx context.Context, userID string, creatorID string, spec QuerySpec) (*UsageSummaryRow, error)
 	QueryUsageSummaryWithTimestep(ctx context.Context, userID string, creatorID string, spec QuerySpec) (*[]UsageSummaryRow, error)
 	QueryTotalUsageSummary(ctx context.Context, spec FromToQuerySpec) (*[]TotalUsageSummaryRow, error)
+	QueryActiveUsersUsageSummary(ctx context.Context, spec FromToQuerySpec) (*[]ActiveUsersSummaryRow, error)
 }
 
 type BigQueryOptions struct {
 	BigQueryCredentialsJSON   string
 	HourlyUsageTable          string
 	DailyUsageTable           string
+	UsersTable                string
 	MaxBytesBilledPerBigQuery int64
 }
 
@@ -80,6 +114,23 @@ func NewBigQuery(opts BigQueryOptions) (BigQuery, error) {
 	}
 
 	return &bigqueryHandler{opts, bigquery}, nil
+}
+
+func parseInputTimestamp(str string) (*time.Time, error) {
+	if str == "" {
+		return nil, nil
+	}
+	t, rfcErr := time.Parse(time.RFC3339Nano, str)
+	if rfcErr == nil {
+		return &t, nil
+	}
+
+	ts, unixErr := strconv.ParseInt(str, 10, 64)
+	if unixErr != nil {
+		return nil, fmt.Errorf("bad time %q. must be in RFC3339 or Unix Timestamp (millisecond) formats. rfcErr: %s; unixErr: %s", str, rfcErr, unixErr)
+	}
+	t = time.UnixMilli(ts)
+	return &t, nil
 }
 
 // interface from *bigquery.Client to allow mocking
@@ -167,6 +218,30 @@ func (bq *bigqueryHandler) QueryTotalUsageSummary(ctx context.Context, spec From
 	return &bqRows, nil
 }
 
+func (bq *bigqueryHandler) QueryActiveUsersUsageSummary(ctx context.Context, spec FromToQuerySpec) (*[]ActiveUsersSummaryRow, error) {
+	sql, args, err := buildActiveUsersUsageSummaryQuery(bq.opts.HourlyUsageTable, bq.opts.UsersTable, spec)
+	if err != nil {
+		return nil, fmt.Errorf("error building active users summary query: %w", err)
+	}
+
+	bqRows, err := doBigQuery[ActiveUsersSummaryRow](bq, ctx, sql, args)
+	if err != nil {
+		return nil, fmt.Errorf("bigquery error: %w", err)
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("bigquery error: %w", err)
+	} else if len(bqRows) > maxBigQueryResultRows {
+		return nil, fmt.Errorf("query must return less than %d datapoints. consider decreasing your timeframe or increasing the time step", maxBigQueryResultRows)
+	}
+
+	if len(bqRows) == 0 {
+		return nil, nil
+	}
+
+	return &bqRows, nil
+}
+
 func buildUsageSummaryQuery(table string, userID string, creatorID string, spec QuerySpec) (string, []interface{}, error) {
 	if userID == "" {
 		return "", nil, fmt.Errorf("userID cannot be empty")
@@ -227,6 +302,42 @@ func buildTotalUsageSummaryQuery(table string, spec FromToQuerySpec) (string, []
 		query = query.Where("date_ts < timestamp_millis(?)", to.UnixMilli())
 	}
 
+	sql, args, err := query.ToSql()
+	if err != nil {
+		return "", nil, err
+	}
+
+	return sql, args, nil
+}
+
+func buildActiveUsersUsageSummaryQuery(billingTable, usersTable string, spec FromToQuerySpec) (string, []interface{}, error) {
+
+	// Create the base select statement using the provided billingTable and usersTable
+	query := squirrel.
+		Select(
+			"b.user_id",
+			"u.email",
+			"min(usage_hour_ts) as interval_start_date",
+			"max(usage_hour_ts) as interval_end_date",
+			"cast(sum(transcode_total_usage_mins) as FLOAT64) as transcode_total_usage_mins",
+			"cast(sum(delivery_usage_mins) as FLOAT64) as delivery_usage_mins",
+			"cast((sum(storage_usage_mins) / count(distinct usage_hour_ts)) as FLOAT64) as storage_usage_mins",
+		).
+		From(fmt.Sprintf("`%s` as b", billingTable)).
+		Join(fmt.Sprintf("%s as u on b.user_id = u.user_id", usersTable)).
+		Where("not internal").
+		GroupBy("b.user_id", "u.email").
+		Having("transcode_total_usage_mins > 0 or delivery_usage_mins > 0 or storage_usage_mins > 0")
+
+	// Apply additional conditions based on the spec provided
+	if from := spec.From; from != nil {
+		query = query.Where("usage_hour_ts >= timestamp_millis(?)", from.UnixMilli())
+	}
+	if to := spec.To; to != nil {
+		query = query.Where("usage_hour_ts < timestamp_millis(?)", to.UnixMilli())
+	}
+
+	// Convert to SQL
 	sql, args, err := query.ToSql()
 	if err != nil {
 		return "", nil, err
