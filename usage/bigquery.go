@@ -27,16 +27,6 @@ type FromToQuerySpec struct {
 	From, To *time.Time
 }
 
-type GroupedParams struct {
-	UserId            string `json:"userId" binding:"required"`
-	BillingCycleStart string `json:"billingCycleStart" binding:"required"`
-	BillingCycleEnd   string `json:"billingCycleEnd" binding:"required"`
-}
-
-type GroupedQuerySpec struct {
-	Users []GroupedParams
-}
-
 var allowedTimeSteps = map[string]bool{
 	"hour": true,
 	"day":  true,
@@ -54,16 +44,6 @@ type UsageSummaryRow struct {
 type ActiveUsersSummaryRow struct {
 	UserID string    `bigquery:"user_id" json:"userId"`
 	Email  string    `bigquery:"email" json:"email"`
-	From   time.Time `bigquery:"interval_start_date" json:"from"`
-	To     time.Time `bigquery:"interval_end_date" json:"to"`
-
-	DeliveryUsageMins float64 `bigquery:"delivery_usage_mins" json:"deliveryUsageMins"`
-	TotalUsageMins    float64 `bigquery:"transcode_total_usage_mins" json:"totalUsageMins"`
-	StorageUsageMins  float64 `bigquery:"storage_usage_mins" json:"storageUsageMins"`
-}
-
-type GroupedUsageRow struct {
-	UserID string    `bigquery:"user_id" json:"userId"`
 	From   time.Time `bigquery:"interval_start_date" json:"from"`
 	To     time.Time `bigquery:"interval_end_date" json:"to"`
 
