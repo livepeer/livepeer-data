@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"strconv"
-	"strings"
 	"time"
 
 	"cloud.google.com/go/bigquery"
@@ -57,6 +56,10 @@ type ActiveUsersSummaryRow struct {
 	Email  string    `bigquery:"email" json:"email"`
 	From   time.Time `bigquery:"interval_start_date" json:"from"`
 	To     time.Time `bigquery:"interval_end_date" json:"to"`
+
+	DeliveryUsageMins float64 `bigquery:"delivery_usage_mins" json:"deliveryUsageMins"`
+	TotalUsageMins    float64 `bigquery:"transcode_total_usage_mins" json:"totalUsageMins"`
+	StorageUsageMins  float64 `bigquery:"storage_usage_mins" json:"storageUsageMins"`
 }
 
 type GroupedUsageRow struct {
@@ -90,7 +93,6 @@ type BigQuery interface {
 	QueryUsageSummaryWithTimestep(ctx context.Context, userID string, creatorID string, spec QuerySpec) (*[]UsageSummaryRow, error)
 	QueryTotalUsageSummary(ctx context.Context, spec FromToQuerySpec) (*[]TotalUsageSummaryRow, error)
 	QueryActiveUsersUsageSummary(ctx context.Context, spec FromToQuerySpec) (*[]ActiveUsersSummaryRow, error)
-	QueryGroupedUsageSummary(ctx context.Context, spec GroupedQuerySpec) (*[]GroupedUsageRow, error)
 }
 
 type BigQueryOptions struct {
@@ -240,30 +242,6 @@ func (bq *bigqueryHandler) QueryActiveUsersUsageSummary(ctx context.Context, spe
 	return &bqRows, nil
 }
 
-func (bq *bigqueryHandler) QueryGroupedUsageSummary(ctx context.Context, spec GroupedQuerySpec) (*[]GroupedUsageRow, error) {
-	sql, args, err := buildGroupedUsageSummaryQuery(bq.opts.HourlyUsageTable, spec)
-	if err != nil {
-		return nil, fmt.Errorf("error building active users summary query: %w", err)
-	}
-
-	bqRows, err := doBigQuery[GroupedUsageRow](bq, ctx, sql, args)
-	if err != nil {
-		return nil, fmt.Errorf("bigquery error: %w", err)
-	}
-
-	if err != nil {
-		return nil, fmt.Errorf("bigquery error: %w", err)
-	} else if len(bqRows) > maxBigQueryResultRows {
-		return nil, fmt.Errorf("query must return less than %d datapoints. consider decreasing your timeframe or increasing the time step", maxBigQueryResultRows)
-	}
-
-	if len(bqRows) == 0 {
-		return nil, nil
-	}
-
-	return &bqRows, nil
-}
-
 func buildUsageSummaryQuery(table string, userID string, creatorID string, spec QuerySpec) (string, []interface{}, error) {
 	if userID == "" {
 		return "", nil, fmt.Errorf("userID cannot be empty")
@@ -366,49 +344,6 @@ func buildActiveUsersUsageSummaryQuery(billingTable, usersTable string, spec Fro
 	}
 
 	return sql, args, nil
-}
-
-func buildGroupedUsageSummaryQuery(table string, spec GroupedQuerySpec) (string, []interface{}, error) {
-	var subqueryStrs []string
-	var allArgs []interface{}
-
-	for _, user := range spec.Users {
-		startTime, err := parseInputTimestamp(user.BillingCycleStart)
-		if err != nil {
-			return "", nil, err
-		}
-		endTime, err := parseInputTimestamp(user.BillingCycleEnd)
-		if err != nil {
-			return "", nil, err
-		}
-
-		subquery := squirrel.
-			Select(
-				"user_id",
-				"min(usage_hour_ts) as interval_start_date",
-				"max(usage_hour_ts) as interval_end_date",
-				"cast(sum(transcode_total_usage_mins) as FLOAT64) as transcode_total_usage_mins",
-				"cast(sum(delivery_usage_mins) as FLOAT64) as delivery_usage_mins",
-				"cast((sum(storage_usage_mins) / count(distinct usage_hour_ts)) as FLOAT64) as storage_usage_mins",
-			).
-			From(table).
-			Where(squirrel.Eq{"user_id": user.UserId}).
-			Where("usage_hour_ts BETWEEN TIMESTAMP_MILLIS(?) AND TIMESTAMP_MILLIS(?)", startTime.UnixMilli(), endTime.UnixMilli()).
-			GroupBy("user_id")
-
-		subSql, args, err := subquery.ToSql()
-		if err != nil {
-			return "", nil, err
-		}
-
-		subqueryStrs = append(subqueryStrs, subSql)
-		allArgs = append(allArgs, args...)
-	}
-
-	// Combine all subquery strings using "UNION ALL"
-	sql := strings.Join(subqueryStrs, " UNION ALL ")
-
-	return sql, allArgs, nil
 }
 
 // query helpers

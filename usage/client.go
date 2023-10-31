@@ -65,12 +65,3 @@ func (c *Client) QueryActiveUsageSummary(ctx context.Context, spec FromToQuerySp
 
 	return summary, nil
 }
-
-func (c *Client) QueryGroupedUsageSummary(ctx context.Context, spec GroupedQuerySpec) (*[]GroupedUsageRow, error) {
-	summary, err := c.bigquery.QueryGroupedUsageSummary(ctx, spec)
-	if err != nil {
-		return nil, err
-	}
-
-	return summary, nil
-}
