@@ -40,8 +40,8 @@ type Metric struct {
 
 	// metric data
 
-	ViewCount        int64                  `json:"viewCount"`
-	PlaytimeMins     float64                `json:"playtimeMins"`
+	ViewCount        data.Nullable[int64]   `json:"viewCount,omitempty"`
+	PlaytimeMins     data.Nullable[float64] `json:"playtimeMins,omitempty"`
 	TtffMs           data.Nullable[float64] `json:"ttffMs,omitempty"`
 	RebufferRatio    data.Nullable[float64] `json:"rebufferRatio,omitempty"`
 	ErrorRate        data.Nullable[float64] `json:"errorRate,omitempty"`
@@ -97,7 +97,7 @@ func (c *Client) Deprecated_GetTotalViews(ctx context.Context, id string) ([]Tot
 
 	return []TotalViews{{
 		ID:         asset.PlaybackID,
-		StartViews: startViews,
+		StartViews: data.ToNullable[int64](startViews, true, true),
 	}}, nil
 }
 
@@ -126,9 +126,9 @@ func viewershipSummaryToMetric(playbackID string, summary *ViewSummaryRow) *Metr
 	return &Metric{
 		PlaybackID:      toStringPtr(summary.PlaybackID, summary.PlaybackID.Valid),
 		DStorageURL:     toStringPtr(summary.DStorageURL, summary.DStorageURL.Valid),
-		ViewCount:       summary.ViewCount,
+		ViewCount:       toInt64Ptr(summary.ViewCount, summary.ViewCount.Valid),
 		LegacyViewCount: data.ToNullable[int64](legacyViewCount, true, true),
-		PlaytimeMins:    summary.PlaytimeMins,
+		PlaytimeMins:    toFloat64Ptr(summary.PlaytimeMins, summary.PlaytimeMins.Valid),
 	}
 }
 
@@ -187,8 +187,8 @@ func viewershipEventsToMetrics(rows []ViewershipEventRow, spec QuerySpec) []Metr
 			Subdivision:      toStringPtr(row.Subdivision, spec.hasBreakdownBy("subdivision")),
 			TimeZone:         toStringPtr(row.TimeZone, spec.hasBreakdownBy("timezone")),
 			GeoHash:          toStringPtr(row.GeoHash, spec.hasBreakdownBy("geohash")),
-			ViewCount:        row.ViewCount,
-			PlaytimeMins:     row.PlaytimeMins,
+			ViewCount:        toInt64Ptr(row.ViewCount, spec.Detailed),
+			PlaytimeMins:     toFloat64Ptr(row.PlaytimeMins, spec.Detailed),
 			TtffMs:           toFloat64Ptr(row.TtffMs, spec.Detailed),
 			RebufferRatio:    toFloat64Ptr(row.RebufferRatio, spec.Detailed),
 			ErrorRate:        toFloat64Ptr(row.ErrorRate, spec.Detailed),
@@ -203,6 +203,10 @@ func viewershipEventsToMetrics(rows []ViewershipEventRow, spec QuerySpec) []Metr
 		metrics[i] = m
 	}
 	return metrics
+}
+
+func toInt64Ptr(bqInt bigquery.NullInt64, asked bool) data.Nullable[int64] {
+	return data.ToNullable(bqInt.Int64, bqInt.Valid, asked)
 }
 
 func toFloat64Ptr(bqFloat bigquery.NullFloat64, asked bool) data.Nullable[float64] {

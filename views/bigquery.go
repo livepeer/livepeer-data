@@ -80,8 +80,8 @@ type ViewershipEventRow struct {
 
 	// metric data
 
-	ViewCount        int64                `bigquery:"view_count"`
-	PlaytimeMins     float64              `bigquery:"playtime_mins"`
+	ViewCount        bigquery.NullInt64   `bigquery:"view_count"`
+	PlaytimeMins     bigquery.NullFloat64 `bigquery:"playtime_mins"`
 	TtffMs           bigquery.NullFloat64 `bigquery:"ttff_ms"`
 	RebufferRatio    bigquery.NullFloat64 `bigquery:"rebuffer_ratio"`
 	ErrorRate        bigquery.NullFloat64 `bigquery:"error_rate"`
@@ -92,9 +92,9 @@ type ViewSummaryRow struct {
 	PlaybackID  bigquery.NullString `bigquery:"playback_id"`
 	DStorageURL bigquery.NullString `bigquery:"d_storage_url"`
 
-	ViewCount       int64              `bigquery:"view_count"`
-	LegacyViewCount bigquery.NullInt64 `bigquery:"legacy_view_count"`
-	PlaytimeMins    float64            `bigquery:"playtime_mins"`
+	ViewCount       bigquery.NullInt64   `bigquery:"view_count"`
+	LegacyViewCount bigquery.NullInt64   `bigquery:"legacy_view_count"`
+	PlaytimeMins    bigquery.NullFloat64 `bigquery:"playtime_mins"`
 }
 
 type BigQuery interface {

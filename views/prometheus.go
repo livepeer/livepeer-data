@@ -7,14 +7,15 @@ import (
 
 	"github.com/golang/glog"
 	livepeer "github.com/livepeer/go-api-client"
+	"github.com/livepeer/livepeer-data/pkg/data"
 	promClient "github.com/prometheus/client_golang/api"
 	prometheus "github.com/prometheus/client_golang/api/prometheus/v1"
 	"github.com/prometheus/common/model"
 )
 
 type TotalViews struct {
-	ID         string `json:"id"`
-	StartViews int64  `json:"startViews"`
+	ID         string               `json:"id"`
+	StartViews data.Nullable[int64] `json:"startViews"`
 }
 
 type Prometheus struct {
