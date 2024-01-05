@@ -163,10 +163,10 @@ func buildViewsEventsQuery(table string, spec QuerySpec) (string, []interface{},
 
 	if spec.Detailed {
 		query = query.Columns(
-			"ifnull(avg(ttff_ms), 0) as ttff_ms",
-			"ifnull(avg(rebuffer_ratio), 0) as rebuffer_ratio",
-			"ifnull(avg(if(error_count > 0, 1, 0)), 0) as error_rate",
-			"ifnull(sum(if(exit_before_start, 1.0, 0.0)), 0) as exits_before_start")
+			"avg(ttff_ms) as ttff_ms",
+			"avg(rebuffer_ratio) as rebuffer_ratio",
+			"avg(if(error_count > 0, 1, 0)) as error_rate",
+			"sum(if(exit_before_start, 1.0, 0.0)) as exits_before_start")
 	}
 
 	if creatorId := spec.Filter.CreatorID; creatorId != "" {
