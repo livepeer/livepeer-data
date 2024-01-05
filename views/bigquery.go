@@ -155,7 +155,7 @@ func (bq *bigqueryHandler) QueryViewsEvents(ctx context.Context, spec QuerySpec)
 func buildViewsEventsQuery(table string, spec QuerySpec) (string, []interface{}, error) {
 	query := squirrel.Select(
 		"countif(play_intent) as view_count",
-		"sum(playtime_ms) / 60000.0 as playtime_mins").
+		"ifnull(sum(playtime_ms), 0) / 60000.0 as playtime_mins").
 		From(table).
 		Where("account_id = ?", spec.Filter.UserID).
 		Limit(maxBigQueryResultRows + 1)
