@@ -94,7 +94,7 @@ jobs:
           tar -czf "../releases/livepeer-analyzer-${GOOS}-${GOARCH}.tar.gz" livepeer-analyzer
 
       - name: Upload artifacts for cutting release
-        uses: actions/upload-artifact@master
+        uses: actions/upload-artifact@v3
         with:
           name: release-artifacts
           path: releases/
