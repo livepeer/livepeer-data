@@ -198,7 +198,7 @@ func (c *Core) handleSingleEvent(evt data.Event) (err error) {
 		}
 		// We flag the record as initialized unless, from the received events,
 		// we know for sure that the stream is inactive.
-		isInactive := cond.Status != nil && *cond.Status == false
+		isInactive := cond.Status != nil && !*cond.Status
 		if !isInactive {
 			record.FlagInitialized()
 		}
