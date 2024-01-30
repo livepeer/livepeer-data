@@ -11,7 +11,6 @@ import (
 
 	"github.com/golang/glog"
 	"github.com/google/uuid"
-	"github.com/livepeer/livepeer-data/health/reducers"
 	"github.com/livepeer/livepeer-data/metrics"
 	"github.com/livepeer/livepeer-data/pkg/data"
 	"github.com/livepeer/livepeer-data/pkg/event"
@@ -194,7 +193,7 @@ func (c *Core) handleSingleEvent(evt data.Event) (err error) {
 	}
 
 	for _, cond := range record.LastStatus.Conditions {
-		if cond.Type != reducers.ConditionActive {
+		if cond.Type != ConditionActive {
 			continue
 		}
 		// We flag the record as initialized unless, from the received events,

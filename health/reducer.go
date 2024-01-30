@@ -5,6 +5,8 @@ import (
 	"github.com/livepeer/livepeer-data/pkg/event"
 )
 
+const ConditionActive data.ConditionType = "Active"
+
 type Reducer interface {
 	Bindings() []event.BindingArgs
 	Conditions() []data.ConditionType
