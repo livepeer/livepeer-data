@@ -11,6 +11,7 @@ import (
 
 	"github.com/golang/glog"
 	"github.com/google/uuid"
+	"github.com/livepeer/livepeer-data/health/reducers"
 	"github.com/livepeer/livepeer-data/metrics"
 	"github.com/livepeer/livepeer-data/pkg/data"
 	"github.com/livepeer/livepeer-data/pkg/event"
@@ -192,10 +193,18 @@ func (c *Core) handleSingleEvent(evt data.Event) (err error) {
 		}
 	}
 
-	// Flag the record as initialized after the first event is processed. This
-	// will unblock any goroutines waiting for the record to be initialized
-	// (i.e. waiting for a stream to start on WaitStreamStarted).
-	record.FlagInitialized()
+	for _, cond := range record.LastStatus.Conditions {
+		if cond.Type != reducers.ConditionActive {
+			continue
+		}
+		// We flag the record as initialized unless, from the received events,
+		// we know for sure that the stream is inactive.
+		isInactive := cond.Status != nil && *cond.Status == false
+		if !isInactive {
+			record.FlagInitialized()
+		}
+		break
+	}
 
 	return nil
 }
