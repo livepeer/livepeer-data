@@ -191,6 +191,12 @@ func (c *Core) handleSingleEvent(evt data.Event) (err error) {
 			glog.Warningf("Buffer full for health event subscription, skipping message. streamId=%q, eventTs=%q", streamID, ts)
 		}
 	}
+
+	// Flag the record as initialized after the first event is processed. This
+	// will unblock any goroutines waiting for the record to be initialized
+	// (i.e. waiting for a stream to start on WaitStreamStarted).
+	record.FlagInitialized()
+
 	return nil
 }
 
@@ -245,6 +251,16 @@ func (c *Core) SubscribeEvents(ctx context.Context, manifestID string, lastEvtID
 	}
 	subs := record.SubscribeLocked(ctx, make(chan data.Event, eventSubscriptionBufSize))
 	return pastEvents, subs, nil
+}
+
+func (c *Core) WaitStarted(ctx context.Context, manifestID string) error {
+	// We actually create the record here if it doesn't exist, so that we can
+	// wait for it to be initialized.
+	record := c.storage.GetOrCreate(manifestID, c.conditionTypes)
+	if err := record.WaitInitialized(ctx); err != nil {
+		return err
+	}
+	return nil
 }
 
 func getPastEventsLocked(record *Record, lastEvtID *uuid.UUID, from, to *time.Time) ([]data.Event, error) {
