@@ -191,6 +191,20 @@ func (c *Core) handleSingleEvent(evt data.Event) (err error) {
 			glog.Warningf("Buffer full for health event subscription, skipping message. streamId=%q, eventTs=%q", streamID, ts)
 		}
 	}
+
+	for _, cond := range record.LastStatus.Conditions {
+		if cond.Type != ConditionActive {
+			continue
+		}
+		// We flag the record as initialized unless, from the received events,
+		// we know for sure that the stream is inactive.
+		isInactive := cond.Status != nil && !*cond.Status
+		if !isInactive {
+			record.FlagInitialized()
+		}
+		break
+	}
+
 	return nil
 }
 
@@ -245,6 +259,16 @@ func (c *Core) SubscribeEvents(ctx context.Context, manifestID string, lastEvtID
 	}
 	subs := record.SubscribeLocked(ctx, make(chan data.Event, eventSubscriptionBufSize))
 	return pastEvents, subs, nil
+}
+
+func (c *Core) WaitActive(ctx context.Context, manifestID string) error {
+	// We actually create the record here if it doesn't exist, so that we can
+	// wait for it to be initialized.
+	record := c.storage.GetOrCreate(manifestID, c.conditionTypes)
+	if err := record.WaitInitialized(ctx); err != nil {
+		return err
+	}
+	return nil
 }
 
 func getPastEventsLocked(record *Record, lastEvtID *uuid.UUID, from, to *time.Time) ([]data.Event, error) {
