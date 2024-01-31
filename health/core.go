@@ -261,7 +261,7 @@ func (c *Core) SubscribeEvents(ctx context.Context, manifestID string, lastEvtID
 	return pastEvents, subs, nil
 }
 
-func (c *Core) WaitStarted(ctx context.Context, manifestID string) error {
+func (c *Core) WaitActive(ctx context.Context, manifestID string) error {
 	// We actually create the record here if it doesn't exist, so that we can
 	// wait for it to be initialized.
 	record := c.storage.GetOrCreate(manifestID, c.conditionTypes)
