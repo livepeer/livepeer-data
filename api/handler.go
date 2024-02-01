@@ -98,19 +98,14 @@ func (h *apiHandler) streamHealthHandler() chi.Router {
 	if opts.AuthURL != "" {
 		router.Use(authorization(opts.AuthURL))
 	}
-
-	regionalMiddlewares := []middleware{
+	router.Use(
 		streamStatus(healthcore),
-		regionProxy(opts.RegionalHostFormat, opts.OwnRegion),
-	}
+		regionProxy(opts.RegionalHostFormat, opts.OwnRegion))
+
 	h.withMetrics(router, "get_stream_health").
-		With(regionalMiddlewares...).
 		MethodFunc("GET", "/health", h.getStreamHealth)
 	h.withMetrics(router, "stream_health_events").
-		With(regionalMiddlewares...).
 		MethodFunc("GET", "/events", h.subscribeEvents)
-	h.withMetrics(router, "wait_stream_active").
-		MethodFunc("GET", "/wait-active", h.waitStreamActive)
 
 	return router
 }
@@ -561,22 +556,6 @@ func (h *apiHandler) subscribeEvents(rw http.ResponseWriter, r *http.Request) {
 		glog.Errorf("Error serving events. err=%q", err)
 		respondError(rw, status, err)
 	}
-}
-
-func (h *apiHandler) waitStreamActive(rw http.ResponseWriter, r *http.Request) {
-	if h.core == nil {
-		respondError(rw, http.StatusNotImplemented, errors.New("stream healthcore is unavailable"))
-		return
-	}
-
-	streamID := apiParam(r, streamIDParam)
-	err := h.core.WaitActive(r.Context(), streamID)
-	if err != nil {
-		respondError(rw, http.StatusInternalServerError, err)
-		return
-	}
-
-	rw.WriteHeader(http.StatusNoContent)
 }
 
 func makeSSEEventChan(ctx context.Context, pastEvents []data.Event, subscription <-chan data.Event) <-chan jsse.Event {
