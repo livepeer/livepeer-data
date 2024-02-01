@@ -4,13 +4,14 @@ import (
 	"time"
 
 	"github.com/golang/glog"
-	"github.com/livepeer/livepeer-data/health"
 	"github.com/livepeer/livepeer-data/pkg/data"
 	"github.com/livepeer/livepeer-data/pkg/event"
 )
 
 const (
 	streamStateBindingKey = "stream.state.#"
+
+	ConditionActive data.ConditionType = "Active"
 )
 
 type ActiveConditionExtraData struct {
@@ -27,7 +28,7 @@ func (t StreamStateReducer) Bindings() []event.BindingArgs {
 }
 
 func (t StreamStateReducer) Conditions() []data.ConditionType {
-	return []data.ConditionType{health.ConditionActive}
+	return []data.ConditionType{ConditionActive}
 }
 
 func (t StreamStateReducer) Reduce(current *data.HealthStatus, _ interface{}, evtIface data.Event) (*data.HealthStatus, interface{}) {
@@ -54,7 +55,7 @@ func (t StreamStateReducer) Reduce(current *data.HealthStatus, _ interface{}, ev
 		current = data.NewHealthStatus(current.ID, conditions)
 	}
 	for i, cond := range conditions {
-		if cond.Type == health.ConditionActive {
+		if cond.Type == ConditionActive {
 			newCond := data.NewCondition(cond.Type, evt.Timestamp(), &isActive, cond)
 			newCond.ExtraData = ActiveConditionExtraData{NodeID: evt.NodeID, Region: evt.Region}
 			conditions[i] = newCond
@@ -74,7 +75,7 @@ func clearConditions(conditions []*data.Condition) []*data.Condition {
 }
 
 func GetLastActiveData(status *data.HealthStatus) ActiveConditionExtraData {
-	data, ok := status.Condition(health.ConditionActive).ExtraData.(ActiveConditionExtraData)
+	data, ok := status.Condition(ConditionActive).ExtraData.(ActiveConditionExtraData)
 	if !ok {
 		return ActiveConditionExtraData{}
 	}

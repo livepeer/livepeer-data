@@ -16,8 +16,7 @@ type Record struct {
 	Conditions []data.ConditionType
 
 	sync.RWMutex
-	initialized chan struct{}
-	disposed    chan struct{}
+	disposed chan struct{}
 
 	PastEvents []data.Event
 	EventsByID map[uuid.UUID]data.Event
@@ -33,43 +32,11 @@ func NewRecord(id string, conditionTypes []data.ConditionType) *Record {
 		conditions[i] = data.NewCondition(cond, time.Time{}, nil, nil)
 	}
 	return &Record{
-		ID:          id,
-		Conditions:  conditionTypes,
-		initialized: make(chan struct{}),
-		disposed:    make(chan struct{}),
-		EventsByID:  map[uuid.UUID]data.Event{},
-		LastStatus:  data.NewHealthStatus(id, conditions),
-	}
-}
-
-// FlagInitialized will flag the record as initialized. It is meant to be called
-// after the first event is processed, meaning the record is not empty anymore.
-//
-// This is used to allow waiting until a stream is started by creating its
-// record in an uninitialized state first and calling `WaitInitialized`. The
-// initialization flag is simply a channel that is closed, which will unblock
-// all goroutines waiting to receive from it (`WaitInitialized`).
-func (r *Record) FlagInitialized() {
-	if !r.IsInitialized() {
-		close(r.initialized)
-	}
-}
-
-func (r *Record) IsInitialized() bool {
-	select {
-	case <-r.initialized:
-		return true
-	default:
-		return false
-	}
-}
-
-func (r *Record) WaitInitialized(ctx context.Context) error {
-	select {
-	case <-r.initialized:
-		return nil
-	case <-ctx.Done():
-		return ctx.Err()
+		ID:         id,
+		Conditions: conditionTypes,
+		disposed:   make(chan struct{}),
+		EventsByID: map[uuid.UUID]data.Event{},
+		LastStatus: data.NewHealthStatus(id, conditions),
 	}
 }
 
@@ -135,10 +102,7 @@ func (s *RecordStorage) StartCleanupLoop(ctx context.Context, ttl time.Duration)
 
 func (s *RecordStorage) Get(id string) (*Record, bool) {
 	if saved, ok := s.records.Load(id); ok {
-		// Until Initialize is called, the record is considered inexistent
-		if record := saved.(*Record); record.IsInitialized() {
-			return record, true
-		}
+		return saved.(*Record), true
 	}
 	return nil, false
 }
