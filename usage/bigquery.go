@@ -235,7 +235,6 @@ func buildUsageSummaryQuery(table string, userID string, creatorID string, spec 
 		Limit(maxBigQueryResultRows + 1)
 
 	if creatorId := spec.Filter.CreatorID; creatorId != "" {
-		query = query.Where("creator_id_type = ?", "unverified")
 		query = query.Where("creator_id = ?", creatorID)
 	}
 
