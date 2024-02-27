@@ -9,7 +9,6 @@ import (
 
 	"cloud.google.com/go/bigquery"
 	"github.com/Masterminds/squirrel"
-	"github.com/golang/glog"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 )
@@ -134,14 +133,11 @@ type bigqueryHandler struct {
 // usage summary query
 
 func (bq *bigqueryHandler) QueryUsageSummary(ctx context.Context, userID string, spec QuerySpec) ([]UsageSummaryRow, error) {
-	glog.V(10).Infof("QueryUsageSummary: userID=%s, creatorID=%s, spec=%+v", userID, spec)
 	sql, args, err := buildUsageSummaryQuery(bq.opts.HourlyUsageTable, userID, spec)
 	if err != nil {
 		return nil, fmt.Errorf("error building usage summary query: %w", err)
 	}
-	glog.V(10).Infof("QueryUsageSummary: sql=%s, args=%v", sql, args)
 	bqRows, err := doBigQuery[UsageSummaryRow](bq, ctx, sql, args)
-	// glog.V(10).Infof("QueryUsageSummary: bqRows=%s", bqRows)
 	if err != nil {
 		return nil, fmt.Errorf("bigquery error: %w", err)
 	} else if len(bqRows) > maxBigQueryResultRows {
@@ -156,13 +152,11 @@ func (bq *bigqueryHandler) QueryUsageSummary(ctx context.Context, userID string,
 }
 
 func (bq *bigqueryHandler) QueryUsageSummaryWithTimestep(ctx context.Context, userID string, spec QuerySpec) ([]UsageSummaryRow, error) {
-	glog.V(10).Infof("QueryUsageSummaryWithTimestep: userID=%s, spec=%+v", userID, spec)
 
 	sql, args, err := buildUsageSummaryQuery(bq.opts.HourlyUsageTable, userID, spec)
 	if err != nil {
 		return nil, fmt.Errorf("error building usage summary query: %w", err)
 	}
-	glog.V(10).Infof("QueryUsageSummaryWithTimestep: sql=%s, args=%v", sql, args)
 
 	bqRows, err := doBigQuery[UsageSummaryRow](bq, ctx, sql, args)
 	if err != nil {
@@ -369,7 +363,6 @@ func doBigQuery[RowT any](bq *bigqueryHandler, ctx context.Context, sql string, 
 	}
 
 	typed, err := toTypedValues[RowT](it)
-	// glog.V(10).Infof("typed: %s", typed)
 
 	return typed, err
 }
@@ -392,10 +385,8 @@ func toTypedValues[RowT any](it *bigquery.RowIterator) ([]RowT, error) {
 		} else if err != nil {
 			return nil, fmt.Errorf("error reading query result: %w", err)
 		}
-		glog.V(10).Infof("values: %s", row)
 
 		values = append(values, row)
 	}
-	glog.V(10).Infof("values: %s %d", values[0], len(values))
 	return values, nil
 }
