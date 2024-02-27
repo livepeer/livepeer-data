@@ -96,7 +96,7 @@ func parseFlags(version string) cliFlags {
 	fs.StringVar(&cli.usageOpts.HourlyUsageTable, "hourly-usage-table", "livepeer-analytics.staging.hourly_billing_usage", "BigQuery table to read hourly usage metrics from")
 	fs.StringVar(&cli.usageOpts.DailyUsageTable, "daily-data-table", "livepeer-analytics.staging.explorer_day_data", "BigQuery table to read total usage metrics from")
 	fs.StringVar(&cli.usageOpts.UsersTable, "users-table", "livepeer-analytics.staging.studio_users", "BigQuery table to read studio users from")
-	fs.Int64Var(&cli.viewsOpts.MaxBytesBilledPerBigQuery, "max-bytes-billed-per-big-query", 1000*1024*1024 /* 100 MB */, "Max bytes billed configuration to use for the queries to BigQuery")
+	fs.Int64Var(&cli.viewsOpts.MaxBytesBilledPerBigQuery, "max-bytes-billed-per-big-query", 100*1024*1024 /* 100 MB */, "Max bytes billed configuration to use for the queries to BigQuery")
 
 	flag.Set("logtostderr", "true")
 	glogVFlag := flag.Lookup("v")
