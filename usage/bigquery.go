@@ -362,9 +362,7 @@ func doBigQuery[RowT any](bq *bigqueryHandler, ctx context.Context, sql string, 
 		return nil, fmt.Errorf("error running query: %w", err)
 	}
 
-	typed, err := toTypedValues[RowT](it)
-
-	return typed, err
+	return toTypedValues[RowT](it)
 }
 
 func toBigQueryParameters(args []interface{}) []bigquery.QueryParameter {
