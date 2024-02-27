@@ -8,7 +8,6 @@ import (
 
 	"cloud.google.com/go/bigquery"
 	"github.com/Masterminds/squirrel"
-	"github.com/golang/glog"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 )
@@ -279,7 +278,6 @@ func doBigQuery[RowT any](bq *bigqueryHandler, ctx context.Context, sql string, 
 	query := bq.client.Query(sql)
 	query.Parameters = toBigQueryParameters(args)
 	query.MaxBytesBilled = bq.opts.MaxBytesBilledPerBigQuery
-	glog.V(10).Infof("Running query. sql=%q args=%s", sql, args)
 
 	it, err := query.Read(ctx)
 	if err != nil {
@@ -287,7 +285,6 @@ func doBigQuery[RowT any](bq *bigqueryHandler, ctx context.Context, sql string, 
 	}
 
 	typed, err := toTypedValues[RowT](it)
-	glog.V(10).Infof("typed: %s", typed)
 
 	return typed, err
 }
@@ -311,11 +308,9 @@ func toTypedValues[RowT any](it *bigquery.RowIterator) ([]RowT, error) {
 		} else if err != nil {
 			return nil, fmt.Errorf("error reading query result: %w", err)
 		}
-		glog.V(10).Infof("%s", values)
 
 		values = append(values, row)
 	}
-	glog.V(10).Infof("values: %s %d", values[0], len(values))
 
 	return values, nil
 }
