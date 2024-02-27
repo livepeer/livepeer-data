@@ -286,7 +286,10 @@ func doBigQuery[RowT any](bq *bigqueryHandler, ctx context.Context, sql string, 
 		return nil, fmt.Errorf("error running query: %w", err)
 	}
 
-	return toTypedValues[RowT](it)
+	typed, err := toTypedValues[RowT](it)
+	glog.V(10).Infof("typed: %s", typed)
+
+	return typed, err
 }
 
 func toBigQueryParameters(args []interface{}) []bigquery.QueryParameter {
@@ -308,8 +311,11 @@ func toTypedValues[RowT any](it *bigquery.RowIterator) ([]RowT, error) {
 		} else if err != nil {
 			return nil, fmt.Errorf("error reading query result: %w", err)
 		}
+		glog.V(10).Infof("%s", values)
 
 		values = append(values, row)
 	}
+	glog.V(10).Infof("values: %s %d", values[0], len(values))
+
 	return values, nil
 }

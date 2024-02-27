@@ -343,7 +343,6 @@ func (h *apiHandler) queryUsage() http.HandlerFunc {
 		}
 
 		qs := r.URL.Query()
-		creatorId := qs.Get("creatorId")
 
 		query := usage.QuerySpec{
 			From:     from,
@@ -353,10 +352,11 @@ func (h *apiHandler) queryUsage() http.HandlerFunc {
 				UserID:    userId,
 				CreatorID: qs.Get("creatorId"),
 			},
+			BreakdownBy: qs["breakdownBy[]"],
 		}
 
 		if qs.Get("timeStep") == "" {
-			usage, err := h.usage.QuerySummary(r.Context(), userId, creatorId, query)
+			usage, err := h.usage.QuerySummary(r.Context(), userId, query)
 			if err != nil {
 				respondError(rw, http.StatusInternalServerError, err)
 				return
@@ -364,7 +364,7 @@ func (h *apiHandler) queryUsage() http.HandlerFunc {
 
 			respondJson(rw, http.StatusOK, usage)
 		} else {
-			usage, err := h.usage.QuerySummaryWithTimestep(r.Context(), userId, creatorId, query)
+			usage, err := h.usage.QuerySummaryWithTimestep(r.Context(), userId, query)
 			if err != nil {
 				respondError(rw, http.StatusInternalServerError, err)
 				return

@@ -4,10 +4,12 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"cloud.google.com/go/bigquery"
 	"github.com/Masterminds/squirrel"
+	"github.com/golang/glog"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 )
@@ -18,9 +20,14 @@ type QueryFilter struct {
 }
 
 type QuerySpec struct {
-	TimeStep string
-	From, To *time.Time
-	Filter   QueryFilter
+	TimeStep    string
+	From, To    *time.Time
+	Filter      QueryFilter
+	BreakdownBy []string
+}
+
+var usageBreakdownFields = map[string]string{
+	"creatorId": "creator_id",
 }
 
 type FromToQuerySpec struct {
@@ -33,12 +40,13 @@ var allowedTimeSteps = map[string]bool{
 }
 
 type UsageSummaryRow struct {
-	UserID    string `bigquery:"user_id"`
-	CreatorID string `bigquery:"creator_id"`
+	UserID       string              `bigquery:"user_id"`
+	CreatorID    bigquery.NullString `bigquery:"creator_id"`
+	TimeInterval time.Time           `bigquery:"time_interval"`
 
-	DeliveryUsageMins float64 `bigquery:"delivery_usage_mins"`
-	TotalUsageMins    float64 `bigquery:"transcode_total_usage_mins"`
-	StorageUsageMins  float64 `bigquery:"storage_usage_mins"`
+	DeliveryUsageMins bigquery.NullFloat64 `bigquery:"delivery_usage_mins"`
+	TotalUsageMins    bigquery.NullFloat64 `bigquery:"transcode_total_usage_mins"`
+	StorageUsageMins  bigquery.NullFloat64 `bigquery:"storage_usage_mins"`
 }
 
 type ActiveUsersSummaryRow struct {
@@ -69,10 +77,10 @@ type TotalUsageSummaryRow struct {
 }
 
 type BigQuery interface {
-	QueryUsageSummary(ctx context.Context, userID string, creatorID string, spec QuerySpec) (*UsageSummaryRow, error)
-	QueryUsageSummaryWithTimestep(ctx context.Context, userID string, creatorID string, spec QuerySpec) (*[]UsageSummaryRow, error)
-	QueryTotalUsageSummary(ctx context.Context, spec FromToQuerySpec) (*[]TotalUsageSummaryRow, error)
-	QueryActiveUsersUsageSummary(ctx context.Context, spec FromToQuerySpec) (*[]ActiveUsersSummaryRow, error)
+	QueryUsageSummary(ctx context.Context, userID string, spec QuerySpec) ([]UsageSummaryRow, error)
+	QueryUsageSummaryWithTimestep(ctx context.Context, userID string, spec QuerySpec) ([]UsageSummaryRow, error)
+	QueryTotalUsageSummary(ctx context.Context, spec FromToQuerySpec) ([]TotalUsageSummaryRow, error)
+	QueryActiveUsersUsageSummary(ctx context.Context, spec FromToQuerySpec) ([]ActiveUsersSummaryRow, error)
 }
 
 type BigQueryOptions struct {
@@ -125,36 +133,36 @@ type bigqueryHandler struct {
 
 // usage summary query
 
-func (bq *bigqueryHandler) QueryUsageSummary(ctx context.Context, userID string, creatorID string, spec QuerySpec) (*UsageSummaryRow, error) {
-	sql, args, err := buildUsageSummaryQuery(bq.opts.HourlyUsageTable, userID, creatorID, spec)
+func (bq *bigqueryHandler) QueryUsageSummary(ctx context.Context, userID string, spec QuerySpec) ([]UsageSummaryRow, error) {
+	glog.V(10).Infof("QueryUsageSummary: userID=%s, creatorID=%s, spec=%+v", userID, spec)
+	sql, args, err := buildUsageSummaryQuery(bq.opts.HourlyUsageTable, userID, spec)
 	if err != nil {
 		return nil, fmt.Errorf("error building usage summary query: %w", err)
 	}
-
+	glog.V(10).Infof("QueryUsageSummary: sql=%s, args=%v", sql, args)
 	bqRows, err := doBigQuery[UsageSummaryRow](bq, ctx, sql, args)
+	// glog.V(10).Infof("QueryUsageSummary: bqRows=%s", bqRows)
 	if err != nil {
 		return nil, fmt.Errorf("bigquery error: %w", err)
-	} else if len(bqRows) > 1 {
-		return nil, fmt.Errorf("internal error, query returned %d rows", len(bqRows))
+	} else if len(bqRows) > maxBigQueryResultRows {
+		return nil, fmt.Errorf("query must return less than %d datapoints. consider decreasing your timeframe or increasing the time step", maxBigQueryResultRows)
 	}
 
 	if len(bqRows) == 0 {
-		return &UsageSummaryRow{
-			UserID:            userID,
-			CreatorID:         creatorID,
-			DeliveryUsageMins: 0,
-			TotalUsageMins:    0,
-			StorageUsageMins:  0,
-		}, nil
+		return nil, nil
 	}
-	return &bqRows[0], nil
+
+	return bqRows, nil
 }
 
-func (bq *bigqueryHandler) QueryUsageSummaryWithTimestep(ctx context.Context, userID string, creatorID string, spec QuerySpec) (*[]UsageSummaryRow, error) {
-	sql, args, err := buildUsageSummaryQuery(bq.opts.HourlyUsageTable, userID, creatorID, spec)
+func (bq *bigqueryHandler) QueryUsageSummaryWithTimestep(ctx context.Context, userID string, spec QuerySpec) ([]UsageSummaryRow, error) {
+	glog.V(10).Infof("QueryUsageSummaryWithTimestep: userID=%s, spec=%+v", userID, spec)
+
+	sql, args, err := buildUsageSummaryQuery(bq.opts.HourlyUsageTable, userID, spec)
 	if err != nil {
 		return nil, fmt.Errorf("error building usage summary query: %w", err)
 	}
+	glog.V(10).Infof("QueryUsageSummaryWithTimestep: sql=%s, args=%v", sql, args)
 
 	bqRows, err := doBigQuery[UsageSummaryRow](bq, ctx, sql, args)
 	if err != nil {
@@ -171,10 +179,10 @@ func (bq *bigqueryHandler) QueryUsageSummaryWithTimestep(ctx context.Context, us
 		return nil, nil
 	}
 
-	return &bqRows, nil
+	return bqRows, nil
 }
 
-func (bq *bigqueryHandler) QueryTotalUsageSummary(ctx context.Context, spec FromToQuerySpec) (*[]TotalUsageSummaryRow, error) {
+func (bq *bigqueryHandler) QueryTotalUsageSummary(ctx context.Context, spec FromToQuerySpec) ([]TotalUsageSummaryRow, error) {
 	sql, args, err := buildTotalUsageSummaryQuery(bq.opts.DailyUsageTable, spec)
 	if err != nil {
 		return nil, fmt.Errorf("error building usage summary query: %w", err)
@@ -195,10 +203,10 @@ func (bq *bigqueryHandler) QueryTotalUsageSummary(ctx context.Context, spec From
 		return nil, nil
 	}
 
-	return &bqRows, nil
+	return bqRows, nil
 }
 
-func (bq *bigqueryHandler) QueryActiveUsersUsageSummary(ctx context.Context, spec FromToQuerySpec) (*[]ActiveUsersSummaryRow, error) {
+func (bq *bigqueryHandler) QueryActiveUsersUsageSummary(ctx context.Context, spec FromToQuerySpec) ([]ActiveUsersSummaryRow, error) {
 	sql, args, err := buildActiveUsersUsageSummaryQuery(bq.opts.HourlyUsageTable, bq.opts.UsersTable, spec)
 	if err != nil {
 		return nil, fmt.Errorf("error building active users summary query: %w", err)
@@ -219,10 +227,10 @@ func (bq *bigqueryHandler) QueryActiveUsersUsageSummary(ctx context.Context, spe
 		return nil, nil
 	}
 
-	return &bqRows, nil
+	return bqRows, nil
 }
 
-func buildUsageSummaryQuery(table string, userID string, creatorID string, spec QuerySpec) (string, []interface{}, error) {
+func buildUsageSummaryQuery(table string, userID string, spec QuerySpec) (string, []interface{}, error) {
 	if userID == "" {
 		return "", nil, fmt.Errorf("userID cannot be empty")
 	}
@@ -235,7 +243,7 @@ func buildUsageSummaryQuery(table string, userID string, creatorID string, spec 
 		Limit(maxBigQueryResultRows + 1)
 
 	if creatorId := spec.Filter.CreatorID; creatorId != "" {
-		query = query.Where("creator_id = ?", creatorID)
+		query = query.Columns("creator_id").Where("creator_id = ?", creatorId).GroupBy("creator_id")
 	}
 
 	if from := spec.From; from != nil {
@@ -257,6 +265,18 @@ func buildUsageSummaryQuery(table string, userID string, creatorID string, spec 
 	}
 
 	query = withUserIdFilter(query, userID)
+
+	for _, by := range spec.BreakdownBy {
+		field, ok := usageBreakdownFields[by]
+		if !ok {
+			return "", nil, fmt.Errorf("invalid breakdown field: %s", by)
+		}
+		// skip breakdowns that are already in the query
+		if sql, _, _ := query.ToSql(); strings.Contains(sql, field) {
+			continue
+		}
+		query = query.Columns(field).GroupBy(field)
+	}
 
 	sql, args, err := query.ToSql()
 	if err != nil {
@@ -348,7 +368,10 @@ func doBigQuery[RowT any](bq *bigqueryHandler, ctx context.Context, sql string, 
 		return nil, fmt.Errorf("error running query: %w", err)
 	}
 
-	return toTypedValues[RowT](it)
+	typed, err := toTypedValues[RowT](it)
+	// glog.V(10).Infof("typed: %s", typed)
+
+	return typed, err
 }
 
 func toBigQueryParameters(args []interface{}) []bigquery.QueryParameter {
@@ -369,8 +392,10 @@ func toTypedValues[RowT any](it *bigquery.RowIterator) ([]RowT, error) {
 		} else if err != nil {
 			return nil, fmt.Errorf("error reading query result: %w", err)
 		}
+		glog.V(10).Infof("values: %s", row)
 
 		values = append(values, row)
 	}
+	glog.V(10).Infof("values: %s %d", values[0], len(values))
 	return values, nil
 }
