@@ -13,31 +13,6 @@ import (
 	"google.golang.org/api/option"
 )
 
-type QueryFilter struct {
-	CreatorID string
-	UserID    string
-}
-
-type QuerySpec struct {
-	TimeStep    string
-	From, To    *time.Time
-	Filter      QueryFilter
-	BreakdownBy []string
-}
-
-var usageBreakdownFields = map[string]string{
-	"creatorId": "creator_id",
-}
-
-type FromToQuerySpec struct {
-	From, To *time.Time
-}
-
-var allowedTimeSteps = map[string]bool{
-	"hour": true,
-	"day":  true,
-}
-
 type UsageSummaryRow struct {
 	UserID       string              `bigquery:"user_id"`
 	CreatorID    bigquery.NullString `bigquery:"creator_id"`
