@@ -281,8 +281,8 @@ func (h *apiHandler) queryViewership(detailed bool) http.HandlerFunc {
 			return
 		}
 
-		userId, ok := r.Context().Value(userIdContextKey).(string)
-		if !ok {
+		userId := callerUserId(r)
+		if userId == "" {
 			respondError(rw, http.StatusInternalServerError, errors.New("request not authenticated"))
 			return
 		}
@@ -322,20 +322,14 @@ func (h *apiHandler) queryUsage() http.HandlerFunc {
 			return
 		}
 
-		userId, ok := r.Context().Value(userIdContextKey).(string)
-		if !ok {
+		userId := callerUserId(r)
+		if userId == "" {
 			respondError(rw, http.StatusInternalServerError, errors.New("request not authenticated"))
 			return
 		}
 
-		isCallerAdmin, ok := r.Context().Value(isCallerAdminContextKey).(string)
-
 		if qs := r.URL.Query(); qs.Has("userId") {
-			if !ok {
-				respondError(rw, http.StatusInternalServerError, errors.New("request not authenticated - cannot retrieve usage for other users"))
-				return
-			}
-			if isCallerAdmin != "true" {
+			if !isCallerAdmin(r) {
 				respondError(rw, http.StatusForbidden, errors.New("only admins can query usage for other users"))
 				return
 			}
@@ -387,20 +381,12 @@ func (h *apiHandler) queryTotalUsage() http.HandlerFunc {
 			return
 		}
 
-		_, ok := r.Context().Value(userIdContextKey).(string)
-		if !ok {
+		if userId := callerUserId(r); userId == "" {
 			respondError(rw, http.StatusInternalServerError, errors.New("request not authenticated"))
 			return
 		}
 
-		isCallerAdmin, ok := r.Context().Value(isCallerAdminContextKey).(string)
-
-		if !ok {
-			respondError(rw, http.StatusInternalServerError, errors.New("request not authenticated - unable to determine if caller is admin"))
-			return
-		}
-
-		if isCallerAdmin != "true" {
+		if !isCallerAdmin(r) {
 			respondError(rw, http.StatusForbidden, errors.New("only admins can query total usage"))
 			return
 		}
@@ -433,20 +419,12 @@ func (h *apiHandler) queryActiveUsersUsage() http.HandlerFunc {
 			return
 		}
 
-		_, ok := r.Context().Value(userIdContextKey).(string)
-		if !ok {
+		if userId := callerUserId(r); userId == "" {
 			respondError(rw, http.StatusInternalServerError, errors.New("request not authenticated"))
 			return
 		}
 
-		isCallerAdmin, ok := r.Context().Value(isCallerAdminContextKey).(string)
-
-		if !ok {
-			respondError(rw, http.StatusInternalServerError, errors.New("request not authenticated - unable to determine if caller is admin"))
-			return
-		}
-
-		if isCallerAdmin != "true" {
+		if !isCallerAdmin(r) {
 			respondError(rw, http.StatusForbidden, errors.New("only admins can query active users"))
 			return
 		}
@@ -494,7 +472,7 @@ func (h *apiHandler) getTotalViews(rw http.ResponseWriter, r *http.Request) {
 		}}
 	}
 
-	userId := r.Context().Value(userIdContextKey)
+	userId := callerUserId(r)
 	glog.Infof("Used deprecated get total views endpoint userId=%v assetId=%v playbackId=%v oldStartViews=%v newViewCount=%v",
 		userId, assetID, totalViews[0].ID, oldStartViews, totalViews[0].StartViews)
 

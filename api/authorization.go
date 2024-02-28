@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/golang/glog"
@@ -93,7 +94,7 @@ func authorization(authUrl string) middleware {
 			r = r.WithContext(ctx)
 		}
 
-		if isCallerAdmin := authRes.Header.Get("X-Livepeer-Is-Caller-Admin"); isCallerAdmin != "" {
+		if isCallerAdmin, err := strconv.ParseBool(r.Header.Get("X-Livepeer-Is-Caller-Admin")); err == nil {
 			ctx := context.WithValue(r.Context(), isCallerAdminContextKey, isCallerAdmin)
 			r = r.WithContext(ctx)
 		}
@@ -129,4 +130,18 @@ func copyHeaders(headers []string, src, dest http.Header) {
 			dest[header] = vals
 		}
 	}
+}
+
+func callerUserId(r *http.Request) string {
+	if val, ok := r.Context().Value(userIdContextKey).(string); ok {
+		return val
+	}
+	return ""
+}
+
+func isCallerAdmin(r *http.Request) bool {
+	if val, ok := r.Context().Value(isCallerAdminContextKey).(bool); ok {
+		return val
+	}
+	return false
 }
