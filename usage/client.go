@@ -46,8 +46,8 @@ func NewClient(opts ClientOptions) (*Client, error) {
 	return &Client{opts, lp, bigquery}, nil
 }
 
-func (c *Client) QuerySummary(ctx context.Context, userID string, spec QuerySpec) ([]Metric, error) {
-	summary, err := c.bigquery.QueryUsageSummary(ctx, userID, spec)
+func (c *Client) QuerySummary(ctx context.Context, spec QuerySpec) ([]Metric, error) {
+	summary, err := c.bigquery.QueryUsageSummary(ctx, spec)
 	if err != nil {
 		return nil, err
 	}
@@ -99,8 +99,8 @@ func (q *QuerySpec) hasBreakdownBy(e string) bool {
 	return false
 }
 
-func (c *Client) QuerySummaryWithTimestep(ctx context.Context, userID string, spec QuerySpec) ([]Metric, error) {
-	summary, err := c.bigquery.QueryUsageSummaryWithTimestep(ctx, userID, spec)
+func (c *Client) QuerySummaryWithTimestep(ctx context.Context, spec QuerySpec) ([]Metric, error) {
+	summary, err := c.bigquery.QueryUsageSummaryWithTimestep(ctx, spec)
 	if err != nil {
 		return nil, err
 	}

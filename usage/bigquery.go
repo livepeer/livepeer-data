@@ -76,8 +76,8 @@ type TotalUsageSummaryRow struct {
 }
 
 type BigQuery interface {
-	QueryUsageSummary(ctx context.Context, userID string, spec QuerySpec) ([]UsageSummaryRow, error)
-	QueryUsageSummaryWithTimestep(ctx context.Context, userID string, spec QuerySpec) ([]UsageSummaryRow, error)
+	QueryUsageSummary(ctx context.Context, spec QuerySpec) ([]UsageSummaryRow, error)
+	QueryUsageSummaryWithTimestep(ctx context.Context, spec QuerySpec) ([]UsageSummaryRow, error)
 	QueryTotalUsageSummary(ctx context.Context, spec FromToQuerySpec) ([]TotalUsageSummaryRow, error)
 	QueryActiveUsersUsageSummary(ctx context.Context, spec FromToQuerySpec) ([]ActiveUsersSummaryRow, error)
 }
@@ -132,8 +132,8 @@ type bigqueryHandler struct {
 
 // usage summary query
 
-func (bq *bigqueryHandler) QueryUsageSummary(ctx context.Context, userID string, spec QuerySpec) ([]UsageSummaryRow, error) {
-	sql, args, err := buildUsageSummaryQuery(bq.opts.HourlyUsageTable, userID, spec)
+func (bq *bigqueryHandler) QueryUsageSummary(ctx context.Context, spec QuerySpec) ([]UsageSummaryRow, error) {
+	sql, args, err := buildUsageSummaryQuery(bq.opts.HourlyUsageTable, spec)
 	if err != nil {
 		return nil, fmt.Errorf("error building usage summary query: %w", err)
 	}
@@ -151,9 +151,9 @@ func (bq *bigqueryHandler) QueryUsageSummary(ctx context.Context, userID string,
 	return bqRows, nil
 }
 
-func (bq *bigqueryHandler) QueryUsageSummaryWithTimestep(ctx context.Context, userID string, spec QuerySpec) ([]UsageSummaryRow, error) {
+func (bq *bigqueryHandler) QueryUsageSummaryWithTimestep(ctx context.Context, spec QuerySpec) ([]UsageSummaryRow, error) {
 
-	sql, args, err := buildUsageSummaryQuery(bq.opts.HourlyUsageTable, userID, spec)
+	sql, args, err := buildUsageSummaryQuery(bq.opts.HourlyUsageTable, spec)
 	if err != nil {
 		return nil, fmt.Errorf("error building usage summary query: %w", err)
 	}
@@ -224,8 +224,8 @@ func (bq *bigqueryHandler) QueryActiveUsersUsageSummary(ctx context.Context, spe
 	return bqRows, nil
 }
 
-func buildUsageSummaryQuery(table string, userID string, spec QuerySpec) (string, []interface{}, error) {
-	if userID == "" {
+func buildUsageSummaryQuery(table string, spec QuerySpec) (string, []interface{}, error) {
+	if spec.Filter.UserID == "" {
 		return "", nil, fmt.Errorf("userID cannot be empty")
 	}
 
@@ -236,8 +236,10 @@ func buildUsageSummaryQuery(table string, userID string, spec QuerySpec) (string
 		From(table).
 		Limit(maxBigQueryResultRows + 1)
 
-	if creatorId := spec.Filter.CreatorID; creatorId != "" {
-		query = query.Columns("creator_id").Where("creator_id = ?", creatorId).GroupBy("creator_id")
+	if creatorID := spec.Filter.CreatorID; creatorID != "" {
+		query = query.Columns("creator_id").
+			Where("creator_id = ?", creatorID).
+			GroupBy("creator_id")
 	}
 
 	if from := spec.From; from != nil {
@@ -258,7 +260,7 @@ func buildUsageSummaryQuery(table string, userID string, spec QuerySpec) (string
 			OrderBy("time_interval")
 	}
 
-	query = withUserIdFilter(query, userID)
+	query = withUserIdFilter(query, spec.Filter.UserID)
 
 	for _, by := range spec.BreakdownBy {
 		field, ok := usageBreakdownFields[by]
