@@ -349,7 +349,7 @@ func (h *apiHandler) queryUsage() http.HandlerFunc {
 			BreakdownBy: qs["breakdownBy[]"],
 		}
 
-		if qs.Get("timeStep") == "" {
+		if !query.HasAnyBreakdown() {
 			usage, err := h.usage.QuerySummary(r.Context(), query)
 			if err != nil {
 				respondError(rw, http.StatusInternalServerError, err)
@@ -358,7 +358,7 @@ func (h *apiHandler) queryUsage() http.HandlerFunc {
 
 			respondJson(rw, http.StatusOK, usage)
 		} else {
-			usage, err := h.usage.QuerySummaryWithTimestep(r.Context(), query)
+			usage, err := h.usage.QuerySummaryWithBreakdown(r.Context(), query)
 			if err != nil {
 				respondError(rw, http.StatusInternalServerError, err)
 				return

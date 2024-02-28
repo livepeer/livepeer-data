@@ -46,35 +46,31 @@ func NewClient(opts ClientOptions) (*Client, error) {
 	return &Client{opts, lp, bigquery}, nil
 }
 
-func (c *Client) QuerySummary(ctx context.Context, spec QuerySpec) ([]Metric, error) {
+func (c *Client) QuerySummary(ctx context.Context, spec QuerySpec) (*Metric, error) {
 	summary, err := c.bigquery.QueryUsageSummary(ctx, spec)
 	if err != nil {
 		return nil, err
 	}
 
-	metrics := usageSummaryToMetrics(summary, spec)
-	return metrics, nil
+	metric := usageSummaryToMetric(summary, spec)
+	return metric, nil
 }
 
-func usageSummaryToMetrics(rows []UsageSummaryRow, spec QuerySpec) []Metric {
-	metrics := make([]Metric, len(rows))
-	for i, row := range rows {
-		m := Metric{
-			UserID:            row.UserID,
-			CreatorID:         toStringPtr(row.CreatorID, spec.hasBreakdownBy("creatorId")),
-			DeliveryUsageMins: toFloat64Ptr(row.DeliveryUsageMins, true),
-			TotalUsageMins:    toFloat64Ptr(row.TotalUsageMins, true),
-			StorageUsageMins:  toFloat64Ptr(row.StorageUsageMins, true),
-		}
-
-		if !row.TimeInterval.IsZero() {
-			timestamp := row.TimeInterval.UnixMilli()
-			m.TimeInterval = &timestamp
-		}
-
-		metrics[i] = m
+func usageSummaryToMetric(row *UsageSummaryRow, spec QuerySpec) *Metric {
+	m := &Metric{
+		UserID:            row.UserID,
+		CreatorID:         toStringPtr(row.CreatorID, spec.hasBreakdownBy("creatorId")),
+		DeliveryUsageMins: toFloat64Ptr(row.DeliveryUsageMins, true),
+		TotalUsageMins:    toFloat64Ptr(row.TotalUsageMins, true),
+		StorageUsageMins:  toFloat64Ptr(row.StorageUsageMins, true),
 	}
-	return metrics
+
+	if !row.TimeInterval.IsZero() {
+		timestamp := row.TimeInterval.UnixMilli()
+		m.TimeInterval = &timestamp
+	}
+
+	return m
 }
 
 func toFloat64Ptr(bqFloat bigquery.NullFloat64, asked bool) data.Nullable[float64] {
@@ -83,6 +79,10 @@ func toFloat64Ptr(bqFloat bigquery.NullFloat64, asked bool) data.Nullable[float6
 
 func toStringPtr(bqStr bigquery.NullString, asked bool) data.Nullable[string] {
 	return data.ToNullable(bqStr.StringVal, bqStr.Valid, asked)
+}
+
+func (q *QuerySpec) HasAnyBreakdown() bool {
+	return len(q.BreakdownBy) > 0 || q.TimeStep != ""
 }
 
 func (q *QuerySpec) hasBreakdownBy(e string) bool {
@@ -99,13 +99,16 @@ func (q *QuerySpec) hasBreakdownBy(e string) bool {
 	return false
 }
 
-func (c *Client) QuerySummaryWithTimestep(ctx context.Context, spec QuerySpec) ([]Metric, error) {
-	summary, err := c.bigquery.QueryUsageSummaryWithTimestep(ctx, spec)
+func (c *Client) QuerySummaryWithBreakdown(ctx context.Context, spec QuerySpec) ([]Metric, error) {
+	summary, err := c.bigquery.QueryUsageSummaryWithBreakdown(ctx, spec)
 	if err != nil {
 		return nil, err
 	}
 
-	metrics := usageSummaryToMetrics(summary, spec)
+	metrics := make([]Metric, len(summary))
+	for i, row := range summary {
+		metrics[i] = *usageSummaryToMetric(&row, spec)
+	}
 	return metrics, nil
 }
 

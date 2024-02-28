@@ -76,8 +76,8 @@ type TotalUsageSummaryRow struct {
 }
 
 type BigQuery interface {
-	QueryUsageSummary(ctx context.Context, spec QuerySpec) ([]UsageSummaryRow, error)
-	QueryUsageSummaryWithTimestep(ctx context.Context, spec QuerySpec) ([]UsageSummaryRow, error)
+	QueryUsageSummary(ctx context.Context, spec QuerySpec) (*UsageSummaryRow, error)
+	QueryUsageSummaryWithBreakdown(ctx context.Context, spec QuerySpec) ([]UsageSummaryRow, error)
 	QueryTotalUsageSummary(ctx context.Context, spec FromToQuerySpec) ([]TotalUsageSummaryRow, error)
 	QueryActiveUsersUsageSummary(ctx context.Context, spec FromToQuerySpec) ([]ActiveUsersSummaryRow, error)
 }
@@ -132,7 +132,11 @@ type bigqueryHandler struct {
 
 // usage summary query
 
-func (bq *bigqueryHandler) QueryUsageSummary(ctx context.Context, spec QuerySpec) ([]UsageSummaryRow, error) {
+func (bq *bigqueryHandler) QueryUsageSummary(ctx context.Context, spec QuerySpec) (*UsageSummaryRow, error) {
+	if spec.HasAnyBreakdown() {
+		return nil, fmt.Errorf("call QueryUsageSummaryWithBreakdown for breakdownBy or timeStep support")
+	}
+
 	sql, args, err := buildUsageSummaryQuery(bq.opts.HourlyUsageTable, spec)
 	if err != nil {
 		return nil, fmt.Errorf("error building usage summary query: %w", err)
@@ -140,18 +144,26 @@ func (bq *bigqueryHandler) QueryUsageSummary(ctx context.Context, spec QuerySpec
 	bqRows, err := doBigQuery[UsageSummaryRow](bq, ctx, sql, args)
 	if err != nil {
 		return nil, fmt.Errorf("bigquery error: %w", err)
-	} else if len(bqRows) > maxBigQueryResultRows {
-		return nil, fmt.Errorf("query must return less than %d datapoints. consider decreasing your timeframe or increasing the time step", maxBigQueryResultRows)
+	} else if len(bqRows) > 1 {
+		return nil, fmt.Errorf("internal error, query returned %d rows", len(bqRows))
 	}
 
 	if len(bqRows) == 0 {
-		return nil, nil
+		creatorID := bigquery.NullString{StringVal: spec.Filter.CreatorID, Valid: spec.Filter.CreatorID != ""}
+		zero := bigquery.NullFloat64{Float64: 0, Valid: true}
+		return &UsageSummaryRow{
+			UserID:            spec.Filter.UserID,
+			CreatorID:         creatorID,
+			DeliveryUsageMins: zero,
+			TotalUsageMins:    zero,
+			StorageUsageMins:  zero,
+		}, nil
 	}
 
-	return bqRows, nil
+	return &bqRows[0], nil
 }
 
-func (bq *bigqueryHandler) QueryUsageSummaryWithTimestep(ctx context.Context, spec QuerySpec) ([]UsageSummaryRow, error) {
+func (bq *bigqueryHandler) QueryUsageSummaryWithBreakdown(ctx context.Context, spec QuerySpec) ([]UsageSummaryRow, error) {
 
 	sql, args, err := buildUsageSummaryQuery(bq.opts.HourlyUsageTable, spec)
 	if err != nil {
