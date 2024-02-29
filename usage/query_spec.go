@@ -10,11 +10,6 @@ type FromToQuerySpec struct {
 	From, To *time.Time
 }
 
-var allowedTimeSteps = map[string]bool{
-	"hour": true,
-	"day":  true,
-}
-
 type QueryFilter struct {
 	CreatorID string
 	UserID    string
@@ -25,6 +20,11 @@ type QuerySpec struct {
 	From, To    *time.Time
 	Filter      QueryFilter
 	BreakdownBy []string
+}
+
+var allowedTimeSteps = map[string]bool{
+	"hour": true,
+	"day":  true,
 }
 
 var usageBreakdownFields = map[string]string{
