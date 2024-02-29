@@ -94,7 +94,7 @@ func authorization(authUrl string) middleware {
 			r = r.WithContext(ctx)
 		}
 
-		if isCallerAdmin, err := strconv.ParseBool(r.Header.Get("X-Livepeer-Is-Caller-Admin")); err == nil {
+		if isCallerAdmin, err := strconv.ParseBool(authRes.Header.Get("X-Livepeer-Is-Caller-Admin")); err == nil {
 			ctx := context.WithValue(r.Context(), isCallerAdminContextKey, isCallerAdmin)
 			r = r.WithContext(ctx)
 		}
