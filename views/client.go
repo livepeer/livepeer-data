@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 
 	"cloud.google.com/go/bigquery"
 	livepeer "github.com/livepeer/go-api-client"
@@ -211,18 +210,4 @@ func toFloat64Ptr(bqFloat bigquery.NullFloat64, asked bool) data.Nullable[float6
 
 func toStringPtr(bqStr bigquery.NullString, asked bool) data.Nullable[string] {
 	return data.ToNullable(bqStr.StringVal, bqStr.Valid, asked)
-}
-
-func (q *QuerySpec) hasBreakdownBy(e string) bool {
-	// callers always set `e` as a string literal so we can panic if it's not valid
-	if viewershipBreakdownFields[e] == "" {
-		panic(fmt.Sprintf("unknown breakdown field %q", e))
-	}
-
-	for _, a := range q.BreakdownBy {
-		if strings.EqualFold(a, e) {
-			return true
-		}
-	}
-	return false
 }

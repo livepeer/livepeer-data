@@ -8,52 +8,11 @@ import (
 
 	"cloud.google.com/go/bigquery"
 	"github.com/Masterminds/squirrel"
-	"github.com/golang/glog"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 )
 
 const maxBigQueryResultRows = 10000
-
-type QueryFilter struct {
-	PlaybackID string
-	CreatorID  string
-	UserID     string
-}
-
-type QuerySpec struct {
-	From, To    *time.Time
-	TimeStep    string
-	Filter      QueryFilter
-	BreakdownBy []string
-	Detailed    bool
-}
-
-var viewershipBreakdownFields = map[string]string{
-	"playbackId":    "playback_id",
-	"dStorageUrl":   "d_storage_url",
-	"deviceType":    "device_type",
-	"device":        "device",
-	"cpu":           "cpu",
-	"os":            "os",
-	"browser":       "browser",
-	"browserEngine": "browser_engine",
-	"continent":     "playback_continent_name",
-	"country":       "playback_country_name",
-	"subdivision":   "playback_subdivision_name",
-	"timezone":      "playback_timezone",
-	"geohash":       "playback_geo_hash",
-	"viewerId":      "viewer_id",
-	"creatorId":     "creator_id",
-}
-
-var allowedTimeSteps = map[string]bool{
-	"hour":  true,
-	"day":   true,
-	"week":  true,
-	"month": true,
-	"year":  true,
-}
 
 type ViewershipEventRow struct {
 	TimeInterval time.Time `bigquery:"time_interval"`
@@ -279,7 +238,6 @@ func doBigQuery[RowT any](bq *bigqueryHandler, ctx context.Context, sql string, 
 	query := bq.client.Query(sql)
 	query.Parameters = toBigQueryParameters(args)
 	query.MaxBytesBilled = bq.opts.MaxBytesBilledPerBigQuery
-	glog.V(10).Infof("Running query. sql=%q args=%s", sql, args)
 
 	it, err := query.Read(ctx)
 	if err != nil {
@@ -311,5 +269,6 @@ func toTypedValues[RowT any](it *bigquery.RowIterator) ([]RowT, error) {
 
 		values = append(values, row)
 	}
+
 	return values, nil
 }
