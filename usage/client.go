@@ -56,9 +56,10 @@ func (c *Client) QuerySummary(ctx context.Context, spec QuerySpec) (*Metric, err
 }
 
 func usageSummaryToMetric(row *UsageSummaryRow, spec QuerySpec) *Metric {
+	inclCreatorID := spec.Filter.CreatorID != "" || spec.hasBreakdownBy("creatorId")
 	m := &Metric{
 		UserID:            row.UserID,
-		CreatorID:         toStringPtr(row.CreatorID, spec.hasBreakdownBy("creatorId")),
+		CreatorID:         toStringPtr(row.CreatorID, inclCreatorID),
 		DeliveryUsageMins: toFloat64Ptr(row.DeliveryUsageMins, true),
 		TotalUsageMins:    toFloat64Ptr(row.TotalUsageMins, true),
 		StorageUsageMins:  toFloat64Ptr(row.StorageUsageMins, true),
