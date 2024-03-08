@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"cloud.google.com/go/bigquery"
 	livepeer "github.com/livepeer/go-api-client"
@@ -123,8 +124,8 @@ func viewershipSummaryToMetric(playbackID string, summary *ViewSummaryRow) *Metr
 	}
 
 	return &Metric{
-		PlaybackID:      toStringPtr(summary.PlaybackID, summary.PlaybackID.Valid),
-		DStorageURL:     toStringPtr(summary.DStorageURL, summary.DStorageURL.Valid),
+		PlaybackID:      bqToStringPtr(summary.PlaybackID, summary.PlaybackID.Valid),
+		DStorageURL:     bqToStringPtr(summary.DStorageURL, summary.DStorageURL.Valid),
 		ViewCount:       summary.ViewCount,
 		LegacyViewCount: data.ToNullable[int64](legacyViewCount, true, true),
 		PlaytimeMins:    summary.PlaytimeMins,
@@ -139,6 +140,98 @@ func (c *Client) QueryEvents(ctx context.Context, spec QuerySpec) ([]Metric, err
 
 	metrics := viewershipEventsToMetrics(rows, spec)
 	return metrics, nil
+}
+
+func viewershipEventsToMetrics(rows []ViewershipEventRow, spec QuerySpec) []Metric {
+	metrics := make([]Metric, len(rows))
+	for i, row := range rows {
+		m := Metric{
+			CreatorID:        bqToStringPtr(row.CreatorID, spec.hasBreakdownBy("creatorId")),
+			ViewerID:         bqToStringPtr(row.ViewerID, spec.hasBreakdownBy("viewerId")),
+			PlaybackID:       bqToStringPtr(row.PlaybackID, spec.hasBreakdownBy("playbackId")),
+			DStorageURL:      bqToStringPtr(row.DStorageURL, spec.hasBreakdownBy("dStorageUrl")),
+			Device:           bqToStringPtr(row.Device, spec.hasBreakdownBy("device")),
+			OS:               bqToStringPtr(row.OS, spec.hasBreakdownBy("os")),
+			Browser:          bqToStringPtr(row.Browser, spec.hasBreakdownBy("browser")),
+			Continent:        bqToStringPtr(row.Continent, spec.hasBreakdownBy("continent")),
+			Country:          bqToStringPtr(row.Country, spec.hasBreakdownBy("country")),
+			Subdivision:      bqToStringPtr(row.Subdivision, spec.hasBreakdownBy("subdivision")),
+			TimeZone:         bqToStringPtr(row.TimeZone, spec.hasBreakdownBy("timezone")),
+			GeoHash:          bqToStringPtr(row.GeoHash, spec.hasBreakdownBy("geohash")),
+			ViewCount:        row.ViewCount,
+			PlaytimeMins:     row.PlaytimeMins,
+			TtffMs:           bqToFloat64Ptr(row.TtffMs, spec.Detailed),
+			RebufferRatio:    bqToFloat64Ptr(row.RebufferRatio, spec.Detailed),
+			ErrorRate:        bqToFloat64Ptr(row.ErrorRate, spec.Detailed),
+			ExitsBeforeStart: bqToFloat64Ptr(row.ExitsBeforeStart, spec.Detailed),
+		}
+
+		if !row.TimeInterval.IsZero() {
+			timestamp := row.TimeInterval.UnixMilli()
+			m.Timestamp = &timestamp
+		}
+
+		metrics[i] = m
+	}
+	return metrics
+}
+
+func (c *Client) QueryRealtimeEvents(ctx context.Context, spec QuerySpec) ([]Metric, error) {
+	// TODO: Implement queries to Clickhouse
+	//rows, err := c.bigquery.QueryViewsEvents(ctx, spec)
+	//if err != nil {
+	//	return nil, err
+	//}
+
+	rows := []RealtimeViewershipRow{
+		{
+			Timestamp:     time.Now(),
+			UserID:        "fake-user-id",
+			ViewCount:     10,
+			BufferRatio:   0.23,
+			ErrorSessions: 12,
+			PlaybackID:    "playback-id",
+			Device:        "mac",
+			Browser:       "Chrome",
+			CountryName:   "Poland",
+		},
+		{
+			Timestamp:     time.Now(),
+			UserID:        "fake-user-id2",
+			ViewCount:     15,
+			BufferRatio:   0.23,
+			ErrorSessions: 12,
+			PlaybackID:    "playback-id-2",
+			Device:        "mac",
+			Browser:       "Chrome",
+			CountryName:   "Poland",
+		},
+	}
+
+	metrics := realtimeViewershipEventsToMetrics(rows, spec)
+	return metrics, nil
+}
+
+func realtimeViewershipEventsToMetrics(rows []RealtimeViewershipRow, spec QuerySpec) []Metric {
+	metrics := make([]Metric, len(rows))
+	for i, row := range rows {
+		m := Metric{
+			ViewCount:     row.ViewCount,
+			RebufferRatio: data.WrapNullable(row.BufferRatio),
+			PlaybackID:    toStringPtr(row.PlaybackID, spec.hasBreakdownBy("playbackId")),
+			DeviceType:    toStringPtr(row.PlaybackID, spec.hasBreakdownBy("deviceType")),
+			BrowserEngine: toStringPtr(row.Browser, spec.hasBreakdownBy("browserEngine")),
+			Country:       toStringPtr(row.CountryName, spec.hasBreakdownBy("country")),
+		}
+
+		if !row.Timestamp.IsZero() {
+			timestamp := row.Timestamp.UnixMilli()
+			m.Timestamp = &timestamp
+		}
+
+		metrics[i] = m
+	}
+	return metrics
 }
 
 func (c *Client) Validate(spec QuerySpec, assetID, streamID string) error {
@@ -173,44 +266,18 @@ func (c *Client) Validate(spec QuerySpec, assetID, streamID string) error {
 	return nil
 }
 
-func viewershipEventsToMetrics(rows []ViewershipEventRow, spec QuerySpec) []Metric {
-	metrics := make([]Metric, len(rows))
-	for i, row := range rows {
-		m := Metric{
-			CreatorID:        toStringPtr(row.CreatorID, spec.hasBreakdownBy("creatorId")),
-			ViewerID:         toStringPtr(row.ViewerID, spec.hasBreakdownBy("viewerId")),
-			PlaybackID:       toStringPtr(row.PlaybackID, spec.hasBreakdownBy("playbackId")),
-			DStorageURL:      toStringPtr(row.DStorageURL, spec.hasBreakdownBy("dStorageUrl")),
-			Device:           toStringPtr(row.Device, spec.hasBreakdownBy("device")),
-			OS:               toStringPtr(row.OS, spec.hasBreakdownBy("os")),
-			Browser:          toStringPtr(row.Browser, spec.hasBreakdownBy("browser")),
-			Continent:        toStringPtr(row.Continent, spec.hasBreakdownBy("continent")),
-			Country:          toStringPtr(row.Country, spec.hasBreakdownBy("country")),
-			Subdivision:      toStringPtr(row.Subdivision, spec.hasBreakdownBy("subdivision")),
-			TimeZone:         toStringPtr(row.TimeZone, spec.hasBreakdownBy("timezone")),
-			GeoHash:          toStringPtr(row.GeoHash, spec.hasBreakdownBy("geohash")),
-			ViewCount:        row.ViewCount,
-			PlaytimeMins:     row.PlaytimeMins,
-			TtffMs:           toFloat64Ptr(row.TtffMs, spec.Detailed),
-			RebufferRatio:    toFloat64Ptr(row.RebufferRatio, spec.Detailed),
-			ErrorRate:        toFloat64Ptr(row.ErrorRate, spec.Detailed),
-			ExitsBeforeStart: toFloat64Ptr(row.ExitsBeforeStart, spec.Detailed),
-		}
-
-		if !row.TimeInterval.IsZero() {
-			timestamp := row.TimeInterval.UnixMilli()
-			m.Timestamp = &timestamp
-		}
-
-		metrics[i] = m
-	}
-	return metrics
-}
-
-func toFloat64Ptr(bqFloat bigquery.NullFloat64, asked bool) data.Nullable[float64] {
+func bqToFloat64Ptr(bqFloat bigquery.NullFloat64, asked bool) data.Nullable[float64] {
 	return data.ToNullable(bqFloat.Float64, bqFloat.Valid, asked)
 }
 
-func toStringPtr(bqStr bigquery.NullString, asked bool) data.Nullable[string] {
+func toFloat64Ptr(f float64, asked bool) data.Nullable[float64] {
+	return data.ToNullable(f, true, asked)
+}
+
+func bqToStringPtr(bqStr bigquery.NullString, asked bool) data.Nullable[string] {
 	return data.ToNullable(bqStr.StringVal, bqStr.Valid, asked)
+}
+
+func toStringPtr(s string, asked bool) data.Nullable[string] {
+	return data.ToNullable(s, true, asked)
 }

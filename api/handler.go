@@ -279,6 +279,7 @@ func (h *apiHandler) queryViewership(detailed bool) http.HandlerFunc {
 		querySpec, httpErroCode, errs := h.resolveQuerySpec(r)
 		if len(errs) > 0 {
 			respondError(rw, httpErroCode, errs...)
+			return
 		}
 		querySpec.Detailed = detailed
 
@@ -391,9 +392,9 @@ func (h *apiHandler) queryRealtimeViewership() http.HandlerFunc {
 		querySpec, httpErroCode, errs := h.resolveQuerySpec(r)
 		if len(errs) > 0 {
 			respondError(rw, httpErroCode, errs...)
+			return
 		}
-		// TODO: Change to realtime Query
-		metrics, err := h.views.QueryEvents(r.Context(), querySpec)
+		metrics, err := h.views.QueryRealtimeEvents(r.Context(), querySpec)
 		if err != nil {
 			respondError(rw, http.StatusInternalServerError, err)
 			return

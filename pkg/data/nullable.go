@@ -24,3 +24,8 @@ func ToNullable[T any](val T, valid, asked bool) Nullable[T] {
 	ptr := &val
 	return &ptr
 }
+
+func WrapNullable[T any](val T) Nullable[T] {
+	ptr := &val
+	return &ptr
+}

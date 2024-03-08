@@ -5,7 +5,22 @@ import (
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	"strings"
+	"time"
 )
+
+type RealtimeViewershipRow struct {
+	Timestamp time.Time `ch:"timestamp_ts"`
+	UserID    string    `ch:"user_id"`
+
+	ViewCount     int64   `ch:"view_count"`
+	BufferRatio   float64 `ch:"buffer_ratio"`
+	ErrorSessions int     `ch:"error_sessions"`
+
+	PlaybackID  string `ch:"playback_id"`
+	Device      string `ch:"device"`
+	Browser     string `ch:"browser"`
+	CountryName string `ch:"country_name"`
+}
 
 func NewClickhouseConn(urls, user, password, db string) (driver.Conn, error) {
 	return clickhouse.Open(&clickhouse.Options{
