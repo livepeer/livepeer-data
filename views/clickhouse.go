@@ -14,11 +14,10 @@ import (
 const maxBigClickhouseResultRows = 10000
 
 type RealtimeViewershipRow struct {
-	Timestamp time.Time `ch:"timestamp_ts"`
-
-	ViewCount     uint64  `ch:"view_count"`
-	BufferRatio   float64 `ch:"buffer_ratio"`
-	ErrorSessions uint64  `ch:"error_sessions"`
+	Timestamp     time.Time `ch:"timestamp_ts"`
+	ViewCount     uint64    `ch:"view_count"`
+	BufferRatio   float64   `ch:"buffer_ratio"`
+	ErrorSessions uint64    `ch:"error_sessions"`
 
 	PlaybackID  string `ch:"playback_id"`
 	Device      string `ch:"device"`
