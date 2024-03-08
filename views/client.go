@@ -131,7 +131,17 @@ func viewershipSummaryToMetric(playbackID string, summary *ViewSummaryRow) *Metr
 	}
 }
 
-func (c *Client) QueryEvents(ctx context.Context, spec QuerySpec, assetID, streamID string) ([]Metric, error) {
+func (c *Client) QueryEvents(ctx context.Context, spec QuerySpec) ([]Metric, error) {
+	rows, err := c.bigquery.QueryViewsEvents(ctx, spec)
+	if err != nil {
+		return nil, err
+	}
+
+	metrics := viewershipEventsToMetrics(rows, spec)
+	return metrics, nil
+}
+
+func (c *Client) Validate(spec QuerySpec, assetID, streamID string) error {
 	var err error
 	if assetID != "" {
 		var asset *livepeer.Asset
@@ -140,7 +150,7 @@ func (c *Client) QueryEvents(ctx context.Context, spec QuerySpec, assetID, strea
 		if asset != nil {
 			spec.Filter.PlaybackID = asset.PlaybackID
 			if spec.Filter.UserID != asset.UserID {
-				return nil, fmt.Errorf("error getting asset: verify that asset exists and you are using proper credentials")
+				return fmt.Errorf("error getting asset: verify that asset exists and you are using proper credentials")
 			}
 		}
 	} else if streamID != "" {
@@ -150,24 +160,17 @@ func (c *Client) QueryEvents(ctx context.Context, spec QuerySpec, assetID, strea
 		if stream != nil {
 			spec.Filter.PlaybackID = stream.PlaybackID
 			if spec.Filter.UserID != stream.UserID {
-				return nil, fmt.Errorf("error getting stream: verify that stream exists and you are using proper credentials")
+				return fmt.Errorf("error getting stream: verify that stream exists and you are using proper credentials")
 			}
 		}
 	}
 
 	if errors.Is(err, livepeer.ErrNotExists) {
-		return nil, ErrAssetNotFound
+		return ErrAssetNotFound
 	} else if err != nil {
-		return nil, fmt.Errorf("error getting asset or stream: %w", err)
+		return fmt.Errorf("error getting asset or stream: %w", err)
 	}
-
-	rows, err := c.bigquery.QueryViewsEvents(ctx, spec)
-	if err != nil {
-		return nil, err
-	}
-
-	metrics := viewershipEventsToMetrics(rows, spec)
-	return metrics, nil
+	return nil
 }
 
 func viewershipEventsToMetrics(rows []ViewershipEventRow, spec QuerySpec) []Metric {

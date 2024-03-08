@@ -146,6 +146,10 @@ func (h *apiHandler) viewershipHandler() chi.Router {
 	h.withMetrics(router, "query_application_viewership").
 		With(h.cache(true)).
 		MethodFunc("GET", `/query`, h.queryViewership(true))
+	// realtime viewership
+	h.withMetrics(router, "query_realtime_viewership").
+		With(h.cache(true)).
+		MethodFunc("GET", `/active`, h.queryRealtimeViewership())
 
 	return router
 }
@@ -272,37 +276,13 @@ func ensureIsCreatorQuery(next http.Handler) http.Handler {
 
 func (h *apiHandler) queryViewership(detailed bool) http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
-		var (
-			from, err1 = parseInputTimestamp(r.URL.Query().Get("from"))
-			to, err2   = parseInputTimestamp(r.URL.Query().Get("to"))
-		)
-		if errs := nonNilErrs(err1, err2); len(errs) > 0 {
-			respondError(rw, http.StatusBadRequest, errs...)
-			return
+		querySpec, httpErroCode, errs := h.resolveQuerySpec(r)
+		if len(errs) > 0 {
+			respondError(rw, httpErroCode, errs...)
 		}
+		querySpec.Detailed = detailed
 
-		userId := callerUserId(r)
-		if userId == "" {
-			respondError(rw, http.StatusInternalServerError, errors.New("request not authenticated"))
-			return
-		}
-
-		qs := r.URL.Query()
-		assetID, streamID := qs.Get("assetId"), qs.Get("streamId")
-		query := views.QuerySpec{
-			From:     from,
-			To:       to,
-			TimeStep: qs.Get("timeStep"),
-			Filter: views.QueryFilter{
-				UserID:     userId,
-				PlaybackID: qs.Get("playbackId"),
-				CreatorID:  qs.Get("creatorId"),
-			},
-			BreakdownBy: qs["breakdownBy[]"],
-			Detailed:    detailed,
-		}
-
-		metrics, err := h.views.QueryEvents(r.Context(), query, assetID, streamID)
+		metrics, err := h.views.QueryEvents(r.Context(), querySpec)
 		if err != nil {
 			respondError(rw, http.StatusInternalServerError, err)
 			return
@@ -404,6 +384,57 @@ func (h *apiHandler) queryTotalUsage() http.HandlerFunc {
 
 		respondJson(rw, http.StatusOK, usage)
 	}
+}
+
+func (h *apiHandler) queryRealtimeViewership() http.HandlerFunc {
+	return func(rw http.ResponseWriter, r *http.Request) {
+		querySpec, httpErroCode, errs := h.resolveQuerySpec(r)
+		if len(errs) > 0 {
+			respondError(rw, httpErroCode, errs...)
+		}
+		// TODO: Change to realtime Query
+		metrics, err := h.views.QueryEvents(r.Context(), querySpec)
+		if err != nil {
+			respondError(rw, http.StatusInternalServerError, err)
+			return
+		}
+		respondJson(rw, http.StatusOK, metrics)
+	}
+}
+
+func (h *apiHandler) resolveQuerySpec(r *http.Request) (views.QuerySpec, int, []error) {
+	var (
+		from, err1 = parseInputTimestamp(r.URL.Query().Get("from"))
+		to, err2   = parseInputTimestamp(r.URL.Query().Get("to"))
+	)
+	if errs := nonNilErrs(err1, err2); len(errs) > 0 {
+		return views.QuerySpec{}, http.StatusBadRequest, errs
+	}
+
+	userId := callerUserId(r)
+	if userId == "" {
+		return views.QuerySpec{}, http.StatusInternalServerError, []error{errors.New("request not authenticated")}
+	}
+
+	qs := r.URL.Query()
+	assetID, streamID := qs.Get("assetId"), qs.Get("streamId")
+	spec := views.QuerySpec{
+		From:     from,
+		To:       to,
+		TimeStep: qs.Get("timeStep"),
+		Filter: views.QueryFilter{
+			UserID:     userId,
+			PlaybackID: qs.Get("playbackId"),
+			CreatorID:  qs.Get("creatorId"),
+		},
+		BreakdownBy: qs["breakdownBy[]"],
+	}
+
+	if err := h.views.Validate(spec, assetID, streamID); err != nil {
+		return views.QuerySpec{}, http.StatusInternalServerError, []error{err}
+	}
+
+	return spec, 0, []error{}
 }
 
 func (h *apiHandler) queryActiveUsersUsage() http.HandlerFunc {
