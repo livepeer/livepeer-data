@@ -13,20 +13,6 @@ import (
 
 const maxBigClickhouseResultRows = 10000
 
-const query = `
-select
-timestamp_ts,
-user_id,
-count(*) as view_count,
-sum(buffer_ms) / sum(playtime_ms) as buffer_ratio,
-sum(if(errors > 0, 1, 0)) as error_sessions
-from viewership_sessions_by_minute
-where user_id = 'b5d334aa-ed56-449a-b53e-f90fa2eb7cbe'
-and timestamp_ts >= now() - INTERVAL 30 MINUTE
-group by timestamp_ts, user_id
-order by timestamp_ts desc
-`
-
 type RealtimeViewershipRow struct {
 	Timestamp time.Time `ch:"timestamp_ts"`
 
