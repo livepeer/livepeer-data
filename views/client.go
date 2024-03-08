@@ -40,7 +40,7 @@ type Metric struct {
 	// metric data
 
 	ViewCount        int64                  `json:"viewCount"`
-	PlaytimeMins     float64                `json:"playtimeMins"`
+	PlaytimeMins     data.Nullable[float64] `json:"playtimeMins,omitempty"`
 	TtffMs           data.Nullable[float64] `json:"ttffMs,omitempty"`
 	RebufferRatio    data.Nullable[float64] `json:"rebufferRatio,omitempty"`
 	ErrorRate        data.Nullable[float64] `json:"errorRate,omitempty"`
@@ -134,7 +134,7 @@ func viewershipSummaryToMetric(playbackID string, summary *ViewSummaryRow) *Metr
 		DStorageURL:     bqToStringPtr(summary.DStorageURL, summary.DStorageURL.Valid),
 		ViewCount:       summary.ViewCount,
 		LegacyViewCount: data.ToNullable[int64](legacyViewCount, true, true),
-		PlaytimeMins:    summary.PlaytimeMins,
+		PlaytimeMins:    data.WrapNullable(summary.PlaytimeMins),
 	}
 }
 
@@ -165,7 +165,7 @@ func viewershipEventsToMetrics(rows []ViewershipEventRow, spec QuerySpec) []Metr
 			TimeZone:         bqToStringPtr(row.TimeZone, spec.hasBreakdownBy("timezone")),
 			GeoHash:          bqToStringPtr(row.GeoHash, spec.hasBreakdownBy("geohash")),
 			ViewCount:        row.ViewCount,
-			PlaytimeMins:     row.PlaytimeMins,
+			PlaytimeMins:     data.WrapNullable(row.PlaytimeMins),
 			TtffMs:           bqToFloat64Ptr(row.TtffMs, spec.Detailed),
 			RebufferRatio:    bqToFloat64Ptr(row.RebufferRatio, spec.Detailed),
 			ErrorRate:        bqToFloat64Ptr(row.ErrorRate, spec.Detailed),

@@ -111,6 +111,7 @@ func buildRealtimeViewsEventsQuery(spec QuerySpec) (string, []interface{}, error
 	//	query = query.Columns(field).GroupBy(field)
 	//}
 
+	// TODO: Use time from/to
 	query = query.Where("timestamp_ts >= now() - INTERVAL 30 MINUTE")
 	query = query.Columns("timestamp_ts").GroupBy("timestamp_ts")
 
