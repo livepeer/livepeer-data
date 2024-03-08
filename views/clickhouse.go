@@ -59,8 +59,6 @@ func NewClickhouseConn(opts ClickhouseOptions) (*ClickhouseClient, error) {
 }
 
 func (c *ClickhouseClient) QueryRealtimeViewsEvents(ctx context.Context, spec QuerySpec) ([]RealtimeViewershipRow, error) {
-	// TODO: Change
-	spec.Filter.UserID = "b5d334aa-ed56-449a-b53e-f90fa2eb7cbe"
 	sql, args, err := buildRealtimeViewsEventsQuery(spec)
 	if err != nil {
 		return nil, fmt.Errorf("error building viewership events query: %w", err)
