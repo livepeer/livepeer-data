@@ -1,20 +1,38 @@
 package views
 
 import (
+	"context"
 	"crypto/tls"
+	"fmt"
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
+	"github.com/Masterminds/squirrel"
 	"strings"
 	"time"
 )
 
+const maxBigClickhouseResultRows = 10000
+
+const query = `
+select
+timestamp_ts,
+user_id,
+count(*) as view_count,
+sum(buffer_ms) / sum(playtime_ms) as buffer_ratio,
+sum(if(errors > 0, 1, 0)) as error_sessions
+from viewership_sessions_by_minute
+where user_id = 'b5d334aa-ed56-449a-b53e-f90fa2eb7cbe'
+and timestamp_ts >= now() - INTERVAL 30 MINUTE
+group by timestamp_ts, user_id
+order by timestamp_ts desc
+`
+
 type RealtimeViewershipRow struct {
 	Timestamp time.Time `ch:"timestamp_ts"`
-	UserID    string    `ch:"user_id"`
 
-	ViewCount     int64   `ch:"view_count"`
+	ViewCount     uint64  `ch:"view_count"`
 	BufferRatio   float64 `ch:"buffer_ratio"`
-	ErrorSessions int     `ch:"error_sessions"`
+	ErrorSessions uint64  `ch:"error_sessions"`
 
 	PlaybackID  string `ch:"playback_id"`
 	Device      string `ch:"device"`
@@ -22,52 +40,101 @@ type RealtimeViewershipRow struct {
 	CountryName string `ch:"country_name"`
 }
 
-func NewClickhouseConn(urls, user, password, db string) (driver.Conn, error) {
-	return clickhouse.Open(&clickhouse.Options{
-		Addr: strings.Split(urls, ","),
+type Clickhouse interface {
+	QueryRealtimeViewsEvents(ctx context.Context, spec QuerySpec) ([]RealtimeViewershipRow, error)
+}
+
+type ClickhouseOptions struct {
+	Addr     string
+	User     string
+	Password string
+	Database string
+}
+
+type ClickhouseClient struct {
+	conn driver.Conn
+}
+
+func NewClickhouseConn(opts ClickhouseOptions) (*ClickhouseClient, error) {
+	conn, err := clickhouse.Open(&clickhouse.Options{
+		Addr: strings.Split(opts.Addr, ","),
 		Auth: clickhouse.Auth{
-			Database: db,
-			Username: user,
-			Password: password,
+			Database: opts.Database,
+			Username: opts.User,
+			Password: opts.Password,
 		},
 		TLS: &tls.Config{
 			InsecureSkipVerify: true,
 		},
 	})
+	if err != nil {
+		return nil, err
+	}
+	return &ClickhouseClient{conn: conn}, nil
 }
 
-//func makeQueries(ctx context.Context, conn driver.Conn, n int) uint64 {
-//
-//	//_, err := conn.Query(ctx, queries[n])
-//	//rows, err := conn.Query(ctx, queries[0])
-//	_, err := conn.Query(ctx, thisSingleQuery)
-//	//fmt.Println(rows)
-//	if err != nil {
-//		log.Fatal(err)
-//	}
-//
-//	//sum += len(rows)
-//
-//	var sum uint64
-//	//var rowCount int
-//	//for rows.Next() {
-//	//	rowCount++
-//	//}
-//	//fmt.Printf("row count: %d\n", rowCount)
-//	//	var (
-//	//		deviceType string
-//	//		view_count uint64
-//	//	)
-//	//	if err := rows.Scan(
-//	//		&deviceType,
-//	//		&view_count,
-//	//	); err != nil {
-//	//		log.Fatal(err)
-//	//	}
-//	//	sum += view_count
-//	//	log.Printf("deviceType: %s, view_count: %v", deviceType, view_count)
-//	//}
-//	//log.Printf("sum: %d", sum)
-//	return sum
-//	return 0
-//}
+func (c *ClickhouseClient) QueryRealtimeViewsEvents(ctx context.Context, spec QuerySpec) ([]RealtimeViewershipRow, error) {
+	// TODO: Change
+	spec.Filter.UserID = "b5d334aa-ed56-449a-b53e-f90fa2eb7cbe"
+	sql, args, err := buildRealtimeViewsEventsQuery(spec)
+	if err != nil {
+		return nil, fmt.Errorf("error building viewership events query: %w", err)
+	}
+	var res []RealtimeViewershipRow
+	err = c.conn.Select(ctx, &res, sql, args...)
+	return res, err
+}
+
+func buildRealtimeViewsEventsQuery(spec QuerySpec) (string, []interface{}, error) {
+	query := squirrel.Select(
+		"timestamp_ts",
+		"count(*) as view_count",
+		"sum(buffer_ms) / sum(playtime_ms) as buffer_ratio",
+		"sum(if(errors > 0, 1, 0)) as error_sessions").
+		From("viewership_sessions_by_minute").
+		Where("user_id = ?", spec.Filter.UserID).
+		// TODO: Set limit depending on the timeStep
+		//Limit(maxBigClickhouseResultRows + 1).
+		Limit(1).
+		OrderBy("timestamp_ts desc")
+
+	// TODO: Check if we need it
+	//query = withPlaybackIdFilter(query, spec.Filter.PlaybackID)
+	//
+	//if creatorId := spec.Filter.CreatorID; creatorId != "" {
+	//	query = query.Where("creator_id_type = ?", "unverified")
+	//	query = query.Where("creator_id = ?", creatorId)
+	//}
+
+	// TODO: Accept from and to
+	//if from := spec.From; from != nil {
+	//	query = query.Where("time >= timestamp_millis(?)", from.UnixMilli())
+	//}
+	//if to := spec.To; to != nil {
+	//	query = query.Where("time < timestamp_millis(?)", to.UnixMilli())
+	//}
+
+	// TODO: Accept breakdown
+	//for _, by := range spec.BreakdownBy {
+	//	field, ok := viewershipBreakdownFields[by]
+	//	if !ok {
+	//		return "", nil, fmt.Errorf("invalid breakdown field: %s", by)
+	//	}
+	//	// skip breakdowns that are already in the query
+	//	// only happens when playbackId or dStorageUrl is specified
+	//	if sql, _, _ := query.ToSql(); strings.Contains(sql, field) {
+	//		continue
+	//	}
+	//	query = query.Columns(field).GroupBy(field)
+	//}
+
+	query = query.Where("timestamp_ts >= now() - INTERVAL 30 MINUTE")
+	query = query.Columns("timestamp_ts").GroupBy("timestamp_ts")
+
+	sql, args, err := query.ToSql()
+	if err != nil {
+		return "", nil, err
+	}
+
+	return sql, args, nil
+}

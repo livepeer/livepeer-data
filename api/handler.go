@@ -148,7 +148,6 @@ func (h *apiHandler) viewershipHandler() chi.Router {
 		MethodFunc("GET", `/query`, h.queryViewership(true))
 	// realtime viewership
 	h.withMetrics(router, "query_realtime_viewership").
-		With(h.cache(true)).
 		MethodFunc("GET", `/active`, h.queryRealtimeViewership())
 
 	return router
@@ -389,9 +388,9 @@ func (h *apiHandler) queryTotalUsage() http.HandlerFunc {
 
 func (h *apiHandler) queryRealtimeViewership() http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
-		querySpec, httpErroCode, errs := h.resolveQuerySpec(r)
+		querySpec, httpErrorCode, errs := h.resolveQuerySpec(r)
 		if len(errs) > 0 {
-			respondError(rw, httpErroCode, errs...)
+			respondError(rw, httpErrorCode, errs...)
 			return
 		}
 		metrics, err := h.views.QueryRealtimeEvents(r.Context(), querySpec)

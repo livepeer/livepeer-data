@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
 
 	"cloud.google.com/go/bigquery"
 	livepeer "github.com/livepeer/go-api-client"
@@ -57,13 +56,15 @@ type ClientOptions struct {
 	Livepeer   livepeer.ClientOptions
 
 	BigQueryOptions
+	ClickhouseOptions
 }
 
 type Client struct {
-	opts     ClientOptions
-	lp       *livepeer.Client
-	prom     *Prometheus
-	bigquery BigQuery
+	opts       ClientOptions
+	lp         *livepeer.Client
+	prom       *Prometheus
+	bigquery   BigQuery
+	clickhouse Clickhouse
 }
 
 func NewClient(opts ClientOptions) (*Client, error) {
@@ -79,7 +80,12 @@ func NewClient(opts ClientOptions) (*Client, error) {
 		return nil, fmt.Errorf("error creating bigquery client: %w", err)
 	}
 
-	return &Client{opts, lp, prom, bigquery}, nil
+	clickhouse, err := NewClickhouseConn(opts.ClickhouseOptions)
+	if err != nil {
+		return nil, fmt.Errorf("error creating clickhouse client: %w", err)
+	}
+
+	return &Client{opts, lp, prom, bigquery, clickhouse}, nil
 }
 
 func (c *Client) Deprecated_GetTotalViews(ctx context.Context, id string) ([]TotalViews, error) {
@@ -177,37 +183,10 @@ func viewershipEventsToMetrics(rows []ViewershipEventRow, spec QuerySpec) []Metr
 }
 
 func (c *Client) QueryRealtimeEvents(ctx context.Context, spec QuerySpec) ([]Metric, error) {
-	// TODO: Implement queries to Clickhouse
-	//rows, err := c.bigquery.QueryViewsEvents(ctx, spec)
-	//if err != nil {
-	//	return nil, err
-	//}
-
-	rows := []RealtimeViewershipRow{
-		{
-			Timestamp:     time.Now(),
-			UserID:        "fake-user-id",
-			ViewCount:     10,
-			BufferRatio:   0.23,
-			ErrorSessions: 12,
-			PlaybackID:    "playback-id",
-			Device:        "mac",
-			Browser:       "Chrome",
-			CountryName:   "Poland",
-		},
-		{
-			Timestamp:     time.Now(),
-			UserID:        "fake-user-id2",
-			ViewCount:     15,
-			BufferRatio:   0.23,
-			ErrorSessions: 12,
-			PlaybackID:    "playback-id-2",
-			Device:        "mac",
-			Browser:       "Chrome",
-			CountryName:   "Poland",
-		},
+	rows, err := c.clickhouse.QueryRealtimeViewsEvents(ctx, spec)
+	if err != nil {
+		return nil, err
 	}
-
 	metrics := realtimeViewershipEventsToMetrics(rows, spec)
 	return metrics, nil
 }
@@ -216,7 +195,7 @@ func realtimeViewershipEventsToMetrics(rows []RealtimeViewershipRow, spec QueryS
 	metrics := make([]Metric, len(rows))
 	for i, row := range rows {
 		m := Metric{
-			ViewCount:     row.ViewCount,
+			ViewCount:     int64(row.ViewCount),
 			RebufferRatio: data.WrapNullable(row.BufferRatio),
 			PlaybackID:    toStringPtr(row.PlaybackID, spec.hasBreakdownBy("playbackId")),
 			DeviceType:    toStringPtr(row.PlaybackID, spec.hasBreakdownBy("deviceType")),
