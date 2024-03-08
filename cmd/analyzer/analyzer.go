@@ -155,7 +155,7 @@ func Run(build BuildFlags) {
 	views, usage := provisionDataAnalytics(cli)
 
 	glog.Info("Starting server...")
-	err := api.ListenAndServe(ctx, cli.serverOpts, nil, views, usage)
+	err := api.ListenAndServe(ctx, cli.serverOpts, healthcore, views, usage)
 	if err != nil {
 		glog.Fatalf("Error starting api server. err=%q", err)
 	}
