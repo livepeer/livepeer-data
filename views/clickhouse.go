@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-const maxClickhouseResultRows = 10000
+const maxClickhouseResultRows = 1000
 
 type RealtimeViewershipRow struct {
 	Timestamp   time.Time `ch:"timestamp_ts"`
@@ -68,20 +68,8 @@ func (c *ClickhouseClient) QueryRealtimeViewsEvents(ctx context.Context, spec Qu
 	}
 
 	if spec.From == nil && spec.To == nil {
-		// If no time interval, then filter only the most recent timestamps
-		var filtered []RealtimeViewershipRow
-		if len(res) > 0 {
-			currentTimestamp := res[0].Timestamp
-			for _, r := range res {
-				if currentTimestamp == r.Timestamp {
-					filtered = append(filtered, r)
-				} else {
-					return filtered, nil
-				}
-			}
-		}
+		return filterMostRecent(res), nil
 	}
-
 	return res, nil
 }
 
@@ -135,4 +123,19 @@ func buildRealtimeViewsEventsQuery(spec QuerySpec) (string, []interface{}, error
 	}
 
 	return sql, args, nil
+}
+
+func filterMostRecent(res []RealtimeViewershipRow) []RealtimeViewershipRow {
+	if len(res) > 0 {
+		var filtered []RealtimeViewershipRow
+		mostRecentTimestamp := res[0].Timestamp
+		for _, r := range res {
+			if mostRecentTimestamp == r.Timestamp {
+				filtered = append(filtered, r)
+			} else {
+				return filtered
+			}
+		}
+	}
+	return res
 }
