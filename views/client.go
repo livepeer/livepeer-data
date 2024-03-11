@@ -148,40 +148,6 @@ func (c *Client) QueryEvents(ctx context.Context, spec QuerySpec) ([]Metric, err
 	return metrics, nil
 }
 
-func viewershipEventsToMetrics(rows []ViewershipEventRow, spec QuerySpec) []Metric {
-	metrics := make([]Metric, len(rows))
-	for i, row := range rows {
-		m := Metric{
-			CreatorID:        bqToStringPtr(row.CreatorID, spec.hasBreakdownBy("creatorId")),
-			ViewerID:         bqToStringPtr(row.ViewerID, spec.hasBreakdownBy("viewerId")),
-			PlaybackID:       bqToStringPtr(row.PlaybackID, spec.hasBreakdownBy("playbackId")),
-			DStorageURL:      bqToStringPtr(row.DStorageURL, spec.hasBreakdownBy("dStorageUrl")),
-			Device:           bqToStringPtr(row.Device, spec.hasBreakdownBy("device")),
-			OS:               bqToStringPtr(row.OS, spec.hasBreakdownBy("os")),
-			Browser:          bqToStringPtr(row.Browser, spec.hasBreakdownBy("browser")),
-			Continent:        bqToStringPtr(row.Continent, spec.hasBreakdownBy("continent")),
-			Country:          bqToStringPtr(row.Country, spec.hasBreakdownBy("country")),
-			Subdivision:      bqToStringPtr(row.Subdivision, spec.hasBreakdownBy("subdivision")),
-			TimeZone:         bqToStringPtr(row.TimeZone, spec.hasBreakdownBy("timezone")),
-			GeoHash:          bqToStringPtr(row.GeoHash, spec.hasBreakdownBy("geohash")),
-			ViewCount:        row.ViewCount,
-			PlaytimeMins:     data.WrapNullable(row.PlaytimeMins),
-			TtffMs:           bqToFloat64Ptr(row.TtffMs, spec.Detailed),
-			RebufferRatio:    bqToFloat64Ptr(row.RebufferRatio, spec.Detailed),
-			ErrorRate:        bqToFloat64Ptr(row.ErrorRate, spec.Detailed),
-			ExitsBeforeStart: bqToFloat64Ptr(row.ExitsBeforeStart, spec.Detailed),
-		}
-
-		if !row.TimeInterval.IsZero() {
-			timestamp := row.TimeInterval.UnixMilli()
-			m.Timestamp = &timestamp
-		}
-
-		metrics[i] = m
-	}
-	return metrics
-}
-
 func (c *Client) QueryRealtimeEvents(ctx context.Context, spec QuerySpec) ([]Metric, error) {
 	rows, err := c.clickhouse.QueryRealtimeViewsEvents(ctx, spec)
 	if err != nil {
@@ -189,29 +155,6 @@ func (c *Client) QueryRealtimeEvents(ctx context.Context, spec QuerySpec) ([]Met
 	}
 	metrics := realtimeViewershipEventsToMetrics(rows, spec)
 	return metrics, nil
-}
-
-func realtimeViewershipEventsToMetrics(rows []RealtimeViewershipRow, spec QuerySpec) []Metric {
-	metrics := make([]Metric, len(rows))
-	for i, row := range rows {
-		m := Metric{
-			ViewCount:     int64(row.ViewCount),
-			RebufferRatio: data.WrapNullable(row.BufferRatio),
-			ErrorRate:     data.WrapNullable(row.ErrorRate),
-			PlaybackID:    toStringPtr(row.PlaybackID, spec.hasBreakdownBy("playbackId")),
-			DeviceType:    toStringPtr(row.DeviceType, spec.hasBreakdownBy("deviceType")),
-			Browser:       toStringPtr(row.Browser, spec.hasBreakdownBy("browser")),
-			Country:       toStringPtr(row.CountryName, spec.hasBreakdownBy("country")),
-		}
-
-		if !row.Timestamp.IsZero() {
-			timestamp := row.Timestamp.UnixMilli()
-			m.Timestamp = &timestamp
-		}
-
-		metrics[i] = m
-	}
-	return metrics
 }
 
 func (c *Client) Validate(spec QuerySpec, assetID, streamID string) error {
@@ -246,12 +189,65 @@ func (c *Client) Validate(spec QuerySpec, assetID, streamID string) error {
 	return nil
 }
 
-func bqToFloat64Ptr(bqFloat bigquery.NullFloat64, asked bool) data.Nullable[float64] {
-	return data.ToNullable(bqFloat.Float64, bqFloat.Valid, asked)
+func viewershipEventsToMetrics(rows []ViewershipEventRow, spec QuerySpec) []Metric {
+	metrics := make([]Metric, len(rows))
+	for i, row := range rows {
+		m := Metric{
+			CreatorID:        bqToStringPtr(row.CreatorID, spec.hasBreakdownBy("creatorId")),
+			ViewerID:         bqToStringPtr(row.ViewerID, spec.hasBreakdownBy("viewerId")),
+			PlaybackID:       bqToStringPtr(row.PlaybackID, spec.hasBreakdownBy("playbackId")),
+			DStorageURL:      bqToStringPtr(row.DStorageURL, spec.hasBreakdownBy("dStorageUrl")),
+			Device:           bqToStringPtr(row.Device, spec.hasBreakdownBy("device")),
+			OS:               bqToStringPtr(row.OS, spec.hasBreakdownBy("os")),
+			Browser:          bqToStringPtr(row.Browser, spec.hasBreakdownBy("browser")),
+			Continent:        bqToStringPtr(row.Continent, spec.hasBreakdownBy("continent")),
+			Country:          bqToStringPtr(row.Country, spec.hasBreakdownBy("country")),
+			Subdivision:      bqToStringPtr(row.Subdivision, spec.hasBreakdownBy("subdivision")),
+			TimeZone:         bqToStringPtr(row.TimeZone, spec.hasBreakdownBy("timezone")),
+			GeoHash:          bqToStringPtr(row.GeoHash, spec.hasBreakdownBy("geohash")),
+			ViewCount:        row.ViewCount,
+			PlaytimeMins:     data.WrapNullable(row.PlaytimeMins),
+			TtffMs:           bqToFloat64Ptr(row.TtffMs, spec.Detailed),
+			RebufferRatio:    bqToFloat64Ptr(row.RebufferRatio, spec.Detailed),
+			ErrorRate:        bqToFloat64Ptr(row.ErrorRate, spec.Detailed),
+			ExitsBeforeStart: bqToFloat64Ptr(row.ExitsBeforeStart, spec.Detailed),
+		}
+
+		if !row.TimeInterval.IsZero() {
+			timestamp := row.TimeInterval.UnixMilli()
+			m.Timestamp = &timestamp
+		}
+
+		metrics[i] = m
+	}
+	return metrics
 }
 
-func toFloat64Ptr(f float64, asked bool) data.Nullable[float64] {
-	return data.ToNullable(f, true, asked)
+func realtimeViewershipEventsToMetrics(rows []RealtimeViewershipRow, spec QuerySpec) []Metric {
+	metrics := make([]Metric, len(rows))
+	for i, row := range rows {
+		m := Metric{
+			ViewCount:     int64(row.ViewCount),
+			RebufferRatio: data.WrapNullable(row.BufferRatio),
+			ErrorRate:     data.WrapNullable(row.ErrorRate),
+			PlaybackID:    toStringPtr(row.PlaybackID, spec.hasBreakdownBy("playbackId")),
+			DeviceType:    toStringPtr(row.DeviceType, spec.hasBreakdownBy("deviceType")),
+			Browser:       toStringPtr(row.Browser, spec.hasBreakdownBy("browser")),
+			Country:       toStringPtr(row.CountryName, spec.hasBreakdownBy("country")),
+		}
+
+		if !row.Timestamp.IsZero() {
+			timestamp := row.Timestamp.UnixMilli()
+			m.Timestamp = &timestamp
+		}
+
+		metrics[i] = m
+	}
+	return metrics
+}
+
+func bqToFloat64Ptr(bqFloat bigquery.NullFloat64, asked bool) data.Nullable[float64] {
+	return data.ToNullable(bqFloat.Float64, bqFloat.Valid, asked)
 }
 
 func bqToStringPtr(bqStr bigquery.NullString, asked bool) data.Nullable[string] {
