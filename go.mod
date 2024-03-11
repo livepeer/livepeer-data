@@ -2,8 +2,6 @@ module github.com/livepeer/livepeer-data
 
 go 1.21
 
-toolchain go1.21.6
-
 require (
 	cloud.google.com/go/bigquery v1.52.0
 	github.com/ClickHouse/clickhouse-go/v2 v2.20.0
