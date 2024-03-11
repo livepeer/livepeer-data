@@ -388,7 +388,7 @@ func (h *apiHandler) queryTotalUsage() http.HandlerFunc {
 
 func (h *apiHandler) queryRealtimeViewership() http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
-		querySpec, httpErrorCode, errs := h.resolveQuerySpec(r)
+		querySpec, httpErrorCode, errs := h.resolveRealtimeQuerySpec(r)
 		if len(errs) > 0 {
 			respondError(rw, httpErrorCode, errs...)
 			return
@@ -435,6 +435,27 @@ func (h *apiHandler) resolveQuerySpec(r *http.Request) (views.QuerySpec, int, []
 	}
 
 	return spec, 0, []error{}
+}
+
+func (h *apiHandler) resolveRealtimeQuerySpec(r *http.Request) (views.QuerySpec, int, []error) {
+	spec, httpErrorCode, errs := h.resolveQuerySpec(r)
+	if spec.TimeStep != "" {
+		return views.QuerySpec{}, http.StatusBadRequest, []error{errors.New("timeStep is not supported for Realtime Viewership API")}
+	}
+	if spec.From == nil && spec.To != nil {
+		return views.QuerySpec{}, http.StatusBadRequest, []error{errors.New("param 'to' cannot be specified if 'from' is not defined")}
+	}
+	if spec.From != nil || spec.To != nil {
+		if spec.To == nil {
+			now := time.Now()
+			spec.To = &now
+		}
+		if spec.To.Sub(*spec.From) > 3*time.Hour {
+			return views.QuerySpec{}, http.StatusBadRequest, []error{errors.New("requested time range cannot exceed 3 hours")}
+		}
+	}
+
+	return spec, httpErrorCode, errs
 }
 
 func (h *apiHandler) queryActiveUsersUsage() http.HandlerFunc {
