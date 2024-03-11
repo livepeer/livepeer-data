@@ -48,9 +48,7 @@ func NewClickhouseConn(opts ClickhouseOptions) (*ClickhouseClient, error) {
 			Username: opts.User,
 			Password: opts.Password,
 		},
-		TLS: &tls.Config{
-			InsecureSkipVerify: true,
-		},
+		TLS: &tls.Config{},
 	})
 	if err != nil {
 		return nil, err
