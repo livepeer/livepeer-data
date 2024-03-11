@@ -197,9 +197,10 @@ func realtimeViewershipEventsToMetrics(rows []RealtimeViewershipRow, spec QueryS
 		m := Metric{
 			ViewCount:     int64(row.ViewCount),
 			RebufferRatio: data.WrapNullable(row.BufferRatio),
+			ErrorRate:     data.WrapNullable(row.ErrorRate),
 			PlaybackID:    toStringPtr(row.PlaybackID, spec.hasBreakdownBy("playbackId")),
-			DeviceType:    toStringPtr(row.PlaybackID, spec.hasBreakdownBy("deviceType")),
-			BrowserEngine: toStringPtr(row.Browser, spec.hasBreakdownBy("browserEngine")),
+			DeviceType:    toStringPtr(row.DeviceType, spec.hasBreakdownBy("deviceType")),
+			Browser:       toStringPtr(row.Browser, spec.hasBreakdownBy("browser")),
 			Country:       toStringPtr(row.CountryName, spec.hasBreakdownBy("country")),
 		}
 

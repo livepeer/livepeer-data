@@ -11,18 +11,18 @@ import (
 	"time"
 )
 
-const maxBigClickhouseResultRows = 10000
+const maxClickhouseResultRows = 10000
 
 type RealtimeViewershipRow struct {
-	Timestamp     time.Time `ch:"timestamp_ts"`
-	ViewCount     uint64    `ch:"view_count"`
-	BufferRatio   float64   `ch:"buffer_ratio"`
-	ErrorSessions uint64    `ch:"error_sessions"`
+	Timestamp   time.Time `ch:"timestamp_ts"`
+	ViewCount   uint64    `ch:"view_count"`
+	BufferRatio float64   `ch:"buffer_ratio"`
+	ErrorRate   float64   `ch:"error_rate"`
 
 	PlaybackID  string `ch:"playback_id"`
-	Device      string `ch:"device"`
+	DeviceType  string `ch:"device_type"`
 	Browser     string `ch:"browser"`
-	CountryName string `ch:"country_name"`
+	CountryName string `ch:"playback_country_name"`
 }
 
 type Clickhouse interface {
@@ -65,55 +65,71 @@ func (c *ClickhouseClient) QueryRealtimeViewsEvents(ctx context.Context, spec Qu
 	}
 	var res []RealtimeViewershipRow
 	err = c.conn.Select(ctx, &res, sql, args...)
-	return res, err
+	if err != nil {
+		return nil, err
+	}
+
+	if spec.From == nil && spec.To == nil {
+		// If no time interval, then filter only the most recent timestamps
+		var filtered []RealtimeViewershipRow
+		if len(res) > 0 {
+			currentTimestamp := res[0].Timestamp
+			for _, r := range res {
+				if currentTimestamp == r.Timestamp {
+					filtered = append(filtered, r)
+				} else {
+					return filtered, nil
+				}
+			}
+		}
+	}
+
+	return res, nil
 }
 
 func buildRealtimeViewsEventsQuery(spec QuerySpec) (string, []interface{}, error) {
 	query := squirrel.Select(
 		"timestamp_ts",
-		"count(*) as view_count",
+		"count(distinct session_id) as view_count",
 		"sum(buffer_ms) / sum(playtime_ms) as buffer_ratio",
-		"sum(if(errors > 0, 1, 0)) as error_sessions").
+		"sum(if(errors > 0, 1, 0)) / count(*) as error_rate",
+		"timestamp_ts").
 		From("viewership_sessions_by_minute").
 		Where("user_id = ?", spec.Filter.UserID).
-		// TODO: Set limit depending on the timeStep
-		//Limit(maxBigClickhouseResultRows + 1).
-		Limit(1).
-		OrderBy("timestamp_ts desc")
+		GroupBy("timestamp_ts").
+		OrderBy("timestamp_ts desc").
+		Limit(maxClickhouseResultRows)
 
-	// TODO: Check if we need it
-	//query = withPlaybackIdFilter(query, spec.Filter.PlaybackID)
-	//
-	//if creatorId := spec.Filter.CreatorID; creatorId != "" {
-	//	query = query.Where("creator_id_type = ?", "unverified")
-	//	query = query.Where("creator_id = ?", creatorId)
-	//}
+	query = withPlaybackIdFilter(query, spec.Filter.PlaybackID)
+	if creatorId := spec.Filter.CreatorID; creatorId != "" {
+		query = query.Where("creator_id_type = ?", "unverified")
+		query = query.Where("creator_id = ?", creatorId)
+	}
 
-	// TODO: Accept from and to
-	//if from := spec.From; from != nil {
-	//	query = query.Where("time >= timestamp_millis(?)", from.UnixMilli())
-	//}
-	//if to := spec.To; to != nil {
-	//	query = query.Where("time < timestamp_millis(?)", to.UnixMilli())
-	//}
+	from, to := spec.From, spec.To
+	if from != nil {
+		query = query.Where("timestamp_ts >= ?", from.UnixMilli()/1000)
+	}
+	if to != nil {
+		query = query.Where("timestamp_ts < ?", to.UnixMilli()/1000)
+	}
+	if from == nil && to == nil {
+		// Return the current active view info
+		query = query.Where("timestamp_ts >= now() - INTERVAL 5 MINUTE")
+	}
 
-	// TODO: Accept breakdown
-	//for _, by := range spec.BreakdownBy {
-	//	field, ok := viewershipBreakdownFields[by]
-	//	if !ok {
-	//		return "", nil, fmt.Errorf("invalid breakdown field: %s", by)
-	//	}
-	//	// skip breakdowns that are already in the query
-	//	// only happens when playbackId or dStorageUrl is specified
-	//	if sql, _, _ := query.ToSql(); strings.Contains(sql, field) {
-	//		continue
-	//	}
-	//	query = query.Columns(field).GroupBy(field)
-	//}
-
-	// TODO: Use time from/to
-	query = query.Where("timestamp_ts >= now() - INTERVAL 30 MINUTE")
-	query = query.Columns("timestamp_ts").GroupBy("timestamp_ts")
+	for _, by := range spec.BreakdownBy {
+		field, ok := realtimeViewershipBreakdownFields[by]
+		if !ok {
+			return "", nil, fmt.Errorf("invalid breakdown field: %s", by)
+		}
+		// skip breakdowns that are already in the query
+		// only happens when playbackId or dStorageUrl is specified
+		if sql, _, _ := query.ToSql(); strings.Contains(sql, field) {
+			continue
+		}
+		query = query.Columns(field).GroupBy(field)
+	}
 
 	sql, args, err := query.ToSql()
 	if err != nil {

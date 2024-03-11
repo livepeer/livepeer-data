@@ -38,6 +38,13 @@ var viewershipBreakdownFields = map[string]string{
 	"creatorId":     "creator_id",
 }
 
+var realtimeViewershipBreakdownFields = map[string]string{
+	"playbackId": "playback_id",
+	"deviceType": "device_type",
+	"browser":    "browser",
+	"country":    "playback_country_name",
+}
+
 var allowedTimeSteps = map[string]bool{
 	"hour":  true,
 	"day":   true,
