@@ -447,7 +447,7 @@ func (h *apiHandler) resolveRealtimeQuerySpec(r *http.Request) (views.QuerySpec,
 	}
 	if spec.From != nil || spec.To != nil {
 		// If using time range, then we allow to query max 1 min before now(),
-		// because the current "per minute" aggregation may not be finilized yet
+		// because the current "per minute" aggregation may not be finalized yet
 		lastToAllowed := time.Now().Add(-1 * time.Minute)
 		if spec.To == nil || spec.To.After(lastToAllowed) {
 			spec.To = &lastToAllowed
