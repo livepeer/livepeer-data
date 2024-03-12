@@ -28,8 +28,45 @@ func TestQueryRealtimeEvents(t *testing.T) {
 		expJson string
 	}{
 		{
-			name: "no breakdown",
-			spec: QuerySpec{},
+			name: "current with no breakdown",
+			rows: []RealtimeViewershipRow{
+				{
+					ViewCount: 2,
+				},
+			},
+			expJson: `
+				[
+					{
+						"viewCount":2
+					}
+				]
+			`,
+		},
+		{
+			name: "current with breakdown by playbackId and country",
+			spec: QuerySpec{
+				BreakdownBy: []string{"playbackId", "country"},
+			},
+			rows: []RealtimeViewershipRow{
+				{
+					ViewCount:   2,
+					PlaybackID:  "playbackid-1",
+					CountryName: "Poland",
+				},
+			},
+			expJson: `
+				[
+					{
+						"viewCount": 2,
+						"playbackId": "playbackid-1",
+						"country": "Poland"
+					}
+				]
+			`,
+		},
+		{
+			name: "time range with no breakdown",
+			spec: QuerySpec{From: &timestamp},
 			rows: []RealtimeViewershipRow{
 				{
 					Timestamp:   timestamp,
@@ -50,8 +87,9 @@ func TestQueryRealtimeEvents(t *testing.T) {
 			`,
 		},
 		{
-			name: "breakdown by plabackId and country",
+			name: "time range with breakdown by playbackId and country",
 			spec: QuerySpec{
+				From:        &timestamp,
 				BreakdownBy: []string{"playbackId", "country"},
 			},
 			rows: []RealtimeViewershipRow{
