@@ -446,9 +446,11 @@ func (h *apiHandler) resolveRealtimeQuerySpec(r *http.Request) (views.QuerySpec,
 		return views.QuerySpec{}, http.StatusBadRequest, []error{errors.New("param 'to' cannot be specified if 'from' is not defined")}
 	}
 	if spec.From != nil || spec.To != nil {
-		if spec.To == nil {
-			now := time.Now()
-			spec.To = &now
+		// If using time range, then we allow to query max 1 min before now(),
+		// because the current "per minute" aggregation may not be finilized yet
+		lastToAllowed := time.Now().Add(-1 * time.Minute)
+		if spec.To == nil || spec.To.After(lastToAllowed) {
+			spec.To = &lastToAllowed
 		}
 		if spec.To.Sub(*spec.From) > 3*time.Hour {
 			return views.QuerySpec{}, http.StatusBadRequest, []error{errors.New("requested time range cannot exceed 3 hours")}
