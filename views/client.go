@@ -225,11 +225,12 @@ func viewershipEventsToMetrics(rows []ViewershipEventRow, spec QuerySpec) []Metr
 
 func realtimeViewershipEventsToMetrics(rows []RealtimeViewershipRow, spec QuerySpec) []Metric {
 	metrics := make([]Metric, len(rows))
+	isTimeRange := spec.From != nil || spec.To != nil
 	for i, row := range rows {
 		m := Metric{
 			ViewCount:     int64(row.ViewCount),
-			RebufferRatio: data.WrapNullable(row.BufferRatio),
-			ErrorRate:     data.WrapNullable(row.ErrorRate),
+			RebufferRatio: toFloat64Ptr(row.BufferRatio, isTimeRange),
+			ErrorRate:     toFloat64Ptr(row.ErrorRate, isTimeRange),
 			PlaybackID:    toStringPtr(row.PlaybackID, spec.hasBreakdownBy("playbackId")),
 			DeviceType:    toStringPtr(row.DeviceType, spec.hasBreakdownBy("deviceType")),
 			Browser:       toStringPtr(row.Browser, spec.hasBreakdownBy("browser")),
@@ -252,6 +253,10 @@ func bqToFloat64Ptr(bqFloat bigquery.NullFloat64, asked bool) data.Nullable[floa
 
 func bqToStringPtr(bqStr bigquery.NullString, asked bool) data.Nullable[string] {
 	return data.ToNullable(bqStr.StringVal, bqStr.Valid, asked)
+}
+
+func toFloat64Ptr(f float64, asked bool) data.Nullable[float64] {
+	return data.ToNullable(f, true, asked)
 }
 
 func toStringPtr(s string, asked bool) data.Nullable[string] {
