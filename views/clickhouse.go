@@ -78,8 +78,7 @@ func buildRealtimeViewsEventsQuery(spec QuerySpec) (string, []interface{}, error
 		"timestamp_ts",
 		"count(distinct session_id) as view_count",
 		"sum(buffer_ms) / sum(playtime_ms) as buffer_ratio",
-		"sum(if(errors > 0, 1, 0)) / count(*) as error_rate",
-		"timestamp_ts").
+		"sum(if(errors > 0, 1, 0)) / count(*) as error_rate").
 		From("viewership_sessions_by_minute").
 		Where("user_id = ?", spec.Filter.UserID).
 		GroupBy("timestamp_ts").
