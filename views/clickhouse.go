@@ -82,7 +82,6 @@ func buildRealtimeViewsEventsQuery(spec QuerySpec) (string, []interface{}, error
 
 	query = withPlaybackIdFilter(query, spec.Filter.PlaybackID)
 	if creatorId := spec.Filter.CreatorID; creatorId != "" {
-		query = query.Where("creator_id_type = ?", "unverified")
 		query = query.Where("creator_id = ?", creatorId)
 	}
 
