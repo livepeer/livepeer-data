@@ -133,7 +133,7 @@ func viewershipSummaryToMetric(playbackID string, summary *ViewSummaryRow) *Metr
 		PlaybackID:      bqToStringPtr(summary.PlaybackID, summary.PlaybackID.Valid),
 		DStorageURL:     bqToStringPtr(summary.DStorageURL, summary.DStorageURL.Valid),
 		ViewCount:       summary.ViewCount,
-		LegacyViewCount: data.ToNullable[int64](legacyViewCount, true, true),
+		LegacyViewCount: data.WrapNullable(legacyViewCount),
 		PlaytimeMins:    data.WrapNullable(summary.PlaytimeMins),
 	}
 }
