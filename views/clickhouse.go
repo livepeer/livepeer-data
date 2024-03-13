@@ -131,9 +131,11 @@ func timeRangeEventsQuery(spec QuerySpec) squirrel.SelectBuilder {
 		Limit(maxClickhouseResultRows)
 
 	if spec.From != nil {
+		// timestamp_ts is DateTime, but it's automatically converted to seconds
 		query = query.Where("timestamp_ts >= ?", spec.From.UnixMilli()/1000)
 	}
 	if spec.To != nil {
+		// timestamp_ts is DateTime, but it's automatically converted to seconds
 		query = query.Where("timestamp_ts < ?", spec.To.UnixMilli()/1000)
 	}
 	return query
