@@ -66,6 +66,8 @@ func (c *ClickhouseClient) QueryRealtimeViewsEvents(ctx context.Context, spec Qu
 	err = c.conn.Select(ctx, &res, sql, args...)
 	if err != nil {
 		return nil, err
+	} else if len(res) > maxClickhouseResultRows {
+		return nil, fmt.Errorf("query must return less than %d datapoints. consider decreasing your timeframe", maxClickhouseResultRows)
 	}
 	res = replaceNaNBufferRatio(res)
 
@@ -113,7 +115,7 @@ func currentEventsQuery(spec QuerySpec) squirrel.SelectBuilder {
 		From("viewership_events").
 		Where("user_id = ?", spec.Filter.UserID).
 		Where("server_timestamp > (toUnixTimestamp(now() - 30)) * 1000").
-		Limit(maxClickhouseResultRows)
+		Limit(maxClickhouseResultRows + 1)
 }
 
 // timeRangeEventsQuery uses an optimized materialized view "per minute" to favor query time against the latency.
@@ -127,7 +129,7 @@ func timeRangeEventsQuery(spec QuerySpec) squirrel.SelectBuilder {
 		Where("user_id = ?", spec.Filter.UserID).
 		GroupBy("timestamp_ts").
 		OrderBy("timestamp_ts desc").
-		Limit(maxClickhouseResultRows)
+		Limit(maxClickhouseResultRows + 1)
 
 	if spec.From != nil {
 		// timestamp_ts is DateTime, but it's automatically converted to seconds
