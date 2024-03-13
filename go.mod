@@ -14,7 +14,7 @@ require (
 	github.com/prometheus/client_golang v1.14.0
 	github.com/prometheus/common v0.42.0
 	github.com/rabbitmq/amqp091-go v1.8.0
-	github.com/rabbitmq/rabbitmq-stream-go-client v1.1.1
+	github.com/rabbitmq/rabbitmq-stream-go-client v1.2.0
 	github.com/stretchr/testify v1.8.1
 	github.com/victorspringer/http-cache v0.0.0-20221205073845-df6d061f29cb
 	golang.org/x/sync v0.1.0
@@ -43,7 +43,7 @@ require (
 	github.com/googleapis/gax-go/v2 v2.7.1 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/klauspost/asmfmt v1.3.2 // indirect
-	github.com/klauspost/compress v1.16.3 // indirect
+	github.com/klauspost/compress v1.16.5 // indirect
 	github.com/klauspost/cpuid/v2 v2.0.9 // indirect
 	github.com/lann/builder v0.0.0-20180802200727-47ae307949d0 // indirect
 	github.com/lann/ps v0.0.0-20150810152359-62de8c46ede0 // indirect
