@@ -122,7 +122,7 @@ func timeRangeEventsQuery(spec QuerySpec) squirrel.SelectBuilder {
 	query := squirrel.Select(
 		"timestamp_ts",
 		"count(distinct session_id) as view_count",
-		"sum(buffer_ms) / sum(playtime_ms) as buffer_ratio",
+		"sum(buffer_ms) / (sum(playtime_ms) + sum(buffer_ms)) as buffer_ratio",
 		"sum(if(errors > 0, 1, 0)) / count(*) as error_rate").
 		From("viewership_sessions_by_minute").
 		Where("user_id = ?", spec.Filter.UserID).
@@ -145,7 +145,7 @@ func replaceNaNBufferRatio(rows []RealtimeViewershipRow) []RealtimeViewershipRow
 	var res []RealtimeViewershipRow
 	for _, r := range rows {
 		if math.IsNaN(r.BufferRatio) {
-			r.BufferRatio = 1.0
+			r.BufferRatio = 0.0
 		}
 		res = append(res, r)
 	}
