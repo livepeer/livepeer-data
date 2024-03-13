@@ -429,8 +429,8 @@ func (h *apiHandler) resolveViewershipQuerySpec(r *http.Request) (views.QuerySpe
 		},
 		BreakdownBy: qs["breakdownBy[]"],
 	}
-
-	if err := h.views.Validate(spec, assetID, streamID); err != nil {
+	spec, err := h.views.ResolvePlaybackId(spec, assetID, streamID)
+	if err != nil {
 		return views.QuerySpec{}, http.StatusInternalServerError, []error{err}
 	}
 

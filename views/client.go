@@ -157,36 +157,35 @@ func (c *Client) QueryRealtimeEvents(ctx context.Context, spec QuerySpec) ([]Met
 	return metrics, nil
 }
 
-func (c *Client) Validate(spec QuerySpec, assetID, streamID string) error {
+func (c *Client) ResolvePlaybackId(spec QuerySpec, assetID, streamID string) (QuerySpec, error) {
+	res := spec
 	var err error
 	if assetID != "" {
 		var asset *livepeer.Asset
-
 		asset, err = c.lp.GetAsset(assetID, false)
 		if asset != nil {
-			spec.Filter.PlaybackID = asset.PlaybackID
-			if spec.Filter.UserID != asset.UserID {
-				return fmt.Errorf("error getting asset: verify that asset exists and you are using proper credentials")
+			res.Filter.PlaybackID = asset.PlaybackID
+			if res.Filter.UserID != asset.UserID {
+				return QuerySpec{}, fmt.Errorf("error getting asset: verify that asset exists and you are using proper credentials")
 			}
 		}
 	} else if streamID != "" {
 		var stream *livepeer.Stream
-
 		stream, err = c.lp.GetStream(streamID, false)
 		if stream != nil {
-			spec.Filter.PlaybackID = stream.PlaybackID
-			if spec.Filter.UserID != stream.UserID {
-				return fmt.Errorf("error getting stream: verify that stream exists and you are using proper credentials")
+			res.Filter.PlaybackID = stream.PlaybackID
+			if res.Filter.UserID != stream.UserID {
+				return QuerySpec{}, fmt.Errorf("error getting stream: verify that stream exists and you are using proper credentials")
 			}
 		}
 	}
 
 	if errors.Is(err, livepeer.ErrNotExists) {
-		return ErrAssetNotFound
+		return QuerySpec{}, ErrAssetNotFound
 	} else if err != nil {
-		return fmt.Errorf("error getting asset or stream: %w", err)
+		return QuerySpec{}, fmt.Errorf("error getting asset or stream: %w", err)
 	}
-	return nil
+	return res, nil
 }
 
 func viewershipEventsToMetrics(rows []ViewershipEventRow, spec QuerySpec) []Metric {
