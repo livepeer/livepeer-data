@@ -275,7 +275,7 @@ func ensureIsCreatorQuery(next http.Handler) http.Handler {
 
 func (h *apiHandler) queryViewership(detailed bool) http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
-		querySpec, httpErroCode, errs := h.resolveQuerySpec(r)
+		querySpec, httpErroCode, errs := h.resolveViewershipQuerySpec(r)
 		if len(errs) > 0 {
 			respondError(rw, httpErroCode, errs...)
 			return
@@ -388,7 +388,7 @@ func (h *apiHandler) queryTotalUsage() http.HandlerFunc {
 
 func (h *apiHandler) queryRealtimeViewership() http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
-		querySpec, httpErrorCode, errs := h.resolveRealtimeQuerySpec(r)
+		querySpec, httpErrorCode, errs := h.resolveRealtimeViewershipQuerySpec(r)
 		if len(errs) > 0 {
 			respondError(rw, httpErrorCode, errs...)
 			return
@@ -402,7 +402,7 @@ func (h *apiHandler) queryRealtimeViewership() http.HandlerFunc {
 	}
 }
 
-func (h *apiHandler) resolveQuerySpec(r *http.Request) (views.QuerySpec, int, []error) {
+func (h *apiHandler) resolveViewershipQuerySpec(r *http.Request) (views.QuerySpec, int, []error) {
 	var (
 		from, err1 = parseInputTimestamp(r.URL.Query().Get("from"))
 		to, err2   = parseInputTimestamp(r.URL.Query().Get("to"))
@@ -437,8 +437,8 @@ func (h *apiHandler) resolveQuerySpec(r *http.Request) (views.QuerySpec, int, []
 	return spec, 0, []error{}
 }
 
-func (h *apiHandler) resolveRealtimeQuerySpec(r *http.Request) (views.QuerySpec, int, []error) {
-	spec, httpErrorCode, errs := h.resolveQuerySpec(r)
+func (h *apiHandler) resolveRealtimeViewershipQuerySpec(r *http.Request) (views.QuerySpec, int, []error) {
+	spec, httpErrorCode, errs := h.resolveViewershipQuerySpec(r)
 	if spec.TimeStep != "" {
 		return views.QuerySpec{}, http.StatusBadRequest, []error{errors.New("timeStep is not supported for Realtime Viewership API")}
 	}
