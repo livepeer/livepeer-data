@@ -148,7 +148,9 @@ func (h *apiHandler) viewershipHandler() chi.Router {
 		MethodFunc("GET", `/query`, h.queryViewership(true))
 	// realtime viewership
 	h.withMetrics(router, "query_realtime_viewership").
-		MethodFunc("GET", `/active`, h.queryRealtimeViewership())
+		MethodFunc("GET", `/now`, h.queryRealtimeViewership())
+	h.withMetrics(router, "query_realtime_viewership").
+		MethodFunc("GET", `/internal/timeSeries`, h.queryTimeSeriesRealtimeViewership())
 
 	return router
 }
@@ -402,6 +404,22 @@ func (h *apiHandler) queryRealtimeViewership() http.HandlerFunc {
 	}
 }
 
+func (h *apiHandler) queryTimeSeriesRealtimeViewership() http.HandlerFunc {
+	return func(rw http.ResponseWriter, r *http.Request) {
+		querySpec, httpErrorCode, errs := h.resolveTimeSeriesRealtimeViewershipQuerySpec(r)
+		if len(errs) > 0 {
+			respondError(rw, httpErrorCode, errs...)
+			return
+		}
+		metrics, err := h.views.QueryRealtimeEvents(r.Context(), querySpec)
+		if err != nil {
+			respondError(rw, http.StatusInternalServerError, err)
+			return
+		}
+		respondJson(rw, http.StatusOK, metrics)
+	}
+}
+
 func (h *apiHandler) resolveViewershipQuerySpec(r *http.Request) (views.QuerySpec, int, []error) {
 	var (
 		from, err1 = parseInputTimestamp(r.URL.Query().Get("from"))
@@ -439,24 +457,29 @@ func (h *apiHandler) resolveViewershipQuerySpec(r *http.Request) (views.QuerySpe
 
 func (h *apiHandler) resolveRealtimeViewershipQuerySpec(r *http.Request) (views.QuerySpec, int, []error) {
 	spec, httpErrorCode, errs := h.resolveViewershipQuerySpec(r)
-	if spec.TimeStep != "" {
-		return views.QuerySpec{}, http.StatusBadRequest, []error{errors.New("timeStep is not supported for Realtime Viewership API")}
+	if spec.TimeStep != "" || spec.From != nil || spec.To != nil {
+		return views.QuerySpec{}, http.StatusBadRequest, []error{errors.New("time range params (from, to, timeStep) are not supported for Realtime Viewership API")}
 	}
-	if spec.From == nil && spec.To != nil {
-		return views.QuerySpec{}, http.StatusBadRequest, []error{errors.New("param 'to' cannot be specified if 'from' is not defined")}
-	}
-	if spec.From != nil || spec.To != nil {
-		// If using time range, then we allow to query max 1 min before now(),
-		// because the current "per minute" aggregation may not be finalized yet
-		lastToAllowed := time.Now().Add(-1 * time.Minute)
-		if spec.To == nil || spec.To.After(lastToAllowed) {
-			spec.To = &lastToAllowed
-		}
-		if spec.To.Sub(*spec.From) > 3*time.Hour {
-			return views.QuerySpec{}, http.StatusBadRequest, []error{errors.New("requested time range cannot exceed 3 hours")}
-		}
-	}
+	return spec, httpErrorCode, errs
+}
 
+func (h *apiHandler) resolveTimeSeriesRealtimeViewershipQuerySpec(r *http.Request) (views.QuerySpec, int, []error) {
+	spec, httpErrorCode, errs := h.resolveViewershipQuerySpec(r)
+	if spec.TimeStep != "" {
+		return views.QuerySpec{}, http.StatusBadRequest, []error{errors.New("timeStep is not supported for Time Series Realtime Viewership API")}
+	}
+	if spec.From == nil {
+		return views.QuerySpec{}, http.StatusBadRequest, []error{errors.New("param 'from' must be defined for Time Series Realtime Viewership API")}
+	}
+	// If using time range, then we allow to query max 1 min before now(),
+	// because the current "per minute" aggregation may not be finalized yet
+	lastToAllowed := time.Now().Add(-1 * time.Minute)
+	if spec.To == nil || spec.To.After(lastToAllowed) {
+		spec.To = &lastToAllowed
+	}
+	if spec.To.Sub(*spec.From) > 3*time.Hour {
+		return views.QuerySpec{}, http.StatusBadRequest, []error{errors.New("requested time range cannot exceed 3 hours")}
+	}
 	return spec, httpErrorCode, errs
 }
 

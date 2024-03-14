@@ -157,6 +157,15 @@ func (c *Client) QueryRealtimeEvents(ctx context.Context, spec QuerySpec) ([]Met
 	return metrics, nil
 }
 
+func (c *Client) QueryTimeSeriesRealtimeEvents(ctx context.Context, spec QuerySpec) ([]Metric, error) {
+	rows, err := c.clickhouse.QueryTimeSeriesRealtimeViewsEvents(ctx, spec)
+	if err != nil {
+		return nil, err
+	}
+	metrics := realtimeViewershipEventsToMetrics(rows, spec)
+	return metrics, nil
+}
+
 func (c *Client) ResolvePlaybackId(spec QuerySpec, assetID, streamID string) (QuerySpec, error) {
 	res := spec
 	var err error
