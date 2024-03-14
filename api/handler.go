@@ -411,7 +411,7 @@ func (h *apiHandler) queryTimeSeriesRealtimeViewership() http.HandlerFunc {
 			respondError(rw, httpErrorCode, errs...)
 			return
 		}
-		metrics, err := h.views.QueryRealtimeEvents(r.Context(), querySpec)
+		metrics, err := h.views.QueryTimeSeriesRealtimeEvents(r.Context(), querySpec)
 		if err != nil {
 			respondError(rw, http.StatusInternalServerError, err)
 			return
