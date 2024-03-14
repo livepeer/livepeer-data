@@ -61,24 +61,17 @@ func NewClickhouseConn(opts ClickhouseOptions) (*ClickhouseClient, error) {
 func (c *ClickhouseClient) QueryRealtimeViewsEvents(ctx context.Context, spec QuerySpec) ([]RealtimeViewershipRow, error) {
 	sql, args, err := buildRealtimeViewsEventsQuery(spec)
 	if err != nil {
-		return nil, fmt.Errorf("error building viewership events query: %w", err)
+		return nil, fmt.Errorf("error building realtime viewership events query: %w", err)
 	}
 	var res []RealtimeViewershipRow
 	err = c.conn.Select(ctx, &res, sql, args...)
-	if err != nil {
-		return nil, err
-	} else if len(res) > maxClickhouseResultRows {
-		return nil, fmt.Errorf("query must return less than %d datapoints. consider decreasing your timeframe", maxClickhouseResultRows)
-	}
-	res = replaceNaNBufferRatio(res)
-
-	return res, nil
+	return res, err
 }
 
 func (c *ClickhouseClient) QueryTimeSeriesRealtimeViewsEvents(ctx context.Context, spec QuerySpec) ([]RealtimeViewershipRow, error) {
 	sql, args, err := buildTimeSeriesRealtimeViewsEventsQuery(spec)
 	if err != nil {
-		return nil, fmt.Errorf("error building viewership events query: %w", err)
+		return nil, fmt.Errorf("error building time series realtime viewership events query: %w", err)
 	}
 	var res []RealtimeViewershipRow
 	err = c.conn.Select(ctx, &res, sql, args...)
