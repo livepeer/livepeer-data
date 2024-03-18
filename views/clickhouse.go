@@ -87,7 +87,8 @@ func (c *ClickhouseClient) QueryTimeSeriesRealtimeViewsEvents(ctx context.Contex
 
 func buildRealtimeViewsEventsQuery(spec QuerySpec) (string, []interface{}, error) {
 	query := squirrel.Select(
-		"count(distinct session_id) as view_count").
+		"count(distinct session_id) as view_count",
+		"sum(if(errors > 0, 1, 0)) / count(distinct session_id) as error_rate")
 		From("viewership_events").
 		Where("user_id = ?", spec.Filter.UserID).
 		Where("server_timestamp > (toUnixTimestamp(now() - 30)) * 1000").
