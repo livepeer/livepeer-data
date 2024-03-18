@@ -149,7 +149,7 @@ func (h *apiHandler) viewershipHandler() chi.Router {
 	// realtime viewership
 	h.withMetrics(router, "query_realtime_viewership").
 		MethodFunc("GET", `/now`, h.queryRealtimeViewership())
-	h.withMetrics(router, "query_realtime_viewership").
+	h.withMetrics(router, "query_timeseries_realtime_viewership").
 		MethodFunc("GET", `/internal/timeSeries`, h.queryTimeSeriesRealtimeViewership())
 
 	return router
