@@ -36,12 +36,14 @@ func TestQueryRealtimeEvents(t *testing.T) {
 			rows: []RealtimeViewershipRow{
 				{
 					ViewCount: 2,
+					ErrorRate: 0.2,
 				},
 			},
 			expJson: `
 				[
 					{
-						"viewCount":2
+						"viewCount": 2,
+						"errorRate": 0.2
 					}
 				]
 			`,
@@ -54,6 +56,7 @@ func TestQueryRealtimeEvents(t *testing.T) {
 			rows: []RealtimeViewershipRow{
 				{
 					ViewCount:   2,
+					ErrorRate:   0.3,
 					PlaybackID:  "playbackid-1",
 					CountryName: "Poland",
 				},
@@ -62,6 +65,7 @@ func TestQueryRealtimeEvents(t *testing.T) {
 				[
 					{
 						"viewCount": 2,
+						"errorRate": 0.3,
 						"playbackId": "playbackid-1",
 						"country": "Poland"
 					}
