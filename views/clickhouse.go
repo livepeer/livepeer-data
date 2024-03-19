@@ -28,6 +28,7 @@ type RealtimeViewershipRow struct {
 
 type Clickhouse interface {
 	QueryRealtimeViewsEvents(ctx context.Context, spec QuerySpec) ([]RealtimeViewershipRow, error)
+	QueryTimeSeriesRealtimeViewsEvents(ctx context.Context, spec QuerySpec) ([]RealtimeViewershipRow, error)
 }
 
 type ClickhouseOptions struct {
@@ -60,7 +61,21 @@ func NewClickhouseConn(opts ClickhouseOptions) (*ClickhouseClient, error) {
 func (c *ClickhouseClient) QueryRealtimeViewsEvents(ctx context.Context, spec QuerySpec) ([]RealtimeViewershipRow, error) {
 	sql, args, err := buildRealtimeViewsEventsQuery(spec)
 	if err != nil {
-		return nil, fmt.Errorf("error building viewership events query: %w", err)
+		return nil, fmt.Errorf("error building realtime viewership events query: %w", err)
+	}
+	var res []RealtimeViewershipRow
+	err = c.conn.Select(ctx, &res, sql, args...)
+	if err != nil {
+		return nil, err
+	}
+	res = replaceNaN(res)
+	return res, nil
+}
+
+func (c *ClickhouseClient) QueryTimeSeriesRealtimeViewsEvents(ctx context.Context, spec QuerySpec) ([]RealtimeViewershipRow, error) {
+	sql, args, err := buildTimeSeriesRealtimeViewsEventsQuery(spec)
+	if err != nil {
+		return nil, fmt.Errorf("error building time series realtime viewership events query: %w", err)
 	}
 	var res []RealtimeViewershipRow
 	err = c.conn.Select(ctx, &res, sql, args...)
@@ -69,19 +84,45 @@ func (c *ClickhouseClient) QueryRealtimeViewsEvents(ctx context.Context, spec Qu
 	} else if len(res) > maxClickhouseResultRows {
 		return nil, fmt.Errorf("query must return less than %d datapoints. consider decreasing your timeframe", maxClickhouseResultRows)
 	}
-	res = replaceNaNBufferRatio(res)
+	res = replaceNaN(res)
 
 	return res, nil
 }
 
 func buildRealtimeViewsEventsQuery(spec QuerySpec) (string, []interface{}, error) {
-	var query squirrel.SelectBuilder
-	if spec.From == nil && spec.To == nil {
-		query = currentEventsQuery(spec)
-	} else {
-		query = timeRangeEventsQuery(spec)
-	}
+	query := squirrel.Select(
+		"count(distinct session_id) as view_count",
+		"count(distinct if(JSONExtractInt(event_data, 'errors') > 0, session_id, null)) / count(distinct session_id) as error_rate").
+		From("viewership_events").
+		Where("user_id = ?", spec.Filter.UserID).
+		Where("server_timestamp > (toUnixTimestamp(now() - 30)) * 1000").
+		Limit(maxClickhouseResultRows + 1)
+	return toSqlWithFiltersAndBreakdown(query, spec)
+}
 
+func buildTimeSeriesRealtimeViewsEventsQuery(spec QuerySpec) (string, []interface{}, error) {
+	query := squirrel.Select(
+		"timestamp_ts",
+		"count(distinct session_id) as view_count",
+		"sum(buffer_ms) / (sum(playtime_ms) + sum(buffer_ms)) as buffer_ratio",
+		"sum(if(errors > 0, 1, 0)) / count(distinct session_id) as error_rate").
+		From("viewership_sessions_by_minute").
+		Where("user_id = ?", spec.Filter.UserID).
+		GroupBy("timestamp_ts").
+		OrderBy("timestamp_ts desc").
+		Limit(maxClickhouseResultRows + 1)
+	if spec.From != nil {
+		// timestamp_ts is DateTime, but it's automatically converted to seconds
+		query = query.Where("timestamp_ts >= ?", spec.From.UnixMilli()/1000)
+	}
+	if spec.To != nil {
+		// timestamp_ts is DateTime, but it's automatically converted to seconds
+		query = query.Where("timestamp_ts < ?", spec.To.UnixMilli()/1000)
+	}
+	return toSqlWithFiltersAndBreakdown(query, spec)
+}
+
+func toSqlWithFiltersAndBreakdown(query squirrel.SelectBuilder, spec QuerySpec) (string, []interface{}, error) {
 	query = withPlaybackIdFilter(query, spec.Filter.PlaybackID)
 	if creatorId := spec.Filter.CreatorID; creatorId != "" {
 		query = query.Where("creator_id = ?", creatorId)
@@ -108,45 +149,14 @@ func buildRealtimeViewsEventsQuery(spec QuerySpec) (string, []interface{}, error
 	return sql, args, nil
 }
 
-// currentEventsQuery uses an unoptimized raw playback logs to favor latency over query speed.
-func currentEventsQuery(spec QuerySpec) squirrel.SelectBuilder {
-	return squirrel.Select(
-		"count(distinct session_id) as view_count").
-		From("viewership_events").
-		Where("user_id = ?", spec.Filter.UserID).
-		Where("server_timestamp > (toUnixTimestamp(now() - 30)) * 1000").
-		Limit(maxClickhouseResultRows + 1)
-}
-
-// timeRangeEventsQuery uses an optimized materialized view "per minute" to favor query time against the latency.
-func timeRangeEventsQuery(spec QuerySpec) squirrel.SelectBuilder {
-	query := squirrel.Select(
-		"timestamp_ts",
-		"count(distinct session_id) as view_count",
-		"sum(buffer_ms) / (sum(playtime_ms) + sum(buffer_ms)) as buffer_ratio",
-		"sum(if(errors > 0, 1, 0)) / count(*) as error_rate").
-		From("viewership_sessions_by_minute").
-		Where("user_id = ?", spec.Filter.UserID).
-		GroupBy("timestamp_ts").
-		OrderBy("timestamp_ts desc").
-		Limit(maxClickhouseResultRows + 1)
-
-	if spec.From != nil {
-		// timestamp_ts is DateTime, but it's automatically converted to seconds
-		query = query.Where("timestamp_ts >= ?", spec.From.UnixMilli()/1000)
-	}
-	if spec.To != nil {
-		// timestamp_ts is DateTime, but it's automatically converted to seconds
-		query = query.Where("timestamp_ts < ?", spec.To.UnixMilli()/1000)
-	}
-	return query
-}
-
-func replaceNaNBufferRatio(rows []RealtimeViewershipRow) []RealtimeViewershipRow {
+func replaceNaN(rows []RealtimeViewershipRow) []RealtimeViewershipRow {
 	var res []RealtimeViewershipRow
 	for _, r := range rows {
 		if math.IsNaN(r.BufferRatio) {
 			r.BufferRatio = 0.0
+		}
+		if math.IsNaN(r.ErrorRate) {
+			r.ErrorRate = 0.0
 		}
 		res = append(res, r)
 	}
