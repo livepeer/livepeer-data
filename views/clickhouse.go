@@ -65,7 +65,11 @@ func (c *ClickhouseClient) QueryRealtimeViewsEvents(ctx context.Context, spec Qu
 	}
 	var res []RealtimeViewershipRow
 	err = c.conn.Select(ctx, &res, sql, args...)
-	return res, err
+	if err != nil {
+		return nil, err
+	}
+	res = replaceNaN(res)
+	return res, nil
 }
 
 func (c *ClickhouseClient) QueryTimeSeriesRealtimeViewsEvents(ctx context.Context, spec QuerySpec) ([]RealtimeViewershipRow, error) {
@@ -80,7 +84,7 @@ func (c *ClickhouseClient) QueryTimeSeriesRealtimeViewsEvents(ctx context.Contex
 	} else if len(res) > maxClickhouseResultRows {
 		return nil, fmt.Errorf("query must return less than %d datapoints. consider decreasing your timeframe", maxClickhouseResultRows)
 	}
-	res = replaceNaNBufferRatio(res)
+	res = replaceNaN(res)
 
 	return res, nil
 }
@@ -88,7 +92,7 @@ func (c *ClickhouseClient) QueryTimeSeriesRealtimeViewsEvents(ctx context.Contex
 func buildRealtimeViewsEventsQuery(spec QuerySpec) (string, []interface{}, error) {
 	query := squirrel.Select(
 		"count(distinct session_id) as view_count",
-		"sum(if(errors > 0, 1, 0)) / count(distinct session_id) as error_rate").
+		"count(distinct if(JSONExtractInt(event_data, 'errors') > 0, session_id, null)) / count(distinct session_id) as error_rate").
 		From("viewership_events").
 		Where("user_id = ?", spec.Filter.UserID).
 		Where("server_timestamp > (toUnixTimestamp(now() - 30)) * 1000").
@@ -101,7 +105,7 @@ func buildTimeSeriesRealtimeViewsEventsQuery(spec QuerySpec) (string, []interfac
 		"timestamp_ts",
 		"count(distinct session_id) as view_count",
 		"sum(buffer_ms) / (sum(playtime_ms) + sum(buffer_ms)) as buffer_ratio",
-		"sum(if(errors > 0, 1, 0)) / count(*) as error_rate").
+		"sum(if(errors > 0, 1, 0)) / count(distinct session_id) as error_rate").
 		From("viewership_sessions_by_minute").
 		Where("user_id = ?", spec.Filter.UserID).
 		GroupBy("timestamp_ts").
@@ -145,11 +149,14 @@ func toSqlWithFiltersAndBreakdown(query squirrel.SelectBuilder, spec QuerySpec) 
 	return sql, args, nil
 }
 
-func replaceNaNBufferRatio(rows []RealtimeViewershipRow) []RealtimeViewershipRow {
+func replaceNaN(rows []RealtimeViewershipRow) []RealtimeViewershipRow {
 	var res []RealtimeViewershipRow
 	for _, r := range rows {
 		if math.IsNaN(r.BufferRatio) {
 			r.BufferRatio = 0.0
+		}
+		if math.IsNaN(r.ErrorRate) {
+			r.ErrorRate = 0.0
 		}
 		res = append(res, r)
 	}
