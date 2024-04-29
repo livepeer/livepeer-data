@@ -13,7 +13,7 @@ services:
       - default
     environment:
       RABBITMQ_NODENAME: rabbit@rabbitmq
-      RABBITMQ_SERVER_ADDITIONAL_ERL_ARGS: "-rabbitmq_stream advertised_host rabbitmq"
+      RABBITMQ_SERVER_ADDITIONAL_ERL_ARGS: "-rabbitmq_stream advertised_host localhost"
     entrypoint: bash -c
     command: |
       'set -ex
@@ -22,6 +22,7 @@ services:
         loopback_users = none
       EOF
       rabbitmq-plugins enable --offline rabbitmq_stream
+      rabbitmq-plugins enable --offline rabbitmq_stream_management
       bash <<EOF &
         until rabbitmqadmin --vhost=livepeer declare exchange name=lp_golivepeer_metadata type=topic && \
               rabbitmqadmin --vhost=livepeer declare exchange name=webhook_default_exchange type=topic && \
