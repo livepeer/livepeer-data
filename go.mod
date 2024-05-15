@@ -14,7 +14,7 @@ require (
 	github.com/peterbourgon/ff v1.7.1
 	github.com/prometheus/client_golang v1.14.0
 	github.com/prometheus/common v0.42.0
-	github.com/rabbitmq/amqp091-go v1.8.0
+	github.com/rabbitmq/amqp091-go v1.8.1
 	github.com/rabbitmq/rabbitmq-stream-go-client v1.1.1
 	github.com/stretchr/testify v1.8.4
 	github.com/victorspringer/http-cache v0.0.0-20221205073845-df6d061f29cb
