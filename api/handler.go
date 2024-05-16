@@ -327,6 +327,7 @@ func (h *apiHandler) queryUsage() http.HandlerFunc {
 			Filter: usage.QueryFilter{
 				UserID:    userId,
 				CreatorID: qs.Get("creatorId"),
+				ProjectID: qs.Get("projectId"),
 			},
 			BreakdownBy: qs["breakdownBy[]"],
 		}
