@@ -39,6 +39,7 @@ var (
 	}
 
 	userIdContextKey        = &contextKeys{"userId"}
+	projectIdContextKey     = &contextKeys{"projectId"}
 	isCallerAdminContextKey = &contextKeys{"isCallerAdmin"}
 )
 
@@ -91,6 +92,11 @@ func authorization(authUrl string) middleware {
 
 		if userID := authRes.Header.Get("X-Livepeer-User-Id"); userID != "" {
 			ctx := context.WithValue(r.Context(), userIdContextKey, userID)
+			r = r.WithContext(ctx)
+		}
+
+		if projectID := authRes.Header.Get("X-Livepeer-Project-Id"); projectID != "" {
+			ctx := context.WithValue(r.Context(), projectIdContextKey, projectID)
 			r = r.WithContext(ctx)
 		}
 
