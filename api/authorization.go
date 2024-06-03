@@ -39,6 +39,7 @@ var (
 	}
 
 	userIdContextKey        = &contextKeys{"userId"}
+	projectIdContextKey     = &contextKeys{"projectId"}
 	isCallerAdminContextKey = &contextKeys{"isCallerAdmin"}
 )
 
@@ -94,6 +95,11 @@ func authorization(authUrl string) middleware {
 			r = r.WithContext(ctx)
 		}
 
+		if projectID := authRes.Header.Get("X-Livepeer-Project-Id"); projectID != "" {
+			ctx := context.WithValue(r.Context(), projectIdContextKey, projectID)
+			r = r.WithContext(ctx)
+		}
+
 		if isCallerAdmin, err := strconv.ParseBool(authRes.Header.Get("X-Livepeer-Is-Caller-Admin")); err == nil {
 			ctx := context.WithValue(r.Context(), isCallerAdminContextKey, isCallerAdmin)
 			r = r.WithContext(ctx)
@@ -134,6 +140,13 @@ func copyHeaders(headers []string, src, dest http.Header) {
 
 func callerUserId(r *http.Request) string {
 	if val, ok := r.Context().Value(userIdContextKey).(string); ok {
+		return val
+	}
+	return ""
+}
+
+func callerProjectId(r *http.Request) string {
+	if val, ok := r.Context().Value(projectIdContextKey).(string); ok {
 		return val
 	}
 	return ""
