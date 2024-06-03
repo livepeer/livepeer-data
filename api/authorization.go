@@ -145,6 +145,13 @@ func callerUserId(r *http.Request) string {
 	return ""
 }
 
+func callerProjectId(r *http.Request) string {
+	if val, ok := r.Context().Value(projectIdContextKey).(string); ok {
+		return val
+	}
+	return ""
+}
+
 func isCallerAdmin(r *http.Request) bool {
 	if val, ok := r.Context().Value(isCallerAdminContextKey).(bool); ok {
 		return val
