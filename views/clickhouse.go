@@ -96,9 +96,6 @@ func buildRealtimeViewsEventsQuery(spec QuerySpec) (string, []interface{}, error
 		From("viewership_current_counts").
 		Where("user_id = ?", spec.Filter.UserID).
 		Limit(maxClickhouseResultRows + 1)
-	if spec.Filter.ProjectID != "" {
-		query = query.Where("project_id = ?", spec.Filter.ProjectID)
-	}
 	return toSqlWithFiltersAndBreakdown(query, spec)
 }
 
@@ -113,9 +110,6 @@ func buildTimeSeriesRealtimeViewsEventsQuery(spec QuerySpec) (string, []interfac
 		GroupBy("timestamp_ts").
 		OrderBy("timestamp_ts desc").
 		Limit(maxClickhouseResultRows + 1)
-	if spec.Filter.ProjectID != "" {
-		query = query.Where("project_id = ?", spec.Filter.ProjectID)
-	}
 	if spec.From != nil {
 		// timestamp_ts is DateTime, but it's automatically converted to seconds
 		query = query.Where("timestamp_ts >= ?", spec.From.UnixMilli()/1000)

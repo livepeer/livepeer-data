@@ -433,7 +433,6 @@ func (h *apiHandler) resolveViewershipQuerySpec(r *http.Request) (views.QuerySpe
 	if userId == "" {
 		return views.QuerySpec{}, http.StatusInternalServerError, []error{errors.New("request not authenticated")}
 	}
-	projectId := callerProjectId(r)
 
 	qs := r.URL.Query()
 	assetID, streamID := qs.Get("assetId"), qs.Get("streamId")
@@ -443,7 +442,6 @@ func (h *apiHandler) resolveViewershipQuerySpec(r *http.Request) (views.QuerySpe
 		TimeStep: qs.Get("timeStep"),
 		Filter: views.QueryFilter{
 			UserID:     userId,
-			ProjectID:  projectId,
 			PlaybackID: qs.Get("playbackId"),
 			CreatorID:  qs.Get("creatorId"),
 		},
