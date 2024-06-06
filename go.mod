@@ -10,7 +10,7 @@ require (
 	github.com/golang/glog v1.1.1
 	github.com/google/uuid v1.6.0
 	github.com/ipfs/go-cid v0.4.1
-	github.com/livepeer/go-api-client v0.4.6
+	github.com/livepeer/go-api-client v0.4.23
 	github.com/peterbourgon/ff v1.7.1
 	github.com/prometheus/client_golang v1.14.0
 	github.com/prometheus/common v0.42.0
