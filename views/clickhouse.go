@@ -21,7 +21,7 @@ type RealtimeViewershipRow struct {
 	ErrorRate   float64   `ch:"error_rate"`
 
 	PlaybackID  string `ch:"playback_id"`
-	DeviceType  string `ch:"device_type"`
+	Device      string `ch:"device"`
 	Browser     string `ch:"browser"`
 	CountryName string `ch:"playback_country_name"`
 }
