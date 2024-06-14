@@ -41,7 +41,7 @@ var viewershipBreakdownFields = map[string]string{
 
 var realtimeViewershipBreakdownFields = map[string]string{
 	"playbackId": "playback_id",
-	"deviceType": "device_type",
+	"device":     "device",
 	"browser":    "browser",
 	"country":    "playback_country_name",
 }
