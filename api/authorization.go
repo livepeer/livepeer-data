@@ -79,6 +79,12 @@ func authorization(authUrl string) middleware {
 			return
 		}
 
+		// It not found, we just pass NotFound to the client
+		if authRes.StatusCode == http.StatusNotFound {
+			rw.WriteHeader(http.StatusNotFound)
+			return
+		}
+
 		if authRes.StatusCode != http.StatusOK && authRes.StatusCode != http.StatusNoContent {
 			if contentType := authRes.Header.Get("Content-Type"); contentType != "" {
 				rw.Header().Set("Content-Type", contentType)
