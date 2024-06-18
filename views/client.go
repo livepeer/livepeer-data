@@ -107,6 +107,16 @@ func (c *Client) Deprecated_GetTotalViews(ctx context.Context, id string) ([]Tot
 	}}, nil
 }
 
+func (c *Client) QueryRealtimeServerViews(ctx context.Context, userId string) ([]Metric, error) {
+	viewCount, err := c.prom.QueryRealtimeViews(ctx, userId)
+	if err != nil {
+		return nil, fmt.Errorf("error querying start views: %w", err)
+	}
+	return []Metric{{
+		ViewCount: viewCount,
+	}}, nil
+}
+
 func (c *Client) QuerySummary(ctx context.Context, playbackID string) (*Metric, error) {
 	summary, err := c.bigquery.QueryViewsSummary(ctx, playbackID)
 	if err != nil {

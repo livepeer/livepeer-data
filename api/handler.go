@@ -133,6 +133,10 @@ func (h *apiHandler) viewershipHandler() chi.Router {
 		With(h.cache(false)).
 		MethodFunc("GET", fmt.Sprintf(`/{%s}/total`, assetIDParam), h.getTotalViews)
 
+	// realtime viewership server side (internal-only)
+	h.withMetrics(router, "query_realtime_server_viewership").
+		MethodFunc("GET", "/internal/server/now", h.queryRealtimeServerViewership())
+
 	// total views public API
 	h.withMetrics(router, "query_total_viewership").
 		With(h.cache(false)).
@@ -556,6 +560,29 @@ func (h *apiHandler) getTotalViews(rw http.ResponseWriter, r *http.Request) {
 		userId, assetID, totalViews[0].ID, oldStartViews, totalViews[0].StartViews)
 
 	respondJson(rw, http.StatusOK, totalViews)
+}
+
+func (h *apiHandler) queryRealtimeServerViewership() http.HandlerFunc {
+	return func(rw http.ResponseWriter, r *http.Request) {
+		userId := r.URL.Query().Get("userId")
+		if userId == "" {
+			respondError(rw, http.StatusBadRequest, errors.New("userId is required"))
+			return
+		}
+
+		if !isCallerAdmin(r) {
+			respondError(rw, http.StatusForbidden, errors.New("only admins can query server-side viewership"))
+			return
+		}
+
+		metrics, err := h.views.QueryRealtimeServerViews(r.Context(), userId)
+		if err != nil {
+			respondError(rw, http.StatusInternalServerError, err)
+			return
+		}
+
+		respondJson(rw, http.StatusOK, metrics)
+	}
 }
 
 func (h *apiHandler) getStreamHealth(rw http.ResponseWriter, r *http.Request) {
