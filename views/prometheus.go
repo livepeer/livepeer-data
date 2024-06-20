@@ -33,6 +33,26 @@ func NewPrometheus(config promClient.Config) (*Prometheus, error) {
 
 func (c *Prometheus) QueryStartViews(ctx context.Context, asset *livepeer.Asset) (int64, error) {
 	query := startViewsQuery(asset.PlaybackID, asset.PlaybackRecordingID)
+	return c.queryInt64(ctx, query)
+}
+
+func startViewsQuery(playbackID, playbackRecordingID string) string {
+	queryID := playbackID
+	if playbackRecordingID != "" {
+		queryID = fmt.Sprintf("(%s|%s)", playbackID, playbackRecordingID)
+	}
+	return fmt.Sprintf(
+		`sum(increase(mist_playux_count{strm=~"video(rec)?\\+%s"} [1y]))`,
+		queryID,
+	)
+}
+
+func (c *Prometheus) QueryRealtimeViews(ctx context.Context, userId string) (int64, error) {
+	query := fmt.Sprintf(`sum(mist_sessions{sessType="viewers", user_id="%s"})`, userId)
+	return c.queryInt64(ctx, query)
+}
+
+func (c *Prometheus) queryInt64(ctx context.Context, query string) (int64, error) {
 	value, warn, err := c.api.Query(ctx, query, time.Time{})
 	if len(warn) > 0 {
 		glog.Warningf("Prometheus query warnings: %q", warn)
@@ -50,15 +70,4 @@ func (c *Prometheus) QueryStartViews(ctx context.Context, asset *livepeer.Asset)
 		return 0, nil
 	}
 	return int64(vec[0].Value), nil
-}
-
-func startViewsQuery(playbackID, playbackRecordingID string) string {
-	queryID := playbackID
-	if playbackRecordingID != "" {
-		queryID = fmt.Sprintf("(%s|%s)", playbackID, playbackRecordingID)
-	}
-	return fmt.Sprintf(
-		`sum(increase(mist_playux_count{strm=~"video(rec)?\\+%s"} [1y]))`,
-		queryID,
-	)
 }
