@@ -438,6 +438,7 @@ func (h *apiHandler) resolveViewershipQuerySpec(r *http.Request) (views.QuerySpe
 		return views.QuerySpec{}, http.StatusInternalServerError, []error{errors.New("request not authenticated")}
 	}
 	projectId := callerProjectId(r)
+	isProjectDefault := callerIsProjectDefault(r)
 
 	qs := r.URL.Query()
 	assetID, streamID := qs.Get("assetId"), qs.Get("streamId")
@@ -446,10 +447,11 @@ func (h *apiHandler) resolveViewershipQuerySpec(r *http.Request) (views.QuerySpe
 		To:       to,
 		TimeStep: qs.Get("timeStep"),
 		Filter: views.QueryFilter{
-			UserID:     userId,
-			ProjectID:  projectId,
-			PlaybackID: qs.Get("playbackId"),
-			CreatorID:  qs.Get("creatorId"),
+			UserID:           userId,
+			ProjectID:        projectId,
+			IsProjectDefault: isProjectDefault,
+			PlaybackID:       qs.Get("playbackId"),
+			CreatorID:        qs.Get("creatorId"),
 		},
 		BreakdownBy: qs["breakdownBy[]"],
 	}
