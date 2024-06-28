@@ -7,10 +7,11 @@ import (
 )
 
 type QueryFilter struct {
-	PlaybackID string
-	CreatorID  string
-	UserID     string
-	ProjectID  string
+	PlaybackID       string
+	CreatorID        string
+	UserID           string
+	ProjectID        string
+	IsProjectDefault bool
 }
 
 type QuerySpec struct {
