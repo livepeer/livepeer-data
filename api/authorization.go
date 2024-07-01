@@ -38,10 +38,9 @@ var (
 		Transport: promhttp.InstrumentRoundTripperDuration(authRequestDuration, http.DefaultTransport),
 	}
 
-	userIdContextKey           = &contextKeys{"userId"}
-	projectIdContextKey        = &contextKeys{"projectId"}
-	isProjectDefaultContextKey = &contextKeys{"isProjectDefault"}
-	isCallerAdminContextKey    = &contextKeys{"isCallerAdmin"}
+	userIdContextKey        = &contextKeys{"userId"}
+	projectIdContextKey     = &contextKeys{"projectId"}
+	isCallerAdminContextKey = &contextKeys{"isCallerAdmin"}
 )
 
 type contextKeys struct {
@@ -107,11 +106,6 @@ func authorization(authUrl string) middleware {
 			r = r.WithContext(ctx)
 		}
 
-		if isProjectDefault := authRes.Header.Get("X-Livepeer-Is-Project-Default"); isProjectDefault != "" {
-			ctx := context.WithValue(r.Context(), isProjectDefaultContextKey, isProjectDefault)
-			r = r.WithContext(ctx)
-		}
-
 		if isCallerAdmin, err := strconv.ParseBool(authRes.Header.Get("X-Livepeer-Is-Caller-Admin")); err == nil {
 			ctx := context.WithValue(r.Context(), isCallerAdminContextKey, isCallerAdmin)
 			r = r.WithContext(ctx)
@@ -162,13 +156,6 @@ func callerProjectId(r *http.Request) string {
 		return val
 	}
 	return ""
-}
-
-func callerIsProjectDefault(r *http.Request) bool {
-	if val, ok := r.Context().Value(isProjectDefaultContextKey).(bool); ok {
-		return val
-	}
-	return false
 }
 
 func isCallerAdmin(r *http.Request) bool {
