@@ -118,6 +118,9 @@ func buildViewsEventsQuery(table string, spec QuerySpec) (string, []interface{},
 		From(table).
 		Where("account_id = ?", spec.Filter.UserID).
 		Limit(maxBigQueryResultRows + 1)
+	if spec.Filter.ProjectID != "" {
+		query = query.Where("project_id = ?", spec.Filter.ProjectID)
+	}
 	query = withPlaybackIdFilter(query, spec.Filter.PlaybackID)
 
 	if spec.Detailed {
