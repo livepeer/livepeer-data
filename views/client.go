@@ -199,7 +199,7 @@ func (c *Client) ResolvePlaybackId(spec QuerySpec, assetID, streamID string) (Qu
 			if res.Filter.UserID != stream.UserID {
 				return QuerySpec{}, fmt.Errorf("error getting stream: verify that stream exists and you are using proper credentials")
 			}
-			if res.Filter.ProjectID != "" && stream.ProjectID != "" && res.Filter.ProjectID != stream.UserID {
+			if res.Filter.ProjectID != "" && stream.ProjectID != "" && res.Filter.ProjectID != stream.ProjectID {
 				return QuerySpec{}, fmt.Errorf("error getting stream: verify that stream exists and you are using proper credentials related to the project")
 			}
 		}
