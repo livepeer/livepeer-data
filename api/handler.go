@@ -11,6 +11,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/golang/glog"
+	"github.com/livepeer/livepeer-data/ai"
 	"github.com/livepeer/livepeer-data/health"
 	"github.com/livepeer/livepeer-data/metrics"
 	"github.com/livepeer/livepeer-data/pkg/data"
@@ -64,10 +65,18 @@ type apiHandler struct {
 	core      *health.Core
 	views     *views.Client
 	usage     *usage.Client
+	ai        *ai.Client
 }
 
-func NewHandler(serverCtx context.Context, opts APIHandlerOptions, healthcore *health.Core, views *views.Client, usage *usage.Client) http.Handler {
-	handler := &apiHandler{opts, serverCtx, healthcore, views, usage}
+func NewHandler(serverCtx context.Context, opts APIHandlerOptions, healthcore *health.Core, views *views.Client, usage *usage.Client, ai *ai.Client) http.Handler {
+	handler := &apiHandler{
+		opts:      opts,
+		serverCtx: serverCtx,
+		core:      healthcore,
+		views:     views,
+		usage:     usage,
+		ai:        ai,
+	}
 
 	router := chi.NewRouter()
 
@@ -85,6 +94,7 @@ func NewHandler(serverCtx context.Context, opts APIHandlerOptions, healthcore *h
 		router.Mount(`/stream/{`+streamIDParam+`}`, handler.streamHealthHandler())
 		router.Mount("/views", handler.viewershipHandler())
 		router.Mount("/usage", handler.usageHandler())
+		router.Mount("/ai-stream-status/", handler.aiStreamStatusHandler())
 	})
 
 	return router
@@ -182,6 +192,15 @@ func (h *apiHandler) usageHandler() chi.Router {
 	h.withMetrics(router, "query_active_users").
 		With(h.cache(true)).
 		MethodFunc("GET", `/query/active`, h.queryActiveUsersUsage())
+
+	return router
+}
+
+func (h *apiHandler) aiStreamStatusHandler() chi.Router {
+	router := chi.NewRouter()
+
+	h.withMetrics(router, "query_ai_stream_status").
+		MethodFunc("GET", "/", h.queryAIStreamStatusEvents())
 
 	return router
 }
@@ -421,6 +440,23 @@ func (h *apiHandler) queryTimeSeriesRealtimeViewership() http.HandlerFunc {
 			return
 		}
 		respondJson(rw, http.StatusOK, metrics)
+	}
+}
+
+func (h *apiHandler) queryAIStreamStatusEvents() http.HandlerFunc {
+	return func(rw http.ResponseWriter, r *http.Request) {
+
+		qs := r.URL.Query()
+		querySpec := ai.NewQuerySpec(
+			qs.Get("streamId"), nil, nil,
+		)
+
+		streamStatus, err := h.ai.QueryAIStreamStatusEvents(r.Context(), querySpec)
+		if err != nil {
+			respondError(rw, http.StatusInternalServerError, err)
+			return
+		}
+		respondJson(rw, http.StatusOK, streamStatus)
 	}
 }
 
