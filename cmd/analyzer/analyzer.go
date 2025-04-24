@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/golang/glog"
+	"github.com/livepeer/livepeer-data/ai"
 	"github.com/livepeer/livepeer-data/api"
 	"github.com/livepeer/livepeer-data/health"
 	"github.com/livepeer/livepeer-data/health/reducers"
@@ -152,10 +153,10 @@ func Run(build BuildFlags) {
 	healthcore := provisionStreamHealthcore(ctx, cli)
 	defer healthcore.Close()
 
-	views, usage := provisionDataAnalytics(cli)
+	views, usage, ai := provisionDataAnalytics(cli)
 
 	glog.Info("Starting server...")
-	err := api.ListenAndServe(ctx, cli.serverOpts, healthcore, views, usage)
+	err := api.ListenAndServe(ctx, cli.serverOpts, healthcore, views, usage, ai)
 	if err != nil {
 		glog.Fatalf("Error starting api server. err=%q", err)
 	}
@@ -190,9 +191,9 @@ func provisionStreamHealthcore(ctx context.Context, cli cliFlags) *health.Core {
 	return healthcore
 }
 
-func provisionDataAnalytics(cli cliFlags) (*views.Client, *usage.Client) {
+func provisionDataAnalytics(cli cliFlags) (*views.Client, *usage.Client, *ai.Client) {
 	if cli.disableBigQuery {
-		return nil, nil
+		return nil, nil, nil
 	}
 	views, err := views.NewClient(cli.viewsOpts)
 	if err != nil {
@@ -204,7 +205,12 @@ func provisionDataAnalytics(cli cliFlags) (*views.Client, *usage.Client) {
 		glog.Fatalf("Error creating usage client. err=%q", err)
 	}
 
-	return views, usage
+	ai, err := ai.NewClient(cli.viewsOpts.Prometheus)
+	if err != nil {
+		glog.Fatalf("Error creating ai client. err=%q", err)
+	}
+
+	return views, usage, ai
 }
 
 func contextUntilSignal(parent context.Context, sigs ...os.Signal) context.Context {

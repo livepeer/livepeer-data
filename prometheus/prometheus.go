@@ -1,4 +1,4 @@
-package views
+package prometheus
 
 import (
 	"context"
@@ -70,4 +70,16 @@ func (c *Prometheus) queryInt64(ctx context.Context, query string) (int64, error
 		return 0, nil
 	}
 	return int64(vec[0].Value), nil
+}
+
+func (c *Prometheus) QueryAICapacity(ctx context.Context, region, nodeID string) (int64, error) {
+	regionFilter, nodeIDFilter := "", ""
+	if region != "" {
+		regionFilter = fmt.Sprintf(`, region="%s"`, region)
+	}
+	if nodeID != "" {
+		nodeIDFilter = fmt.Sprintf(`, node_id="%s"`, nodeID)
+	}
+	query := fmt.Sprintf(`sum(livepeer_ai_container_in_use{job="orchestrator"%s%s})`, regionFilter, nodeIDFilter)
+	return c.queryInt64(ctx, query)
 }
