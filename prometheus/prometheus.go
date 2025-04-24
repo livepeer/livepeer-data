@@ -72,7 +72,13 @@ func (c *Prometheus) queryInt64(ctx context.Context, query string) (int64, error
 	return int64(vec[0].Value), nil
 }
 
-func (c *Prometheus) QueryAICapacity(ctx context.Context, region, nodeID string) (int64, error) {
+type AICapacity struct {
+	TotalContainers int64 `json:"totalContainers"`
+	InUseContainers int64 `json:"inUseContainers"`
+	FreeContainers  int64 `json:"freeContainers"`
+}
+
+func (c *Prometheus) QueryAICapacity(ctx context.Context, region, nodeID string) (AICapacity, error) {
 	regionFilter, nodeIDFilter := "", ""
 	if region != "" {
 		regionFilter = fmt.Sprintf(`, region="%s"`, region)
@@ -81,5 +87,22 @@ func (c *Prometheus) QueryAICapacity(ctx context.Context, region, nodeID string)
 		nodeIDFilter = fmt.Sprintf(`, node_id="%s"`, nodeID)
 	}
 	query := fmt.Sprintf(`sum(livepeer_ai_container_free{job="orchestrator"%s%s})`, regionFilter, nodeIDFilter)
-	return c.queryInt64(ctx, query)
+
+	free, err := c.queryInt64(ctx, query)
+	if err != nil {
+		return AICapacity{}, err
+	}
+
+	query = fmt.Sprintf(`sum(livepeer_ai_container_in_use{job="orchestrator"%s%s})`, regionFilter, nodeIDFilter)
+
+	inUse, err := c.queryInt64(ctx, query)
+	if err != nil {
+		return AICapacity{}, err
+	}
+
+	return AICapacity{
+		TotalContainers: free + inUse,
+		InUseContainers: inUse,
+		FreeContainers:  free,
+	}, nil
 }
