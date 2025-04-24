@@ -80,6 +80,6 @@ func (c *Prometheus) QueryAICapacity(ctx context.Context, region, nodeID string)
 	if nodeID != "" {
 		nodeIDFilter = fmt.Sprintf(`, node_id="%s"`, nodeID)
 	}
-	query := fmt.Sprintf(`sum(livepeer_ai_container_in_use{job="orchestrator"%s%s})`, regionFilter, nodeIDFilter)
+	query := fmt.Sprintf(`sum(livepeer_ai_container_free{job="orchestrator"%s%s})`, regionFilter, nodeIDFilter)
 	return c.queryInt64(ctx, query)
 }

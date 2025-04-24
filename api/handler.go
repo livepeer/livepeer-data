@@ -605,11 +605,11 @@ func (h *apiHandler) queryRealtimeServerViewership() http.HandlerFunc {
 
 func (h *apiHandler) queryAICapacity() http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
-		if !isCallerAdmin(r) {
-			// TODO needed?
-			respondError(rw, http.StatusForbidden, errors.New("only admins can query"))
-			return
-		}
+		// TODO needed?
+		// if !isCallerAdmin(r) {
+		// 	respondError(rw, http.StatusForbidden, errors.New("only admins can query"))
+		// 	return
+		// }
 
 		metrics, err := h.ai.QueryAICapacity(r.Context(), r.URL.Query().Get("region"), r.URL.Query().Get("nodeId"))
 		if err != nil {
