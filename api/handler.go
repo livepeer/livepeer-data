@@ -192,7 +192,7 @@ func (h *apiHandler) usageHandler() chi.Router {
 
 func (h *apiHandler) aiHandler() chi.Router {
 	router := chi.NewRouter()
-	if h.usage == nil {
+	if h.ai == nil {
 		router.Handle("/*", notImplemented())
 		return router
 	}
