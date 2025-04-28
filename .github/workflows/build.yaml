@@ -96,7 +96,7 @@ jobs:
       - name: Upload artifacts for cutting release
         uses: actions/upload-artifact@v4
         with:
-          name: release-artifacts
+          name: release-artifacts-${{ matrix.target.GOOS }}-${{ matrix.target.type }}-${{ matrix.target.GOARCH }}
           path: releases/
 
   upload:
