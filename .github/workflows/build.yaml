@@ -96,7 +96,7 @@ jobs:
       - name: Upload artifacts for cutting release
         uses: actions/upload-artifact@v4
         with:
-          name: release-artifacts-${{ matrix.target.GOOS }}-${{ matrix.target.type }}-${{ matrix.target.GOARCH }}
+          name: release-artifacts-${GOOS}-${GOARCH}
           path: releases/
 
   upload:
@@ -110,10 +110,11 @@ jobs:
       - build
     steps:
       - name: Download artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
-          name: release-artifacts
+          pattern: release-artifacts-*
           path: releases/
+          merge-multiple: true
 
       - name: Generate sha256 checksum and gpg signatures for release artifacts
         uses: livepeer/action-gh-checksum-and-gpg-sign@latest
