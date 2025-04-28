@@ -20,9 +20,9 @@ jobs:
       matrix:
         platform:
           - name: windows
-            os: ubuntu-20.04
+            os: ubuntu-24.04
           - name: linux
-            os: ubuntu-20.04
+            os: ubuntu-24.04
           - name: darwin
             os: macos-11
         arch:
@@ -32,7 +32,7 @@ jobs:
     runs-on: ${{ matrix.platform.os }}
     steps:
       - name: Check out code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4.1.7
         with:
           fetch-depth: 0
           # Check https://github.com/livepeer/go-livepeer/pull/1891
