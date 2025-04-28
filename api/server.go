@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/golang/glog"
+	"github.com/livepeer/livepeer-data/ai"
 	"github.com/livepeer/livepeer-data/health"
 	"github.com/livepeer/livepeer-data/usage"
 	"github.com/livepeer/livepeer-data/views"
@@ -21,10 +22,10 @@ type ServerOptions struct {
 	APIHandlerOptions
 }
 
-func ListenAndServe(ctx context.Context, opts ServerOptions, healthcore *health.Core, views *views.Client, usage *usage.Client) error {
+func ListenAndServe(ctx context.Context, opts ServerOptions, healthcore *health.Core, views *views.Client, usage *usage.Client, ai *ai.Client) error {
 	srv := &http.Server{
 		Addr:    fmt.Sprintf("%s:%d", opts.Host, opts.Port),
-		Handler: NewHandler(ctx, opts.APIHandlerOptions, healthcore, views, usage),
+		Handler: NewHandler(ctx, opts.APIHandlerOptions, healthcore, views, usage, ai),
 	}
 	eg, ctx := errgroup.WithContext(ctx)
 	eg.Go(func() error {

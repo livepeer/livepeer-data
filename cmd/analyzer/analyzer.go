@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/golang/glog"
+	"github.com/livepeer/livepeer-data/ai"
 	"github.com/livepeer/livepeer-data/api"
 	"github.com/livepeer/livepeer-data/health"
 	"github.com/livepeer/livepeer-data/health/reducers"
@@ -154,8 +155,13 @@ func Run(build BuildFlags) {
 
 	views, usage := provisionDataAnalytics(cli)
 
+	ai, err := ai.NewClient(cli.viewsOpts.Prometheus)
+	if err != nil {
+		glog.Fatalf("Error creating ai client. err=%q", err)
+	}
+
 	glog.Info("Starting server...")
-	err := api.ListenAndServe(ctx, cli.serverOpts, healthcore, views, usage)
+	err = api.ListenAndServe(ctx, cli.serverOpts, healthcore, views, usage, ai)
 	if err != nil {
 		glog.Fatalf("Error starting api server. err=%q", err)
 	}

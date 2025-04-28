@@ -14,10 +14,10 @@ concurrency:
 jobs:
   test:
     name: Run tests with coverage reporting
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-24.04
     steps:
       - name: Check out code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4.1.7
         with:
           fetch-depth: 0
           # Check https://github.com/livepeer/go-livepeer/pull/1891
@@ -52,7 +52,7 @@ jobs:
 
     steps:
       - name: Check out code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4.1.7
         with:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha }}

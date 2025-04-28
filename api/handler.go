@@ -11,10 +11,12 @@ import (
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/golang/glog"
+	"github.com/livepeer/livepeer-data/ai"
 	"github.com/livepeer/livepeer-data/health"
 	"github.com/livepeer/livepeer-data/metrics"
 	"github.com/livepeer/livepeer-data/pkg/data"
 	"github.com/livepeer/livepeer-data/pkg/jsse"
+	"github.com/livepeer/livepeer-data/prometheus"
 	"github.com/livepeer/livepeer-data/usage"
 	"github.com/livepeer/livepeer-data/views"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -64,10 +66,11 @@ type apiHandler struct {
 	core      *health.Core
 	views     *views.Client
 	usage     *usage.Client
+	ai        *ai.Client
 }
 
-func NewHandler(serverCtx context.Context, opts APIHandlerOptions, healthcore *health.Core, views *views.Client, usage *usage.Client) http.Handler {
-	handler := &apiHandler{opts, serverCtx, healthcore, views, usage}
+func NewHandler(serverCtx context.Context, opts APIHandlerOptions, healthcore *health.Core, views *views.Client, usage *usage.Client, ai *ai.Client) http.Handler {
+	handler := &apiHandler{opts, serverCtx, healthcore, views, usage, ai}
 
 	router := chi.NewRouter()
 
@@ -85,6 +88,7 @@ func NewHandler(serverCtx context.Context, opts APIHandlerOptions, healthcore *h
 		router.Mount(`/stream/{`+streamIDParam+`}`, handler.streamHealthHandler())
 		router.Mount("/views", handler.viewershipHandler())
 		router.Mount("/usage", handler.usageHandler())
+		router.Mount("/ai", handler.aiHandler())
 	})
 
 	return router
@@ -182,6 +186,20 @@ func (h *apiHandler) usageHandler() chi.Router {
 	h.withMetrics(router, "query_active_users").
 		With(h.cache(true)).
 		MethodFunc("GET", `/query/active`, h.queryActiveUsersUsage())
+
+	return router
+}
+
+func (h *apiHandler) aiHandler() chi.Router {
+	router := chi.NewRouter()
+	if h.ai == nil {
+		router.Handle("/*", notImplemented())
+		return router
+	}
+
+	h.withMetrics(router, "query_ai_capacity").
+		With(h.cache(true)).
+		MethodFunc("GET", `/capacity`, h.queryAICapacity())
 
 	return router
 }
@@ -549,7 +567,7 @@ func (h *apiHandler) getTotalViews(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	if metric != nil {
-		totalViews = []views.TotalViews{{
+		totalViews = []prometheus.TotalViews{{
 			ID:         totalViews[0].ID,
 			StartViews: metric.ViewCount,
 		}}
@@ -576,6 +594,18 @@ func (h *apiHandler) queryRealtimeServerViewership() http.HandlerFunc {
 		}
 
 		metrics, err := h.views.QueryRealtimeServerViews(r.Context(), userId)
+		if err != nil {
+			respondError(rw, http.StatusInternalServerError, err)
+			return
+		}
+
+		respondJson(rw, http.StatusOK, metrics)
+	}
+}
+
+func (h *apiHandler) queryAICapacity() http.HandlerFunc {
+	return func(rw http.ResponseWriter, r *http.Request) {
+		metrics, err := h.ai.QueryAICapacity(r.Context(), r.URL.Query().Get("region"), r.URL.Query().Get("nodeId"))
 		if err != nil {
 			respondError(rw, http.StatusInternalServerError, err)
 			return

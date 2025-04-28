@@ -1,4 +1,4 @@
-package views
+package prometheus
 
 import (
 	"context"
@@ -70,4 +70,39 @@ func (c *Prometheus) queryInt64(ctx context.Context, query string) (int64, error
 		return 0, nil
 	}
 	return int64(vec[0].Value), nil
+}
+
+type AICapacity struct {
+	TotalContainers int64 `json:"totalContainers"`
+	InUseContainers int64 `json:"inUseContainers"`
+	IdleContainers  int64 `json:"idleContainers"`
+}
+
+func (c *Prometheus) QueryAICapacity(ctx context.Context, region, nodeID string) (AICapacity, error) {
+	regionFilter, nodeIDFilter := "", ""
+	if region != "" {
+		regionFilter = fmt.Sprintf(`, region="%s"`, region)
+	}
+	if nodeID != "" {
+		nodeIDFilter = fmt.Sprintf(`, node_id="%s"`, nodeID)
+	}
+	query := fmt.Sprintf(`sum(livepeer_ai_container_idle{job="orchestrator"%s%s})`, regionFilter, nodeIDFilter)
+
+	idle, err := c.queryInt64(ctx, query)
+	if err != nil {
+		return AICapacity{}, err
+	}
+
+	query = fmt.Sprintf(`sum(livepeer_ai_container_in_use{job="orchestrator"%s%s})`, regionFilter, nodeIDFilter)
+
+	inUse, err := c.queryInt64(ctx, query)
+	if err != nil {
+		return AICapacity{}, err
+	}
+
+	return AICapacity{
+		TotalContainers: idle + inUse,
+		InUseContainers: inUse,
+		IdleContainers:  idle,
+	}, nil
 }

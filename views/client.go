@@ -8,6 +8,7 @@ import (
 	"cloud.google.com/go/bigquery"
 	livepeer "github.com/livepeer/go-api-client"
 	"github.com/livepeer/livepeer-data/pkg/data"
+	"github.com/livepeer/livepeer-data/prometheus"
 	promClient "github.com/prometheus/client_golang/api"
 )
 
@@ -62,7 +63,7 @@ type ClientOptions struct {
 type Client struct {
 	opts       ClientOptions
 	lp         *livepeer.Client
-	prom       *Prometheus
+	prom       *prometheus.Prometheus
 	bigquery   BigQuery
 	clickhouse Clickhouse
 }
@@ -70,7 +71,7 @@ type Client struct {
 func NewClient(opts ClientOptions) (*Client, error) {
 	lp := livepeer.NewAPIClient(opts.Livepeer)
 
-	prom, err := NewPrometheus(opts.Prometheus)
+	prom, err := prometheus.NewPrometheus(opts.Prometheus)
 	if err != nil {
 		return nil, fmt.Errorf("error creating prometheus client: %w", err)
 	}
@@ -88,7 +89,7 @@ func NewClient(opts ClientOptions) (*Client, error) {
 	return &Client{opts, lp, prom, bigquery, clickhouse}, nil
 }
 
-func (c *Client) Deprecated_GetTotalViews(ctx context.Context, id string) ([]TotalViews, error) {
+func (c *Client) Deprecated_GetTotalViews(ctx context.Context, id string) ([]prometheus.TotalViews, error) {
 	asset, err := c.lp.GetAsset(id, false)
 	if errors.Is(err, livepeer.ErrNotExists) {
 		return nil, ErrAssetNotFound
@@ -101,7 +102,7 @@ func (c *Client) Deprecated_GetTotalViews(ctx context.Context, id string) ([]Tot
 		return nil, fmt.Errorf("error querying start views: %w", err)
 	}
 
-	return []TotalViews{{
+	return []prometheus.TotalViews{{
 		ID:         asset.PlaybackID,
 		StartViews: startViews,
 	}}, nil
