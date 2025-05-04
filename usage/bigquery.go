@@ -16,6 +16,7 @@ import (
 type UsageSummaryRow struct {
 	UserID       string              `bigquery:"user_id"`
 	CreatorID    bigquery.NullString `bigquery:"creator_id"`
+	ProjectID    bigquery.NullString `bigquery:"project_id"`
 	TimeInterval time.Time           `bigquery:"time_interval"`
 
 	DeliveryUsageMins bigquery.NullFloat64 `bigquery:"delivery_usage_mins"`
@@ -124,10 +125,12 @@ func (bq *bigqueryHandler) QueryUsageSummary(ctx context.Context, spec QuerySpec
 	}
 
 	if len(bqRows) == 0 {
+		projectID := bigquery.NullString{StringVal: spec.Filter.ProjectID, Valid: spec.Filter.ProjectID != ""}
 		creatorID := bigquery.NullString{StringVal: spec.Filter.CreatorID, Valid: spec.Filter.CreatorID != ""}
 		zero := bigquery.NullFloat64{Float64: 0, Valid: true}
 		return &UsageSummaryRow{
 			UserID:            spec.Filter.UserID,
+			ProjectID:         projectID,
 			CreatorID:         creatorID,
 			DeliveryUsageMins: zero,
 			TotalUsageMins:    zero,
@@ -227,6 +230,12 @@ func buildUsageSummaryQuery(table string, spec QuerySpec) (string, []interface{}
 		query = query.Columns("creator_id").
 			Where("creator_id = ?", creatorID).
 			GroupBy("creator_id")
+	}
+
+	if projectID := spec.Filter.ProjectID; projectID != "" {
+		query = query.Columns("project_id").
+			Where("project_id = ?", projectID).
+			GroupBy("project_id")
 	}
 
 	if from := spec.From; from != nil {
