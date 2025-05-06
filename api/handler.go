@@ -198,7 +198,6 @@ func (h *apiHandler) aiHandler() chi.Router {
 	}
 
 	h.withMetrics(router, "query_ai_capacity").
-		With(h.cache(true)).
 		MethodFunc("GET", `/capacity`, h.queryAICapacity())
 
 	return router
