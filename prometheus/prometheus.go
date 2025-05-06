@@ -86,14 +86,14 @@ func (c *Prometheus) QueryAICapacity(ctx context.Context, region, nodeID string)
 	if nodeID != "" {
 		nodeIDFilter = fmt.Sprintf(`, node_id="%s"`, nodeID)
 	}
-	query := fmt.Sprintf(`sum(livepeer_ai_container_idle{job="orchestrator"%s%s})`, regionFilter, nodeIDFilter)
+	query := fmt.Sprintf(`sum(livepeer_ai_container_idle{job="orchestrator", region!~".*secondary"%s%s})`, regionFilter, nodeIDFilter)
 
 	idle, err := c.queryInt64(ctx, query)
 	if err != nil {
 		return AICapacity{}, err
 	}
 
-	query = fmt.Sprintf(`sum(livepeer_ai_container_in_use{job="orchestrator"%s%s})`, regionFilter, nodeIDFilter)
+	query = fmt.Sprintf(`sum(livepeer_ai_container_in_use{job="orchestrator", region!~".*secondary"%s%s})`, regionFilter, nodeIDFilter)
 
 	inUse, err := c.queryInt64(ctx, query)
 	if err != nil {
