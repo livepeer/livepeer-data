@@ -3,6 +3,7 @@ package prometheus
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/golang/glog"
@@ -78,22 +79,28 @@ type AICapacity struct {
 	IdleContainers  int64 `json:"idleContainers"`
 }
 
-func (c *Prometheus) QueryAICapacity(ctx context.Context, region, nodeID string) (AICapacity, error) {
+func (c *Prometheus) QueryAICapacity(ctx context.Context, regions, nodeID, regionsExclude string) (AICapacity, error) {
 	regionFilter, nodeIDFilter := "", ""
-	if region != "" {
-		regionFilter = fmt.Sprintf(`, region="%s"`, region)
+	if regions != "" {
+		regionFilter = fmt.Sprintf(`, region=~"%s"`, strings.Replace(regions, ",", "|", -1))
 	}
 	if nodeID != "" {
 		nodeIDFilter = fmt.Sprintf(`, node_id="%s"`, nodeID)
 	}
-	query := fmt.Sprintf(`sum(livepeer_ai_container_idle{job="orchestrator", region!~".*secondary", region!~"1legion.*"%s%s})`, regionFilter, nodeIDFilter)
+	regionsExcludeFilter := `, region!~".*secondary", region!~"1legion.*"`
+	if regionsExclude != "" {
+		regionsExcludeFilter = fmt.Sprintf(`, region!~"%s"`, strings.Replace(regionsExclude, ",", "|", -1))
+	}
+	filters := fmt.Sprintf(`{job="orchestrator"%s%s%s}`, regionsExcludeFilter, regionFilter, nodeIDFilter)
+
+	query := fmt.Sprintf(`sum(livepeer_ai_container_idle%s)`, filters)
 
 	idle, err := c.queryInt64(ctx, query)
 	if err != nil {
 		return AICapacity{}, err
 	}
 
-	query = fmt.Sprintf(`sum(livepeer_ai_container_in_use{job="orchestrator", region!~".*secondary", region!~"1legion.*"%s%s})`, regionFilter, nodeIDFilter)
+	query = fmt.Sprintf(`sum(livepeer_ai_container_in_use%s)`, filters)
 
 	inUse, err := c.queryInt64(ctx, query)
 	if err != nil {

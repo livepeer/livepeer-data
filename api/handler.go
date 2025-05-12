@@ -604,7 +604,10 @@ func (h *apiHandler) queryRealtimeServerViewership() http.HandlerFunc {
 
 func (h *apiHandler) queryAICapacity() http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
-		metrics, err := h.ai.QueryAICapacity(r.Context(), r.URL.Query().Get("region"), r.URL.Query().Get("nodeId"))
+		regions := r.URL.Query().Get("regions")               // comma separated list of regions
+		regionsExclude := r.URL.Query().Get("regionsExclude") // comma separated list of regions to exclude
+		nodeID := r.URL.Query().Get("nodeId")                 // filter to a specific node e.g. tll-2
+		metrics, err := h.ai.QueryAICapacity(r.Context(), regions, nodeID, regionsExclude)
 		if err != nil {
 			respondError(rw, http.StatusInternalServerError, err)
 			return
