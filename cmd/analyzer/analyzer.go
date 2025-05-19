@@ -50,6 +50,8 @@ type cliFlags struct {
 
 	viewsOpts views.ClientOptions
 	usageOpts usage.ClientOptions
+
+	aiCapacityQueryFilters string
 }
 
 func parseFlags(version string) cliFlags {
@@ -103,6 +105,8 @@ func parseFlags(version string) cliFlags {
 	fs.StringVar(&cli.viewsOpts.ClickhouseOptions.User, "clickhouse-user", "", "Clickhouse User")
 	fs.StringVar(&cli.viewsOpts.ClickhouseOptions.Password, "clickhouse-password", "", "Clickhouse Password")
 
+	fs.StringVar(&cli.aiCapacityQueryFilters, "ai-capacity-query-filters", "", "Additional prometheus filters to use for AI capacity query")
+
 	flag.Set("logtostderr", "true")
 	glogVFlag := flag.Lookup("v")
 	verbosity := fs.Int("v", 0, "Log verbosity {0-10}")
@@ -155,7 +159,7 @@ func Run(build BuildFlags) {
 
 	views, usage := provisionDataAnalytics(cli)
 
-	ai, err := ai.NewClient(cli.viewsOpts.Prometheus)
+	ai, err := ai.NewClient(cli.viewsOpts.Prometheus, cli.aiCapacityQueryFilters)
 	if err != nil {
 		glog.Fatalf("Error creating ai client. err=%q", err)
 	}
