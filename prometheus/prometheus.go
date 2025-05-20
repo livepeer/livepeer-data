@@ -79,7 +79,7 @@ type AICapacity struct {
 	IdleContainers  int64 `json:"idleContainers"`
 }
 
-func (c *Prometheus) QueryAICapacity(ctx context.Context, regions, nodeID, regionsExclude string) (AICapacity, error) {
+func (c *Prometheus) QueryAICapacity(ctx context.Context, regions, nodeID, regionsExclude, additionalFilters string) (AICapacity, error) {
 	regionFilter, nodeIDFilter := "", ""
 	if regions != "" {
 		regionFilter = fmt.Sprintf(`, region=~"%s"`, strings.Replace(regions, ",", "|", -1))
@@ -91,7 +91,7 @@ func (c *Prometheus) QueryAICapacity(ctx context.Context, regions, nodeID, regio
 	if regionsExclude != "" {
 		regionsExcludeFilter = fmt.Sprintf(`, region!~"%s"`, strings.Replace(regionsExclude, ",", "|", -1))
 	}
-	filters := fmt.Sprintf(`{job="orchestrator"%s%s%s}`, regionsExcludeFilter, regionFilter, nodeIDFilter)
+	filters := fmt.Sprintf(`{job="orchestrator"%s%s%s%s}`, regionsExcludeFilter, regionFilter, nodeIDFilter, additionalFilters)
 
 	query := fmt.Sprintf(`sum(livepeer_ai_container_idle%s)`, filters)
 
