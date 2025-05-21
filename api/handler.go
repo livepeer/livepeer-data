@@ -134,7 +134,7 @@ func (h *apiHandler) viewershipHandler() chi.Router {
 
 	// TODO: Remove this deprecated endpoint once we know no one is using it
 	h.withMetrics(router, "get_total_views").
-		With(h.cache(false)).
+		With(h.cache(false, "")).
 		MethodFunc("GET", fmt.Sprintf(`/{%s}/total`, assetIDParam), h.getTotalViews)
 
 	// realtime viewership server side (internal-only)
@@ -143,16 +143,16 @@ func (h *apiHandler) viewershipHandler() chi.Router {
 
 	// total views public API
 	h.withMetrics(router, "query_total_viewership").
-		With(h.cache(false)).
+		With(h.cache(false, "")).
 		MethodFunc("GET", fmt.Sprintf(`/query/total/{%s}`, playbackIDParam), h.queryTotalViewership)
 	// creator views API, requires assetId or streamId on the query-string
 	h.withMetrics(router, "query_creator_viewership").
-		With(h.cache(true)).
+		With(h.cache(true, "")).
 		With(ensureIsCreatorQuery).
 		MethodFunc("GET", `/query/creator`, h.queryViewership(false))
 	// full application views API, gets access to all metrics and filters
 	h.withMetrics(router, "query_application_viewership").
-		With(h.cache(true)).
+		With(h.cache(true, "")).
 		MethodFunc("GET", `/query`, h.queryViewership(true))
 	// realtime viewership
 	h.withMetrics(router, "query_realtime_viewership").
@@ -166,26 +166,33 @@ func (h *apiHandler) viewershipHandler() chi.Router {
 func (h *apiHandler) usageHandler() chi.Router {
 	opts := h.opts
 
-	router := chi.NewRouter()
+	var router chi.Router = chi.NewRouter()
 	if h.usage == nil {
 		router.Handle("/*", notImplemented())
 		return router
 	}
+
+	authRouter := router
 	if opts.AuthURL != "" {
-		router.Use(authorization(opts.AuthURL))
+		authRouter = router.With(authorization(opts.AuthURL))
 	}
 
-	h.withMetrics(router, "query_usage").
-		With(h.cache(true)).
+	h.withMetrics(authRouter, "query_usage").
+		With(h.cache(true, "")).
 		MethodFunc("GET", `/query`, h.queryUsage())
 
-	h.withMetrics(router, "query_total_usage").
-		With(h.cache(true)).
+	h.withMetrics(authRouter, "query_total_usage").
+		With(h.cache(true, "")).
 		MethodFunc("GET", `/query/total`, h.queryTotalUsage())
 
-	h.withMetrics(router, "query_active_users").
-		With(h.cache(true)).
+	h.withMetrics(authRouter, "query_active_users").
+		With(h.cache(true, "")).
 		MethodFunc("GET", `/query/active`, h.queryActiveUsersUsage())
+
+	// platform metrics public API
+	h.withMetrics(router, "query_platform_usage").
+		With(h.cache(false, "public, max-age=3600, stale-while-revalidate=21600, stale-if-error=86400")).
+		MethodFunc("GET", `/query/platform`, h.queryPlatformUsage())
 
 	return router
 }
@@ -212,12 +219,15 @@ func (h *apiHandler) withMetrics(router chi.Router, name string) chi.Router {
 	})
 }
 
-func (h *apiHandler) cache(varyAuth bool) middleware {
+func (h *apiHandler) cache(varyAuth bool, cacheControl string) middleware {
 	return func(next http.Handler) http.Handler {
 		next = httpCache.Middleware(next)
 
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-			rw.Header().Set("Cache-Control", "public, max-age=60, s-maxage=300, stale-while-revalidate=3600, stale-if-error=86400")
+			if cacheControl == "" {
+				cacheControl = "public, max-age=60, s-maxage=300, stale-while-revalidate=3600, stale-if-error=86400"
+			}
+			rw.Header().Set("Cache-Control", cacheControl)
 
 			if varyAuth {
 				rw.Header().Add("Vary", "Authorization")
@@ -539,6 +549,25 @@ func (h *apiHandler) queryActiveUsersUsage() http.HandlerFunc {
 			respondError(rw, http.StatusInternalServerError, err)
 			return
 		}
+
+		respondJson(rw, http.StatusOK, usage)
+	}
+}
+
+func (h *apiHandler) queryPlatformUsage() http.HandlerFunc {
+	return func(rw http.ResponseWriter, r *http.Request) {
+		// TODO: Make some real query here
+		query := usage.QuerySpec{
+			// TODO
+		}
+
+		usage, err := h.usage.QuerySummary(r.Context(), query)
+		if err != nil {
+			respondError(rw, http.StatusInternalServerError, err)
+			return
+		}
+
+		// TODO: probably process/clean-up the output format
 
 		respondJson(rw, http.StatusOK, usage)
 	}
