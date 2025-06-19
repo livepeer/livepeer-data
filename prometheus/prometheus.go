@@ -91,25 +91,16 @@ func (c *Prometheus) QueryAICapacity(ctx context.Context, regions, nodeID, regio
 	if regionsExclude != "" {
 		regionsExcludeFilter = fmt.Sprintf(`, region!~"%s"`, strings.Replace(regionsExclude, ",", "|", -1))
 	}
-	filters := fmt.Sprintf(`{job="orchestrator"%s%s%s%s}`, regionsExcludeFilter, regionFilter, nodeIDFilter, additionalFilters)
+	filters := fmt.Sprintf(`{orchestrator_uri!=""%s%s%s%s}`, regionsExcludeFilter, regionFilter, nodeIDFilter, additionalFilters)
 
-	query := fmt.Sprintf(`sum(livepeer_ai_container_idle%s)`, filters)
+	query := fmt.Sprintf(`sum(max by(orchestrator_uri) (livepeer_ai_container_idle%s))`, filters)
 
 	idle, err := c.queryInt64(ctx, query)
 	if err != nil {
 		return AICapacity{}, err
 	}
 
-	query = fmt.Sprintf(`sum(livepeer_ai_container_in_use%s)`, filters)
-
-	inUse, err := c.queryInt64(ctx, query)
-	if err != nil {
-		return AICapacity{}, err
-	}
-
 	return AICapacity{
-		TotalContainers: idle + inUse,
-		InUseContainers: inUse,
-		IdleContainers:  idle,
+		IdleContainers: idle,
 	}, nil
 }
