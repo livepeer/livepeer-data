@@ -22,6 +22,6 @@ func NewClient(promConfig promClient.Config, capacityQueryFilters string) (*Clie
 	return &Client{prom, capacityQueryFilters}, nil
 }
 
-func (c *Client) QueryAICapacity(ctx context.Context, regions, nodeID, regionsExclude string) (prometheus.AICapacity, error) {
-	return c.prom.QueryAICapacity(ctx, regions, nodeID, regionsExclude, c.capacityQueryFilters)
+func (c *Client) QueryAICapacity(ctx context.Context, regions, nodeID, regionsExclude, models string) (prometheus.AICapacity, error) {
+	return c.prom.QueryAICapacity(ctx, regions, nodeID, regionsExclude, models, c.capacityQueryFilters)
 }

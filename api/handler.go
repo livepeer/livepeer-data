@@ -607,7 +607,8 @@ func (h *apiHandler) queryAICapacity() http.HandlerFunc {
 		regions := r.URL.Query().Get("regions")               // comma separated list of regions
 		regionsExclude := r.URL.Query().Get("regionsExclude") // comma separated list of regions to exclude
 		nodeID := r.URL.Query().Get("nodeId")                 // filter to a specific node e.g. tll-2
-		metrics, err := h.ai.QueryAICapacity(r.Context(), regions, nodeID, regionsExclude)
+		models := r.URL.Query().Get("models")                 // models e.g. comfyui
+		metrics, err := h.ai.QueryAICapacity(r.Context(), regions, nodeID, regionsExclude, models)
 		if err != nil {
 			respondError(rw, http.StatusInternalServerError, err)
 			return
