@@ -79,19 +79,22 @@ type AICapacity struct {
 	IdleContainers  int64 `json:"idleContainers"`
 }
 
-func (c *Prometheus) QueryAICapacity(ctx context.Context, regions, nodeID, regionsExclude, additionalFilters string) (AICapacity, error) {
-	regionFilter, nodeIDFilter := "", ""
+func (c *Prometheus) QueryAICapacity(ctx context.Context, regions, nodeID, regionsExclude, models, additionalFilters string) (AICapacity, error) {
+	regionFilter, nodeIDFilter, modelFilter := "", "", ""
 	if regions != "" {
 		regionFilter = fmt.Sprintf(`, region=~"%s"`, strings.Replace(regions, ",", "|", -1))
 	}
 	if nodeID != "" {
 		nodeIDFilter = fmt.Sprintf(`, node_id="%s"`, nodeID)
 	}
+	if models != "" {
+		modelFilter = fmt.Sprintf(`, model_name=~"%s"`, strings.Replace(models, ",", "|", -1))
+	}
 	regionsExcludeFilter := `, region!~".*secondary", region!~"1legion.*"`
 	if regionsExclude != "" {
 		regionsExcludeFilter = fmt.Sprintf(`, region!~"%s"`, strings.Replace(regionsExclude, ",", "|", -1))
 	}
-	filters := fmt.Sprintf(`{orchestrator_uri!=""%s%s%s%s}`, regionsExcludeFilter, regionFilter, nodeIDFilter, additionalFilters)
+	filters := fmt.Sprintf(`{orchestrator_uri!=""%s%s%s%s%s}`, regionsExcludeFilter, regionFilter, nodeIDFilter, additionalFilters, modelFilter)
 
 	query := fmt.Sprintf(`sum(max by(orchestrator_uri) (livepeer_ai_container_idle%s))`, filters)
 
