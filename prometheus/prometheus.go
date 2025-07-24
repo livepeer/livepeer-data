@@ -80,7 +80,7 @@ type AICapacity struct {
 }
 
 func (c *Prometheus) QueryAICapacity(ctx context.Context, regions, nodeID, regionsExclude, models, additionalFilters string) (AICapacity, error) {
-	regionFilter, nodeIDFilter, modelFilter := "", "", ""
+	regionFilter, nodeIDFilter, modelFilter := "", "", "comfyui"
 	if regions != "" {
 		regionFilter = fmt.Sprintf(`, region=~"%s"`, strings.Replace(regions, ",", "|", -1))
 	}
