@@ -15,6 +15,7 @@ type Metric struct {
 	// breakdown fields
 	UserID    string                `json:"UserID,omitempty"`
 	CreatorID data.Nullable[string] `json:"CreatorID,omitempty"`
+	ProjectID data.Nullable[string] `json:"ProjectID,omitempty"`
 
 	// metric data
 	DeliveryUsageMins data.Nullable[float64] `json:"DeliveryUsageMins,omitempty"`
@@ -57,9 +58,11 @@ func (c *Client) QuerySummary(ctx context.Context, spec QuerySpec) (*Metric, err
 
 func usageSummaryToMetric(row *UsageSummaryRow, spec QuerySpec) *Metric {
 	inclCreatorID := spec.Filter.CreatorID != "" || spec.hasBreakdownBy("creatorId")
+	inclProjectID := spec.Filter.ProjectID != "" || spec.hasBreakdownBy("projectId")
 	m := &Metric{
 		UserID:            row.UserID,
 		CreatorID:         toStringPtr(row.CreatorID, inclCreatorID),
+		ProjectID:         toStringPtr(row.ProjectID, inclProjectID),
 		DeliveryUsageMins: toFloat64Ptr(row.DeliveryUsageMins, true),
 		TotalUsageMins:    toFloat64Ptr(row.TotalUsageMins, true),
 		StorageUsageMins:  toFloat64Ptr(row.StorageUsageMins, true),
