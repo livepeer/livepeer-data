@@ -74,9 +74,7 @@ func (c *Prometheus) queryInt64(ctx context.Context, query string) (int64, error
 }
 
 type AICapacity struct {
-	TotalContainers int64 `json:"totalContainers"`
-	InUseContainers int64 `json:"inUseContainers"`
-	IdleContainers  int64 `json:"idleContainers"`
+	IdleContainers int64 `json:"idleContainers"`
 }
 
 func (c *Prometheus) QueryAICapacity(ctx context.Context, regions, nodeID, regionsExclude, models, additionalFilters string) (AICapacity, error) {
