@@ -75,6 +75,7 @@ func (c *Prometheus) queryInt64(ctx context.Context, query string) (int64, error
 
 type AICapacity struct {
 	IdleContainers int64 `json:"idleContainers"`
+	ActiveStreams  int64 `json:"activeStreams"`
 }
 
 func (c *Prometheus) QueryAICapacity(ctx context.Context, regions, nodeID, regionsExclude, models, additionalFilters string) (AICapacity, error) {
@@ -101,7 +102,18 @@ func (c *Prometheus) QueryAICapacity(ctx context.Context, regions, nodeID, regio
 		return AICapacity{}, err
 	}
 
+	// sum by(region) (max by(region, node_id) (livepeer_ai_current_live_pipelines{livepeer_node_type=~"prod-livepeer-ai-gateway.*", region=~"${gateway:pipe}"}))
+	// sum by(pipeline) (max by(node_id, pipeline) (livepeer_ai_current_live_pipelines{livepeer_node_type=~".*-livepeer-ai-gateway.*", region=~"${gateway:pipe}"}))
+
+	streamsFilters := fmt.Sprintf(`{livepeer_node_type=~".*-livepeer-ai-gateway.*"%s%s%s%s}`, regionsExcludeFilter, regionFilter, additionalFilters, modelFilter)
+
+	active, err := c.queryInt64(ctx, fmt.Sprintf(`sum(max by(region, node_id) (livepeer_ai_current_live_pipelines%s))`, streamsFilters))
+	if err != nil {
+		return AICapacity{}, err
+	}
+
 	return AICapacity{
 		IdleContainers: idle,
+		ActiveStreams:  active,
 	}, nil
 }
