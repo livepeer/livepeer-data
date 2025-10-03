@@ -107,7 +107,7 @@ func (c *Prometheus) QueryAICapacity(ctx context.Context, regions, nodeID, regio
 	}
 	streamsFilters := fmt.Sprintf(`{livepeer_node_type=~".*-livepeer-ai-gateway.*"%s%s%s%s}`, regionsExcludeFilter, regionFilter, additionalFilters, modelFilter)
 
-	active, err := c.queryInt64(ctx, fmt.Sprintf(`sum(max by(region, node_id) (livepeer_ai_current_live_pipelines%s))`, streamsFilters))
+	active, err := c.queryInt64(ctx, fmt.Sprintf(`sum(max by(region, node_id, pipeline) (livepeer_ai_current_live_pipelines%s))`, streamsFilters))
 	if err != nil {
 		return AICapacity{}, err
 	}
