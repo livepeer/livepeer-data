@@ -102,9 +102,9 @@ func (c *Prometheus) QueryAICapacity(ctx context.Context, regions, nodeID, regio
 		return AICapacity{}, err
 	}
 
-	// sum by(region) (max by(region, node_id) (livepeer_ai_current_live_pipelines{livepeer_node_type=~"prod-livepeer-ai-gateway.*", region=~"${gateway:pipe}"}))
-	// sum by(pipeline) (max by(node_id, pipeline) (livepeer_ai_current_live_pipelines{livepeer_node_type=~".*-livepeer-ai-gateway.*", region=~"${gateway:pipe}"}))
-
+	if models != "" {
+		modelFilter = fmt.Sprintf(`, pipeline=~"%s"`, strings.Replace(models, ",", "|", -1))
+	}
 	streamsFilters := fmt.Sprintf(`{livepeer_node_type=~".*-livepeer-ai-gateway.*"%s%s%s%s}`, regionsExcludeFilter, regionFilter, additionalFilters, modelFilter)
 
 	active, err := c.queryInt64(ctx, fmt.Sprintf(`sum(max by(region, node_id) (livepeer_ai_current_live_pipelines%s))`, streamsFilters))
