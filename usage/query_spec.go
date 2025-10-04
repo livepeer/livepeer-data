@@ -13,6 +13,7 @@ type FromToQuerySpec struct {
 type QueryFilter struct {
 	CreatorID string
 	UserID    string
+	ProjectID string
 }
 
 type QuerySpec struct {
@@ -29,6 +30,7 @@ var allowedTimeSteps = map[string]bool{
 
 var usageBreakdownFields = map[string]string{
 	"creatorId": "creator_id",
+	"projectId": "project_id",
 }
 
 func (q *QuerySpec) HasAnyBreakdown() bool {
