@@ -25,28 +25,44 @@ type Metric struct {
 type Client struct {
 	opts     ClientOptions
 	lp       *livepeer.Client
-	bigquery BigQuery
+	billing  BigQuery // backend for billing queries (ClickHouse or BigQuery)
+	bigquery BigQuery // always BigQuery, used for non-billing queries like total usage
 }
 
 type ClientOptions struct {
 	Livepeer livepeer.ClientOptions
 	BigQueryOptions
+	Clickhouse ClickhouseOptions
 }
 
 func NewClient(opts ClientOptions) (*Client, error) {
 	lp := livepeer.NewAPIClient(opts.Livepeer)
-	bqOpts := opts.BigQueryOptions
 
-	bigquery, err := NewBigQuery(bqOpts)
-	if err != nil {
-		return nil, fmt.Errorf("error creating bigquery client: %w", err)
+	// Always create BigQuery client for non-billing queries (total usage / explorer_day_data)
+	var bq BigQuery
+	if opts.BigQueryCredentialsJSON != "" {
+		var err error
+		bq, err = NewBigQuery(opts.BigQueryOptions)
+		if err != nil {
+			return nil, fmt.Errorf("error creating bigquery client: %w", err)
+		}
 	}
 
-	return &Client{opts, lp, bigquery}, nil
+	// Use ClickHouse for billing queries if configured, otherwise BigQuery
+	billing := bq
+	if opts.Clickhouse.Addr != "" {
+		ch, err := NewClickhouse(opts.Clickhouse)
+		if err != nil {
+			return nil, fmt.Errorf("error creating clickhouse client: %w", err)
+		}
+		billing = ch
+	}
+
+	return &Client{opts, lp, billing, bq}, nil
 }
 
 func (c *Client) QuerySummary(ctx context.Context, spec QuerySpec) (*Metric, error) {
-	summary, err := c.bigquery.QueryUsageSummary(ctx, spec)
+	summary, err := c.billing.QueryUsageSummary(ctx, spec)
 	if err != nil {
 		return nil, err
 	}
@@ -82,7 +98,7 @@ func toStringPtr(bqStr bigquery.NullString, asked bool) data.Nullable[string] {
 }
 
 func (c *Client) QuerySummaryWithBreakdown(ctx context.Context, spec QuerySpec) ([]Metric, error) {
-	summary, err := c.bigquery.QueryUsageSummaryWithBreakdown(ctx, spec)
+	summary, err := c.billing.QueryUsageSummaryWithBreakdown(ctx, spec)
 	if err != nil {
 		return nil, err
 	}
@@ -95,6 +111,10 @@ func (c *Client) QuerySummaryWithBreakdown(ctx context.Context, spec QuerySpec) 
 }
 
 func (c *Client) QueryTotalSummary(ctx context.Context, spec FromToQuerySpec) ([]TotalUsageSummaryRow, error) {
+	// Total usage (explorer_day_data) always goes through BigQuery
+	if c.bigquery == nil {
+		return nil, fmt.Errorf("bigquery client not configured, required for total usage queries")
+	}
 	summary, err := c.bigquery.QueryTotalUsageSummary(ctx, spec)
 	if err != nil {
 		return nil, err
@@ -104,7 +124,7 @@ func (c *Client) QueryTotalSummary(ctx context.Context, spec FromToQuerySpec) ([
 }
 
 func (c *Client) QueryActiveUsageSummary(ctx context.Context, spec FromToQuerySpec) ([]ActiveUsersSummaryRow, error) {
-	summary, err := c.bigquery.QueryActiveUsersUsageSummary(ctx, spec)
+	summary, err := c.billing.QueryActiveUsersUsageSummary(ctx, spec)
 	if err != nil {
 		return nil, err
 	}
