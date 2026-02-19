@@ -19,7 +19,3 @@ build/
 # Environment files
 *.env
 *.env.*
-
-# Local run scripts and credentials
-run_analyzer.sh
-bq-credentials.json
