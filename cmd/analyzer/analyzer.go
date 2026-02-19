@@ -94,11 +94,11 @@ func parseFlags(version string) cliFlags {
 	fs.StringVar(&cli.viewsOpts.Livepeer.AccessToken, "livepeer-access-token", "", "Access token for Livepeer API")
 	fs.StringVar(&cli.viewsOpts.Prometheus.Address, "prometheus-address", "", "Address of the Prometheus API")
 	fs.StringVar(&cli.viewsOpts.BigQueryCredentialsJSON, "bigquery-credentials-json", "", "Google Cloud service account credentials JSON with access to BigQuery")
-	fs.StringVar(&cli.viewsOpts.BigQueryOptions.ViewershipEventsTable, "viewership-events-table", "livepeer-analytics.staging.viewership_events", "BigQuery table to read viewership events from")
-	fs.StringVar(&cli.viewsOpts.BigQueryOptions.ViewershipSummaryTable, "viewership-summary-table", "livepeer-analytics.staging.viewership_summary_by_video", "BigQuery table to read viewership summarized metrics from")
-	fs.StringVar(&cli.usageOpts.BigQueryOptions.HourlyUsageTable, "hourly-usage-table", "livepeer-analytics.staging.hourly_billing_usage", "BigQuery table to read hourly usage metrics from")
-	fs.StringVar(&cli.usageOpts.BigQueryOptions.DailyUsageTable, "daily-data-table", "livepeer-analytics.staging.explorer_day_data", "BigQuery table to read total usage metrics from")
-	fs.StringVar(&cli.usageOpts.BigQueryOptions.UsersTable, "users-table", "livepeer-analytics.staging.studio_users", "BigQuery table to read studio users from")
+	fs.StringVar(&cli.viewsOpts.ViewershipEventsTable, "viewership-events-table", "livepeer-analytics.staging.viewership_events", "BigQuery table to read viewership events from")
+	fs.StringVar(&cli.viewsOpts.ViewershipSummaryTable, "viewership-summary-table", "livepeer-analytics.staging.viewership_summary_by_video", "BigQuery table to read viewership summarized metrics from")
+	fs.StringVar(&cli.usageOpts.HourlyUsageTable, "hourly-usage-table", "livepeer-analytics.staging.hourly_billing_usage", "BigQuery table to read hourly usage metrics from")
+	fs.StringVar(&cli.usageOpts.DailyUsageTable, "daily-data-table", "livepeer-analytics.staging.explorer_day_data", "BigQuery table to read total usage metrics from")
+	fs.StringVar(&cli.usageOpts.UsersTable, "users-table", "livepeer-analytics.staging.studio_users", "BigQuery table to read studio users from")
 	fs.Int64Var(&cli.viewsOpts.MaxBytesBilledPerBigQuery, "max-bytes-billed-per-big-query", 100*1024*1024 /* 100 MB */, "Max bytes billed configuration to use for the queries to BigQuery")
 	fs.StringVar(&cli.viewsOpts.ClickhouseOptions.Addr, "clickhouse-addr", "", "Address of Clickhouse Database")
 	fs.StringVar(&cli.viewsOpts.ClickhouseOptions.Database, "clickhouse-database", "", "Database name in Clickhouse")
@@ -143,7 +143,7 @@ func parseFlags(version string) cliFlags {
 		os.Exit(0)
 	}
 
-	cli.usageOpts.BigQueryOptions.BigQueryCredentialsJSON = cli.viewsOpts.BigQueryOptions.BigQueryCredentialsJSON
+	cli.usageOpts.BigQueryCredentialsJSON = cli.viewsOpts.BigQueryCredentialsJSON
 	cli.usageOpts.Livepeer = cli.viewsOpts.Livepeer
 
 	// Share ClickHouse connection config from views to usage
