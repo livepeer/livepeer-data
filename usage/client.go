@@ -23,10 +23,9 @@ type Metric struct {
 }
 
 type Client struct {
-	opts     ClientOptions
-	lp       *livepeer.Client
-	billing  BigQuery // backend for billing queries (ClickHouse or BigQuery)
-	bigquery BigQuery // always BigQuery, used for non-billing queries like total usage
+	opts    ClientOptions
+	lp      *livepeer.Client
+	billing BigQuery // backend for all usage queries (ClickHouse or BigQuery)
 }
 
 type ClientOptions struct {
@@ -38,27 +37,23 @@ type ClientOptions struct {
 func NewClient(opts ClientOptions) (*Client, error) {
 	lp := livepeer.NewAPIClient(opts.Livepeer)
 
-	// Always create BigQuery client for non-billing queries (total usage / explorer_day_data)
-	var bq BigQuery
-	if opts.BigQueryCredentialsJSON != "" {
-		var err error
-		bq, err = NewBigQuery(opts.BigQueryOptions)
-		if err != nil {
-			return nil, fmt.Errorf("error creating bigquery client: %w", err)
-		}
-	}
-
-	// Use ClickHouse for billing queries if configured, otherwise BigQuery
-	billing := bq
+	// Use ClickHouse for all usage queries if configured, otherwise BigQuery
+	var billing BigQuery
 	if opts.Clickhouse.Addr != "" {
 		ch, err := NewClickhouse(opts.Clickhouse)
 		if err != nil {
 			return nil, fmt.Errorf("error creating clickhouse client: %w", err)
 		}
 		billing = ch
+	} else if opts.BigQueryCredentialsJSON != "" {
+		bq, err := NewBigQuery(opts.BigQueryOptions)
+		if err != nil {
+			return nil, fmt.Errorf("error creating bigquery client: %w", err)
+		}
+		billing = bq
 	}
 
-	return &Client{opts, lp, billing, bq}, nil
+	return &Client{opts, lp, billing}, nil
 }
 
 func (c *Client) QuerySummary(ctx context.Context, spec QuerySpec) (*Metric, error) {
@@ -111,11 +106,7 @@ func (c *Client) QuerySummaryWithBreakdown(ctx context.Context, spec QuerySpec) 
 }
 
 func (c *Client) QueryTotalSummary(ctx context.Context, spec FromToQuerySpec) ([]TotalUsageSummaryRow, error) {
-	// Total usage (explorer_day_data) always goes through BigQuery
-	if c.bigquery == nil {
-		return nil, fmt.Errorf("bigquery client not configured, required for total usage queries")
-	}
-	summary, err := c.bigquery.QueryTotalUsageSummary(ctx, spec)
+	summary, err := c.billing.QueryTotalUsageSummary(ctx, spec)
 	if err != nil {
 		return nil, err
 	}
