@@ -211,9 +211,8 @@ func provisionStreamHealthcore(ctx context.Context, cli cliFlags) *health.Core {
 }
 
 func provisionDataAnalytics(cli cliFlags) (*views.Client, *usage.Client) {
-	if cli.disableBigQuery {
-		return nil, nil
-	}
+	cli.viewsOpts.DisableBigQuery = cli.disableBigQuery
+
 	views, err := views.NewClient(cli.viewsOpts)
 	if err != nil {
 		glog.Fatalf("Error creating views client. err=%q", err)
