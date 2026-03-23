@@ -275,3 +275,13 @@ func toTypedValues[RowT any](it *bigquery.RowIterator) ([]RowT, error) {
 
 	return values, nil
 }
+
+type noopBigQuery struct{}
+
+func (n *noopBigQuery) QueryViewsEvents(ctx context.Context, spec QuerySpec) ([]ViewershipEventRow, error) {
+	return nil, nil
+}
+
+func (n *noopBigQuery) QueryViewsSummary(ctx context.Context, playbackID string) (*ViewSummaryRow, error) {
+	return nil, nil
+}

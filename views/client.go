@@ -58,6 +58,8 @@ type ClientOptions struct {
 
 	BigQueryOptions
 	ClickhouseOptions
+
+	DisableBigQuery bool
 }
 
 type Client struct {
@@ -76,9 +78,15 @@ func NewClient(opts ClientOptions) (*Client, error) {
 		return nil, fmt.Errorf("error creating prometheus client: %w", err)
 	}
 
-	bigquery, err := NewBigQuery(opts.BigQueryOptions)
-	if err != nil {
-		return nil, fmt.Errorf("error creating bigquery client: %w", err)
+	var bq BigQuery
+	if opts.DisableBigQuery {
+		bq = &noopBigQuery{}
+	} else {
+		var err error
+		bq, err = NewBigQuery(opts.BigQueryOptions)
+		if err != nil {
+			return nil, fmt.Errorf("error creating bigquery client: %w", err)
+		}
 	}
 
 	clickhouse, err := NewClickhouseConn(opts.ClickhouseOptions)
@@ -86,7 +94,7 @@ func NewClient(opts ClientOptions) (*Client, error) {
 		return nil, fmt.Errorf("error creating clickhouse client: %w", err)
 	}
 
-	return &Client{opts, lp, prom, bigquery, clickhouse}, nil
+	return &Client{opts, lp, prom, bq, clickhouse}, nil
 }
 
 func (c *Client) Deprecated_GetTotalViews(ctx context.Context, id string) ([]prometheus.TotalViews, error) {
