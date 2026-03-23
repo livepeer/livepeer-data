@@ -107,6 +107,7 @@ func parseFlags(version string) cliFlags {
 
 	// ClickHouse table options for usage (billing)
 	fs.StringVar(&cli.usageOpts.Clickhouse.HourlyUsageTable, "clickhouse-hourly-usage-table", "semantic.studio_hourly_billing_usage", "ClickHouse table for hourly billing usage data")
+	fs.StringVar(&cli.usageOpts.Clickhouse.DailyUsageTable, "clickhouse-daily-usage-table", "semantic.explorer_day_data", "ClickHouse table for explorer day data (total usage)")
 	fs.StringVar(&cli.usageOpts.Clickhouse.UsersTable, "clickhouse-users-table", "semantic.studio_users", "ClickHouse table for studio users")
 
 	fs.StringVar(&cli.aiCapacityQueryFilters, "ai-capacity-query-filters", "", "Additional prometheus filters to use for AI capacity query")
