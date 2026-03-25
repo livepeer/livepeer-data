@@ -44,8 +44,8 @@ type ClickhouseTotalUsageSummaryRow struct {
 	FeeDerivedMinutes     float64   `ch:"fee_derived_minutes"`
 	ParticipationRate     float64   `ch:"participation_rate"`
 	Inflation             float64   `ch:"inflation"`
-	ActiveTranscoderCount int64     `ch:"active_transcoder_count"`
-	DelegatorsCount       int64     `ch:"delegators_count"`
+	ActiveTranscoderCount float64   `ch:"active_transcoder_count"`
+	DelegatorsCount       float64   `ch:"delegators_count"`
 	AveragePricePerPixel  float64   `ch:"average_price_per_pixel"`
 	AveragePixelPerMinute float64   `ch:"average_pixel_per_minute"`
 }
@@ -171,8 +171,8 @@ func (ch *clickhouseHandler) QueryTotalUsageSummary(ctx context.Context, spec Fr
 			FeeDerivedMinutes:     row.FeeDerivedMinutes,
 			ParticipationRate:     row.ParticipationRate,
 			Inflation:             row.Inflation,
-			ActiveTranscoderCount: row.ActiveTranscoderCount,
-			DelegatorsCount:       row.DelegatorsCount,
+			ActiveTranscoderCount: int64(row.ActiveTranscoderCount),
+			DelegatorsCount:       int64(row.DelegatorsCount),
 			AveragePricePerPixel:  row.AveragePricePerPixel,
 			AveragePixelPerMinute: row.AveragePixelPerMinute,
 		}
